@@ -1,0 +1,597 @@
+                                       Computer Vision and Image Understanding 254 (2025) 104338
+                                                  Contents lists available at ScienceDirect
+
+                            Computer Vision and Image Understanding
+
+                                          journal homepage: www.elsevier.com/locate/cviu
+
+Spatial and temporal beliefs for mistake detection in assembly tasks$
+
+Guodong Ding a,∗, Fadime Sener b, Shugao Ma b, Angela Yao a
+
+a School of Computing, National University of Singapore, Singapore
+b Meta Reality Labs, United States of America
+
+ARTICLE INFO                A B S T R A C T
+
+Keywords:                   Assembly tasks, as an integral part of daily routines and activities, involve a series of sequential steps that are
+Mistake detection           prone to error. This paper proposes a novel method for identifying ordering mistakes in assembly tasks based
+Assembly tasks              on knowledge-grounded beliefs. The beliefs comprise spatial and temporal aspects, each serving a unique role.
+Knowledge-grounded beliefs  Spatial beliefs capture the structural relationships among assembly components and indicate their topological
+                            feasibility. Temporal beliefs model the action preconditions and enforce sequencing constraints. Furthermore,
+                            we introduce a learning algorithm that dynamically updates and augments the belief sets online. To evaluate,
+                            we first test our approach in deducing predefined rules on synthetic data based on industry assembly. We
+                            also verify our approach on the real-world Assembly101 dataset, enhanced with annotations of component
+                            information. Our framework achieves superior performance in detecting ordering mistakes under both synthetic
+                            and real-world settings, highlighting the effectiveness of our approach.
+
+1. Introduction                                                              one mistake, and 78.6% of these were ordering mistakes. An ordering
+                                                                             mistake example is shown in Fig. 4(a)l; if the ‘roof’ is placed on the
+    In assembly procedures, components or parts are brought together         ‘cabin’ before the ‘speaker’ and the ‘light’, it will be impossible to
+in a precise and sequential manner to produce a final product or struc-      position them afterwards. Just like for humans, mistakes are valuable
+ture. In everyday life, we assemble furniture, appliances, toys (Ben-        learning opportunities for intelligent systems by revealing possibilities
+Shabat et al., 2021; Ragusa et al., 2021; Sener et al., 2022), etc. Despite  for preventative adjustments.
+having manuals, assembly tasks are challenging due to their complexity
+or unclear instructions.1 Beyond the household, assembly extends into            Sener et al. (2022) first introduced the ordering mistake detection
+industries and workplaces. Manufacturers rely heavily on assembly            task for assembly with the release of the video dataset Assembly101.
+lines and processes to produce a wide array of goods (Kumar et al.,          Their benchmark formulated the problem as a video classification task
+2022; Cicirelli et al., 2022). These processes are meticulously designed     and used a neural network to predict mistake labels directly. However,
+to ensure precision, efficiency, and quality.                                this direct mapping from video features to mistake labels conflates the
+                                                                             action semantics and their temporal relations, making it challenging to
+    In real-world settings, making mistakes is a natural part of assembly    interpret the temporal dependencies. We, therefore, introduce a new
+tasks. Assembly is interesting to study due to its inherent complex-         set of annotations for Assembly101 that include part information to
+ity; mistakes in ordering, orientation, and fastening are common in          mitigate the ambiguities. While numerous video datasets exist for pro-
+assembly (Mattsson and Hogler, 2018; Sener et al., 2022). This work          cedural activity recognition (Kuehne et al., 2014; Zhukov et al., 2019;
+focuses on detecting ordering mistakes. Ordering mistakes can either         Tang et al., 2019), these datasets predominantly showcase successful
+be stand-alone, or they can have a cascade effect, impacting subsequent      outcomes and do not endorse any mistakes.
+steps and leading to the need for disassembly and reassembly. In the
+video dataset Assembly101 (Sener et al., 2022), adult participants were          Task graphs (Huang et al., 2019; Logeswaran et al., 2023) cap-
+asked to assemble and disassemble a toy vehicle designed for 4- to 6-        ture dependencies between key steps in a task, where Inductive Logic
+year-olds. However, nearly 60% of the sequences showcased at least           Programming (ILP) algorithms are implemented for the purpose. For
+
+ $ This research/project is supported by theNational Research Foundation, Singapore and DSO National Laboratories under its AI Singapore Programme (AISG
+Award No: AISG2-RP-2020-016). Any opinions, findings and conclusions or recommendations expressed in this material are those of the author(s) and do not
+reflect the views of National Research Foundation, Singapore.
+
+  ∗ Corresponding author.
+      E-mail addresses: dinggd@comp.nua.edu.sg (G. Ding), famesener@meta.com (F. Sener), shugao@meta.com (S. Ma), ayao@comp.nus.edu.sg (A. Yao).
+
+   1 A quick online search leads to dozens of articles with titles like ‘‘31PiecesofFurnitureYouWon’tHaveaHardTimeAssembling’’ and ‘‘The Secret to Assembling
+IKEA Furniture Without Losing Your Sanity’’
+
+https://doi.org/10.1016/j.cviu.2025.104338
+Received 30 May 2024; Received in revised form 2 March 2025; Accepted 3 March 2025
+Available online 7 March 2025
+1077-3142/© 2025 The Author(s). Published by Elsevier Inc. This is an open access article under the CC BY license
+(http://creativecommons.org/licenses/by/4.0/).
+G. Ding, F. Sener, S. Ma et al.                                                 Computer Vision and Image Understanding 254 (2025) 104338
+
+Fig. 1. Overview of our online mistake learning and detection system. Given a flow of action sequence, BeliefBuilder updates the knowledge-grounded spatial and temporal beliefs
+at each step. Inferencer make predictions on the action with beliefs. Ordering mistakes rely less on semantics yet more on the timing of the action. Step 3 & 6 are the same action
+but have different mistake labels.
+
+example, Sohn et al. (2020) integrates classification and regression tree            • We compose a synthetic dataset and enrich the Assembly101
+(CART) as the logic induction module to build their task graph with step               dataset with information about the mistake type and the explicit
+sequences in a reinforcement setting. It is noteworthy that ILP systems                component connections to facilitate the mistake detection task.
+are good at maximizing the objective function with the complete set                    Our method can better detect mistakes on both datasets and can
+of data but struggle to adjust and perform well in dynamic or real-time                also be integrated with perception modules.
+setups. This makes them less efficient for our mistake detection because
+of the online detection requirement.                                            2. Related work
+
+    We are motivated to build an adaptive intelligent system that has               Task Structure Construction. Our approach is the first to study
+the ability to learn from mistakes in an online fashion and then identify       ordering mistakes in procedural activities. Soran et al. (2015) tried to
+errors as novel sequences are observed. Specifically, assembly tasks            detect missing actions for making lattes. In their dataset, 18 of the 41
+entail a predefined sequence of steps dictated by the components’ struc-        videos have a purposefully omitted action, e.g., ‘steaming milk’. Soran
+ture.2 Furthermore, assembly is a sequential process; each step builds          et al. (2015) model the dependencies of latte-making actions with
+upon previous steps, demanding a specific order of actions. Lastly,             a directed graph and learn the graph from the complete sequences.
+assembly actions are reversible and can be undone by disassembly. This          Missing actions, however, are not identified until the entire sequence
+is in contrast to procedures like cooking, where actions are irreversible.      is completed. This method cannot be generalized to detect assembly
+                                                                                ordering mistakes in Assembly 101 since it can only identify missing
+    Inspired by these characteristics, we propose a mistake detec-              steps from a fixed sequence. Sohn et al. (2020) establish task precondi-
+tion framework presented in Fig. 1. The framework consists of two               tions using a off-the-shelf inductive logic programming (ILP) module.
+knowledge-grounded beliefs: spatial beliefs, capturing structural rela-         The same ILP technique has also been employed (Logeswaran et al.,
+tionships between components, and temporal beliefs, encompassing the            2023) for constructing task graphs solely from textual inputs.
+ordering constraints among action steps. Each of these beliefs attends to
+a distinct aspect of assembly tasks, as previously outlined. We differ-             Mistake vs Anomaly. Detecting anomalies and unintentional ac-
+entiate between two classes of temporal beliefs due to their different          tions (Epstein et al., 2020; Sultani et al., 2018; Chakravarthy et al.,
+unique error accumulation mechanisms. Additionally, we introduce                2022; Zatsarynna et al., 2022), especially in temporal sequences, share
+algorithms designed for the construction of belief sets (BeliefBuilder)         a similar thread with our research objects. These tasks identify actions
+and inference (Inferencer) in an online setup.                                  that deviate from their intended course. However, anomalies and unin-
+                                                                                tended actions differ from procedural mistakes as they exhibit distinct
+    To summarize, our main contributions are threefold:                         semantics from normal actions. For instance, a person walking suddenly
+                                                                                falls to the ground; the semantics of falling is atypical from walking.
+     • We present two belief sets for the assembly tasks. Spatial beliefs       Yet in assembly, the ordering mistakes are not always discernible by
+       describe relationships between components, while temporal be-            the action semantics stand-alone and may also depend on the temporal
+       liefs capture sequencing constraints. These learned beliefs are pre-     context. For example, placing parts in the wrong order is contingent
+       sented explicitly, enabling inspection, comprehension, and vali-         upon the precise assembly steps; each part placement standalone is
+       dation. Furthermore, our graph representations provide a more            not discernible as a mistake. This unique distinction highlights the
+       intuitive explanation.                                                   significance of exploring mistake detection in assembly tasks.
+
+     • We propose a novel mistake detection framework comprising a              3. New annotation
+       BeliefBuilder and an Inferencer designed for assembly tasks. The
+       BeliefBuilder dynamically constructs the belief sets, while the              Assembly101 (Sener et al., 2022) is the only real-world assembly
+       Inferencer utilizes these learned beliefs to make predictions and        dataset containing natural ordering mistakes and its annotations only
+       detect mistakes.                                                         provide one verb and a single object, which appears to be the most
+                                                                                salient in view upon our examination. However, an assembly action
+   2 We exclude LEGO construction from this work, as it is more free-form
+than the assembly tasks considered.
+
+                                                                             2
+G. Ding, F. Sener, S. Ma et al.                                                                                Computer Vision and Image Understanding 254 (2025) 104338
+
+Fig. 2. The annotation for one video instance from (Sener et al., 2022) contains ambiguity and inconsistency. All three instances are labeled as ‘attach water tank’ (the top line).
+While (a) connects the ‘water tank’ to the ‘base’, b) connects the ‘water tank’ to itself and c) connects ‘base’ to ‘chassis’. Our part-to-part annotation (the bottom line) provides
+more precise information.
+
+                                                                                       4. The approach
+
+Table 1                                                                                4.1. Problem setup
+Six types of mistakes in Assembly101. Misorientation shown in gray as it is beyond
+the scope of our work.                                                                     Consider the assembly of item 𝐗 with a component set 𝐏. Now
+                                                                                       consider a collection of 𝑁 sequences, 𝐒 = {𝑠𝑛}𝑁𝑛=1, of people as-
+Verb    Coarse   # of samples Remark           Fine # of samples                       sembling 𝐗, and the corresponding labels 𝐘 = {𝑦𝑛}𝑁𝑛=1. Each se-
+                                                                                       quence 𝑠 = {𝑣(𝑖, 𝑗)𝑡}𝑇𝑡=1 has 𝑇 steps, where 𝑣 ∈ {𝑎𝑡𝑡𝑎𝑐ℎ, 𝑑𝑒𝑡𝑎𝑐ℎ}
+        Correct  2927            Correct step  A    2927                               denotes the ‘verb’, and 𝑖, 𝑗 are commutable interacting components,
+
+Attach                           Generic order B1   128                                i.e., 𝑖, 𝑗 ∈ 𝐏, (𝑖, 𝑗) ≡ (𝑗, 𝑖). The step-wise mistake label is denoted as
+                                                                                       𝑦𝑡 ∈ {𝐴𝑡𝑖𝑗 , ¬𝐴𝑡𝑖𝑗 , 𝐷𝑡𝑖𝑗 , ¬𝐷𝑡𝑖𝑗 }, where 𝐴𝑡𝑖𝑗 denotes that the step 𝑎𝑡𝑡𝑎𝑐ℎ(𝑖, 𝑗) is
+        Mistake  332             Accumulated   B2   51                                 correct in sequence and ¬𝐴𝑡𝑖𝑗 is a mistake. Similarly, 𝐷𝑡𝑖𝑗 indicates that
+                                                                                       the step 𝑑𝑒𝑡𝑎𝑐ℎ(𝑖, 𝑗) is expected as a correction of the preceding mistake
+                                 misorientation B4  153                                in time (¬𝐴𝑖𝑗𝑡′ , 𝑡′ < 𝑡) and ¬𝐷𝑡𝑖𝑗 when it is a mistake of unnecessary
+                                                                                       operation, e.g., taking apart correctly assembled parts.
+Detach Mistake 382               Unnecessary   B3   382
+               Correction 330                                                              We further define an episodic context for each sequence 𝑀𝑡𝑛 =
+                                 Correction    C    330                                {𝑦𝑡′ }𝑡𝑡′=1 to store the collective steps executed up to time 𝑡. Due to our
+                                                                                       online setup of the mistake detection task where the prediction is for
+typically would involve one verb and two parts, e.g., attach wheels
+and chassis. In that regard, the original action labels provided by                    the current action, we simplify the notations by omitting 𝑡. The mistake
+Assembly101 (Sener et al., 2022) are likely to result in ambiguity and
+inconsistency for the mistake detection task. An illustrative example                  detection task is then to infer the mistake label 𝑦̂ for each step 𝑣(𝑖, 𝑗) in
+is shown in Fig. 2 where all three cases are labeled as the same
+action ‘attach water tank’. However, they are fundamentally distinct toy               a sequence.
+assembly operations and interpretations of their semantics can greatly
+affect the mistake detection performance.                                              4.2. Spatial beliefs 
+
+    In addition, there are also self-looped and repetitive actions in the                  In assembly, the component structures dictate the permissible action
+annotation. For example, certain toy parts from Assembly101 can be
+further split into two halves, e.g., ‘water tank part’ and ‘water tank                 space. The structural information governs the feasibility of an assembly
+part’ as shown by Fig. 2(b). Given the geometrical symmetry of the
+toys, it is common for assembly sequences to involve repetitive steps.                 step and the number of actions required for successful completion.
+For example, four wheels can be attached at different sequential locati-
+ons.                                                                                   For instance, when assembling toys, a ‘roof’ component is attached to
+
+    In light of this, we present a new set of annotations for Assem-                   the ‘cabin’, and the ‘wheels’ are affixed to the ‘chassis’. As such, we
+bly101. Through a meticulous review of all video sequences, we anno-
+tate each segment detailing interacting object information to mitigate                 define the spatial beliefs  to consolidate the components’ structure.
+ambiguities. As shown in Fig. 2, our annotation serves to complement                   More specifically, given components (𝑖, 𝑗), the Spatial(𝑖, 𝑗, 𝑦𝑠) finds the
+the missing object information. For simplicity, we keep a consistent                   assignment of 𝑦̂𝑠 ∈ {𝐴𝑖𝑗 , ¬𝐴𝑖𝑗 } such that the following formula evaluates
+level of annotation and do not consider the subpart level and annotate                 to True:
+them as ‘attach chassis, chassis’ (Fig. 2(b)). The repetitive actions are
+annotated whenever they occur, regardless of their number of occur-                    𝑦̂𝑠 ← Spatial(𝑖, 𝑗, 𝑦𝑠) ∶ (𝑖, 𝑗) ∈  ⟺ 𝑦𝑠,  (1)
+rences. The overall statistics of our annotation is provided in Table 1.
+Coarsely speaking, there are three classes for the mistake detection task:             where 𝑦𝑡 is an assignment of {TRUE, FALSE} depending on if the
+‘correct’ (A), ‘mistake’ (B), and ‘correction’ (C), where the ‘correction’             action of ‘‘attach i and j’’ is correct or not, while ⟺ indicates that
+is a step made to rectify the ‘mistake’. The mistakes can be further
+classified based on four causes. The most straightforward type is the                  expressions on either side of the equation are equivalent, e.g., if one
+generic ordering mistake (B1). Accumulated mistakes (B2) are cascaded
+on generic order mistakes. Another type of mistake is the unnecessary                  expression is true, the other must also be true, and vice versa.
+detachment (B3) of correctly assembled parts. Misorientation mistakes
+(B4) happen when a part is placed in the wrong orientation, such as a                      The formula in Eq. (1) indicates that only (𝑖, 𝑗) pairs that conform
+reversed cabin. This involves 3D perception and modeling of toy parts,
+which is beyond the scope of this work. We hope that the release of our                to the structural constraints belonging to  are feasible; this is given
+new annotations can attract and foster increased interest in the mistake               by definition as 𝐴𝑖𝑗 . The attempt to attach a pair (𝑖, 𝑗) that does not fit
+detection task.                                                                        together, i.e., excluded from , is a mistake; this is given by definition
+                                                                                       as ¬𝐴𝑖𝑗 . Additionally,  verifies the completion of the assembly task
+                                                                                       with the following rule:
+
+                                                                                       Completed(𝑀) ∶ ∀(𝑖,𝑗)∈ 𝐴𝑖𝑗 ∈ 𝑀 ⟺ True.     (2)
+
+                                                                                       The rule in Eq. (2) yields a True outcome only when all interconnected
+                                                                                       components (𝑖, 𝑗) ∈  have been successfully assembled by existing
+                                                                                       steps (𝐴𝑖𝑗 ∈ 𝑀).
+
+                                                                                           Graph Interpretation. The spatial beliefs can be visualized as a
+                                                                                       graph (Fig. 3), where nodes represent components and edges represent
+                                                                                       feasible attachments. Completion occurs when the episodic context 𝑀
+                                                                                       fully traverses the graph.
+
+                                                                                    3
+G. Ding, F. Sener, S. Ma et al.                                                                                Computer Vision and Image Understanding 254 (2025) 104338
+
+                                                                                                   Combining both transitive and intransitive belief, we have the fol-
+                                                                                               lowing to make inference for the actions that appear in any precondi-
+                                                                                               tion sets:
+
+                                                                                               Precondition(𝑖, 𝑗, 𝑀) ↦ (𝑖′𝑗′ ∧ 𝑖′𝑗′ (𝑖, 𝑗, 𝑀)) ∨ (¬𝑖′𝑗′ ∧ ¬𝑖′𝑗′ (𝑖, 𝑗, 𝑀)). (6)
+
+                                                                                               Algorithm 1 Belief building Step
+
+                                                                                               1: procedure BeliefBuilder(𝑀, 𝑖, 𝑗, 𝑦, )
+                                                                                               2: switch 𝑦 do
+
+Fig. 3. Spatial beliefs as part pairs (left) and a graph (right).                              3:   case 𝐴𝑖𝑗
+
+                                                                                               4:    ←  ∪ (𝑖, 𝑗)
+
+                                                                                               5:   𝑖𝑗 ← [𝑖𝑗 ] ∩ Precedes(𝑀, 𝑖, 𝑗)                       ⊳ Eq. (8)
+                                                                                                                                                           ⊳ Eq. (9)
+                                                                                               6:   if 𝐷𝑖𝑗 ∈ 𝑀 then                                       ⊳ Eq. (10)
+
+4.3. Temporal beliefs                                                                         7:             𝑖𝑗 ← [𝑖𝑗 ] ∩ [Context(𝑀, 𝑖, 𝑗)] ∩ [𝑖𝑗 ]  ⊳ Eq. (11)
+
+                                                                                               8:             𝑖𝑗 ← Connect(𝑖𝑗 , 𝑀, )
+
+    The spatial beliefs verify attachment feasibility without enforcing                        9:             pop(𝑀, ¬𝐴𝑖𝑗 ), pop(𝑀, 𝐷𝑖𝑗 )
+
+temporal ordering; they cannot indicate ordering mistakes. As such, we                         10:  push(𝑀, 𝑦)
+
+also establish a set of temporal beliefs  based on observed mistakes                          11:  case ¬𝐴𝑖𝑗
+during training.
+                                                                                               12:  if Accumulated(¬𝐴𝑖𝑗 ) then
+    We denote for a focal component pair (𝑖, 𝑗) its precondition set 𝑖𝑗 , a
+collection of pairs that focal action 𝑎𝑡𝑡𝑎𝑐ℎ(𝑖, 𝑗) relies upon. Our temporal                   13:            for ¬𝐴𝑖′𝑗′ ∈ 𝑀,  do
+
+belief is defined as the union of the focal pair and its precondition                          14:             𝑖′𝑗′ ← 𝑖′𝑗′ ∪ (𝑖, 𝑗)
+
+set, i.e., 𝑖𝑗 ∶= (𝑖, 𝑗) ∪ 𝑖𝑗 . For example, in Fig. 4(a), the focal pair                     15:  push(𝑀, 𝑦)
+is (roof,cabin), while 𝑖𝑗 consists of (light,cabin) and (speaker,cabin).
+For a focal action, e.g., 𝑎𝑡𝑡𝑎𝑐ℎ(𝑖, 𝑗), we write as Temporal(𝑖, 𝑗, 𝑀, 𝑦𝑡) the                  16:  case ¬𝐷𝑖𝑗
+function that finds the assignment of 𝑦̂𝑡 ∈ {𝐴𝑖𝑗 , ¬𝐴𝑖𝑗 } which conforms
+to the provided formula:                                                                       17:  pop(𝑀, 𝐴𝑖𝑗 )
+
+                                                                                               18:  case 𝐷𝑖𝑗
+
+                                                                                               19:  push(𝑀, 𝑦)
+
+𝑦̂𝑡 ← Temporal(𝑖, 𝑗, 𝑀, 𝑦𝑡) ∶    ∀(𝑖′,𝑗′)∈𝑖𝑗 𝐴𝑖′𝑗′ ∈ 𝑀 ⟺ 𝑦𝑡.      (3)                         Algorithm 2 Inference Step
+
+                                                                                               1: procedure Inferencer(𝑀, 𝑣, 𝑖, 𝑗)
+
+The formula in Eq. (3) checks if all precondition pairs from 𝑖𝑗 are                           2: switch 𝑣 do
+assembled before the current action 𝑎𝑡𝑡𝑎𝑐ℎ(𝑖, 𝑗). The focal action is
+                                                                                               3:   case ‘attach’
+deemed correct only when all its precondition actions are correct.
+                                                                                               4:   𝑦̂ ← attach(𝑀, 𝑖, 𝑗)                                  ⊳ Eq. (12)
+    Error Accumulation. Incorrect focal actions in context (¬𝐴𝑖𝑗 ∈ 𝑀)                                                                                     ⊳ Eq. (13)
+may propagate errors to its associated actions within 𝑖𝑗 . These errors                       5:   push(𝑀, 𝑦)
+are referred to as accumulated mistakes. There are two distinct types
+                                                                                               6:   case ‘detach’
+of error accumulations, based on the transitivity within 𝑖𝑗 : transitive
+(represented as 𝑖𝑗 ) and intransitive (denoted as ¬𝑖𝑗 ). A transitive belief                 7:   𝑦̂ ← detach(𝑀, 𝑖, 𝑗)
+signifies that any precondition action after the focal action is a mistake.
+                                                                                               8:   if 𝑦̂ == 𝐷𝑖𝑗 then
+For example, in Fig. 4(a), once (roof, cabin) is attached, attaching
+                                                                                               9:             pop(𝑀, ¬𝐴𝑖𝑗 )
+(light, cabin) and/or (speaker, cabin) will fail and are mistakes. Sup-
+pose the pair (𝑖, 𝑗) is precondition pair for the focal pair (𝑖′, 𝑗′), meaning                 10:  else
+
+(𝑖, 𝑗) ∈ 𝑖′𝑗′ . We write the function 𝑖′𝑗′ (𝑖, 𝑗, 𝑀) with the following rule                 11:            pop(𝑀, 𝐴𝑖𝑗 )
+to infer the label 𝑦̂𝑡:
+                                                                                               12: return 𝑦̂
+
+𝑦̂𝑡 ← 𝑖′𝑗′ (𝑖, 𝑗, 𝑀) ∶    (𝑖, 𝑗) ∈ 𝑖′𝑗′ ∧ ¬𝐴𝑖′𝑗′ ∈ 𝑀 ⟺ ¬𝑦𝑡.      (4)                             Graph Interpretation. Our temporal rules can also be represented
+                                                                                               as graphs. In their graph representation, the rule’s transitivity is de-
+On the other hand, an intransitive belief suggests that if the focal is                        termined by its radius. In conventional terms, the radius of a graph
+incorrect, the execution of any of its preconditions is deemed correct,                        is defined as 𝑟 = min𝑢∈𝑉 max𝑣∈𝑉 𝑑(𝑢, 𝑣), where 𝑑(𝑢, 𝑣) represents the
+except for the final one. To illustrate, in Fig. 4(b), attach (base, chassis)                  geodesic distance or shortest-path distance between two nodes 𝑢 and 𝑣
+as a first step would be a mistake according to Eq. (3) because its                            in graph 𝑉 . Graphs for Transitive rules have a fixed radius 𝑟 = 1, while
+preconditions are not performed. While the next step attach (cabin,                            intransitive rule graphs have a larger radius of 𝑟 > 1. An illustration is
+interior) would be considered correct, further attachment of (interior,                        shown in Fig. 4. The correctness of the focal action (indicated by the red
+chassis) would be deemed a mistake. Conversely, should (interior,                              edge) relies on traversing the dark edges. It is also possible to consider
+chassis) occur prior to (cabin, interior), their mistake labels will be                        a hybrid version of these two cases; additional details on this hybrid
+swapped. We enforce the following rule in ¬𝑖′𝑗′ (𝑖, 𝑗, 𝑀) to obtain the                       case are provided in the Appendix.
+label assignment 𝑦̂𝑡:
+                                                                                               4.4. BeliefBuilder and inferencer
+
+𝑦̂𝑡 ← ¬𝑖′𝑗′ (𝑖, 𝑗, 𝑀 ) ∶  ¬𝐴𝑖′𝑗′ ∈ 𝑀 ∧ (∀(𝑖′′,𝑗′′)≠(𝑖,𝑗)∈𝑖′𝑗′ 𝐴𝑖′′𝑗′′ ∈ 𝑀 ) ⟺ ¬𝑦𝑡.               Our attention now shifts to the creation and inference processes of
+                                                                                       (5)     spatial and temporal beliefs. To facilitate, we introduce two compo-
+                                                                                               nents: BeliefBuilder and Inferencer. BeliefBuilder continuously enhances
+Our intransitive beliefs are specifically designed to handle multi-step                        and revises the belief sets as it parses more streaming sequential action
+dependencies, allowing our method to capture relationships that extend                         inputs. During inference, the Inferencer leverages the belief sets to
+beyond immediate, one-step interactions. This enables more accurate                            anticipate the output label 𝑦̂ associated with the observed action, i.e.,
+mistake detection, accounting for cascading effects across multiple                            as correct (𝐴𝑖𝑗 ), mistake(¬𝐴𝑖𝑗 or ¬𝐷𝑖𝑗 ), and correction (𝐷𝑖𝑗 ).
+steps.
+                                                                                                   BeliefBuilder. The spatial and temporal beliefs are initialized as
+                                                                                               being agnostic to the task, i.e., set to an empty set  = ∅,  = ∅. Belief-
+                                                                                               Builder proceeds to construct and continuously revise both belief sets as
+
+                                                                                            4
+G. Ding, F. Sener, S. Ma et al.                                                                              Computer Vision and Image Understanding 254 (2025) 104338
+
+Fig. 4. Transitivity of temporal beliefs. Focal action (the red edge) is reliant on the completion of the rest (black edges in gray). Transitive and intransitive rules differ by their
+graph radius 𝑟. (For interpretation of the references to color in this figure legend, the reader is referred to the web version of this article.)
+
+more assembly sequences are observed. Each sequencing error unveils                  Table 2
+                                                                                     Performance of learned rules on HA4M.
+a temporal belief, hence, every mistake counts in assembly sequences.
+                                                                                                             Data Acc precision   recall
+For any mistake instance ¬𝐴𝑖𝑗 , its mistake context Context(𝑖, 𝑗, 𝑀)
+invariably contains its preconditions. The mistake context, denoted as               Sohn et al. (2020) 50% 64.7 77.3             72.9
+                                                                                     Ours                    76.1           83.9  81.2
+the set of correct actions occurring between the mistake fix (𝐷𝑖𝑗 ) and
+its correct execution (𝐴𝑖𝑗 ), i.e., Context(𝑖, 𝑗, 𝑀) = {(𝑖′, 𝑗′)|𝑡𝐷𝑖𝑗 < 𝑡𝐴𝑖′𝑗′ <     Sohn et al. (2020) 100% 67.6 79.8            77.0
+𝑡𝐴𝑖𝑗 , 𝐴𝑖′𝑗′ ∈ 𝑀}. The precondition set 𝑖𝑗 for 𝑖𝑗 is updated with the              Ours                    83.2           89.4  85.7
+following:
+
+𝑖𝑗 ← [𝑖𝑗 ] ∩ [Context(𝑖, 𝑗, 𝑀)],           (7)                                     inherently limits the potential for unbounded growth in computa-
+                                                                                     tional requirements. This characteristic ensures that our system remains
+the inclusion of [𝛺] is excluded when 𝛺 is an empty set. While ob-                   scalable and efficient, even as task complexity increases.
+
+serving ordering mistakes in the sequences is a clear trigger for the                    Inferencer. The Inferencer, as presented in Algorithm 2 is recurrent
+                                                                                     and generates predictions based on the belief sets and prior decisions.
+builder to update the temporal beliefs, there exists an implicit temporal            At each step, the Inferencer estimates for the tuple (𝑣, 𝑖, 𝑗) the mistake
+                                                                                     label, with the context of 𝑀, which contains the history of action labels
+logic corresponding to fully correct assembly sequences as well. For                 up to the current step in that sequence. When the action is to attach,
+                                                                                     i.e., 𝑣 =‘attach’, multiple inferences by spatial and temporal beliefs,
+instance, an action 𝐴𝑖𝑗 does not have temporal dependencies on its                   Spatial (Eq. (1)), Temporal (Eq. (3)) and Precondition (Eq. (6)) are made
+subsequent actions. Conversely, its proceeding actions that are correct,             simultaneously, to determine its label 𝑦̂ ∈ {𝐴𝑖𝑗 , ¬𝐴𝑖𝑗 }:
+Precedes(𝑖, 𝑗, 𝑀) = {(𝑖′, 𝑗′)|𝐴𝑖′𝑗′ ∈ 𝑀}, constitute a candidate set 𝑖𝑗
+wherein 𝑖𝑗 should be included, i.e., 𝑖𝑗 ⊂ 𝑖𝑗 . 𝑖𝑗 is shared across
+sequences of actions and continuously refined by:
+
+𝑖𝑗 ← [𝑖𝑗 ] ∩ Precedes(𝑖, 𝑗, 𝑀).            (8)
+
+Adding  to Eq. (7) yields:                                                          𝑦̂ ← Attach(𝑖, 𝑗, 𝑀) ∶  Spatial(𝑖, 𝑗) ∧ Temporal(𝑀, 𝑖, 𝑗) ∧ Precondition(𝑖, 𝑗, 𝑀) ⟺ 𝑦.
+                                                                                                                                                                           (12)
+
+𝑖𝑗 ← [𝑖𝑗 ] ∩ [Context(𝑖, 𝑗, 𝑀)] ∩ [𝑖𝑗 ].  (9)                                     In the case of the action being detach, i.e., 𝑣 =‘detach’, the label
+
+    As illustrated in Fig. 7, the algorithm may overlook precondition                is contingent upon the context 𝑀. If the attachment of the same
+pairs for intransitive temporal beliefs. The reason is that the precondi-
+tion actions can be interpreted differently due to the error accumulation            component pairs is an existing mistake, ¬𝐴𝑖𝑗 ∈ 𝑀, the detachment is
+as given by the logic formula of Eq. (5) from Section 4.3. The result                considered as a ‘correction’ (𝐷𝑖𝑗 ); otherwise, it is a ‘mistake’ involving
+is a disjoint intransitive belief graph, i.e., missing black edges in Fig.           unnecessary detachment (¬𝐷𝑖𝑗 ). Formally, with 𝑦 ∈ {𝐷𝑖𝑗 , ¬𝐷𝑖𝑗 }, we
+4(b). To address this scenario, we utilize the spatial belief  to find              have:
+the actions present in the episodic context 𝑀 to establish connections
+between sub-graphs. Specifically, we apply:                                          𝑦̂ ← Detach(𝑖, 𝑗, 𝑀) ∶ ¬𝐴𝑖𝑗 ∈ 𝑀 ⟺ 𝑦                  (13)
+
+                                                                                     The Inferencer can be utilized to plan and recommend course of assem-
+                                                                                     bly actions, which we show in the Appendix.
+
+Connect(𝑖𝑗 , 𝑀, ) ← 𝑖𝑗 ∪ {(𝑖′𝑗′)|(𝑖′, 𝑗′) ∈ Path(, 𝑖𝑗 ) ∧ 𝐴𝑖′𝑗′ ∈ 𝑀}, (10)
+
+where Path(,  ) finds the shortest path in  that completes the rule               5. Experiments
+graph of  . The accumulated mistake ¬𝐴𝑖𝑗 is accommodated by being
+added into the precondition set of any ongoing order mistakes in                     5.1. Synthetic data
+
+context, i.e.,                                                                           We leveraged the assembly process of an Epicyclic Gear Train (EGT)
+                                                                                     from the HA4M dataset (Cicirelli et al., 2022) to create synthetic
+𝑖′𝑗′ ← 𝑖′𝑗′ ∪ (𝑖, 𝑗)|¬𝐴𝑖′𝑗′ ∈ 𝑀 .          (11)                                    sequences with mistakes. HA4M records the assembly of the train
+                                                                                     with the provided instructions. We transform their original 12 actions
+The BeliefBuilder represented in Algorithm 1 is iteratively applied at               (verb, noun) to 8 actions (verb, this, that) to account for component
+each step until the sequence ends.                                                   interactions. In line with these provided sequences, we converted their
+                                                                                     original actions (comprising a verb and noun) into actions involving
+    Discussion. Our belief-building process is designed to be computa-               component interactions (verb, this, that) We identified 8 actions for
+tionally efficient by relying solely on action labels rather than complex            successfully assembling an EGT: 1: attach planet gear to planet gear
+visual or multimodal processing. The primary computational cost arises               bearing, 2: attach planet gear bearing to carrier, 3: attach carrier shaft to
+when errors occur within a sequence, triggering mistake-driven updates               carrier, 4: attach ring bear to sun shaft, 5: attach sun gear bearing to ring
+that refine the belief sets. Additional update may happen for correctly              bear, 6: attach sun gear bearing to sun gear, 7: attach carrier shaft to sun
+executed sequences to remove spurious correlations and can lead to a                 shaft, 8: attach cover to ring bear as show in Fig. 5. We manually identify
+convergence towards a minimal, stable set of rules. In nature, assem-
+bly tasks are governed by a finite set of valid action dependencies,
+
+                                                                                  5
+G. Ding, F. Sener, S. Ma et al.                                                                             Computer Vision and Image Understanding 254 (2025) 104338
+
+                                                          Fig. 5. Part connection graph (left) and task graph (right) for EGT.
+
+                                 Table 3
+                                 Performance comparison with coarse mistake labels.
+
+                                                          AR Acc        mistake         correction    correct                   Acc     F1
+                                                                    recall prec.
+                                                                                        recall prec.  recall prec.              76.9   57.4
+                                                                                                                                81.7   63.6
+                                 TempAgg                  100 (GT) 37.1 52.8            46.5   42.7   94.4 76.2                 83.3   62.9
+                                 LSTM                     100 (GT) 34.6 56.3                          98.5 89.2                 88.5   77.5
+                                                                                        42.9   48.6                             +5.2  +14.6
+                                                                                                                                74.3   56.5
+                                 ILP (Sohn et al., 2020)  100 (GT)   65.8  59.3          23.3   57.1  94.5  91.9
+                                 Ours                     100 (GT)   78.2  68.3          51.7   86.7  95.0  94.8
+                                 Gains                              +12.4  +9.0         +28.4  +29.6  +0.5  +2.9
+
+                                 Ours                     86.4      42.3 53.2           40.2   55.6   73.1 84.6
+
+action dependencies, two transitive and one intransitive, by inspecting                 randomly sample one action sequence for testing and use the remaining
+the geometric part constraints. Subsequently, we generate a synthetic                   sequences as the training data for each toy. This process is repeated
+dataset with 20 sequences, 10 of which contain mistakes and 10 are                      four times to obtain four splits; we report results averaged over the
+correct.                                                                                four splits.
+
+    Baseline. We adopt the logic induction approach used by Sohn                            Evaluation Metric. We evaluate the task following standard classi-
+et al. (2020) as the baseline. We parse the full set of sequences to                    fication and report the per class recall and precision, Acc and mean F1
+generate training data for (Sohn et al., 2020) as the ideal input while                 scores over three mistake classes.
+our approach is applied in a streaming fashion.
+                                                                                            Baselines. Following the synthetic experiment, we also use the
+    Metric. Similar to Sohn et al. (2020), we evaluate the performance                  logic module from Sohn et al. (2020) as our baseline for comparison.
+by measuring the agreement between predicted and the ground-truth                       We further compare to two data-driven approaches, i.e., LSTM and
+preconditions for all possible assignments of input. Our metrics include                TempAgg (Sener et al., 2020), by treating the mistake detection as a
+average accuracy (Acc), average precision and average recall.                           sequence-to-sequence task. In particular, given a sequence of actions,
+                                                                                        we treat each subsequent 𝑠1∶𝑡 as the input. The target is then defined
+    Performance. We conduct a performance analysis by varying the                       as the label of the last mistake label 𝑦𝑡 from 𝑠1∶𝑡, where 𝑡 ∈ [1 ∶ 𝑇 ]. We
+amount of synthetic data accessed by the model and present the re-                      design the LSTM (Hochreiter and Schmidhuber, 1997) with four hidden
+sults in Table 2. As expected, both approaches gain in performance                      layers; each hidden layer size is set to 256. We train the LSTM with a
+with more data for learning. For both sets of data, we consistently                     learning rate of 1𝑒−3 for 100 epochs. For TempAgg, we follow Sener
+outperform (Sohn et al., 2020) by a large margin of > 10% in Acc.                       et al. (2022) and train the model for 15 epochs. As inputs, each step
+Moreover, with only 50% of data, our approach has a recall of 81.2%,                    in the sequence is represented as its one-hot action feature vector and
+surpassing (Sohn et al., 2020) with 100% access of data (77.0%). It                     the action sequences are truncated or padded to a fixed length of 60
+is because the logic module in Sohn et al. (2020) faces challenges to                   for both experiments.
+generalize and handle the mistakes caused by the intransitive belief,
+which our approach is capable of handling.                                                  Coarse mistake detection. We report the results on Assembly101
+                                                                                        dataset with the coarse mistake labels for different approaches in Table
+    Error Analysis. Upon conducting a deeper analysis on failure cases,                 3. LSTM slightly outperforms TempAgg at the Acc (+4.8%) and F1
+we identified two main types of errors from our approach: 1) unseen                     (+6.2%) scores. Such a performance gap mainly results from LSTM’s
+mistake and 2) spurious action dependencies. An unseen mistake occurs                   boost in the ‘correct’ class. Our method achieves a high recall of 78.2%
+when a specific type of error is not represent in the training data,                    on the ‘mistake’ class, which doubles that (37.1%) of the TempAgg. In
+causing the model to fail in detecting it during inference. Spurious                    the meantime, we are 12.4% and 9.0% higher than Sohn et al. (2020)
+dependencies, on the other hand, arise from irrelevant actions within                   in mistake recall and precision, respectively. For other classes, our
+the CONTEXT set. This type of error can be mitigated by our design                      approach also demonstrates higher performance but with a small gap
+in Eq. (8), which considers the PRECEDES set, allowing the model to                     compared to Sohn et al. (2020) on the ‘correct’ class. When evaluated
+prune the spurious dependencies in the belief set as more sequence are                  across the classes, ours is the best in both Acc (88.5%) and F1 (77.5%),
+observed.                                                                               showing its strong ability to capture the ordering dynamics in assembly
+                                                                                        sequences.
+5.2. Real-world data
+                                                                                            Visual Integration. To relieve the reliance on the ground truth
+    Splits. In Assembly101, there are a total of 328 distinct action                    action labels, we next show how our framework can be integrated
+sequences constructing 101 different toys. To create our data splits, we                with the off-the-shelf action recognition model for mistake detection.
+
+                                                                                     6
+G. Ding, F. Sener, S. Ma et al.                                               Computer Vision and Image Understanding 254 (2025) 104338
+
+                                 Fig. 6. Confusion matrix comparison on the fine mistake labels.
+
+Fig. 7. A running example of our BeliefBuilder. Upper part shows the algorithm state at the 7-th step in Sequence 1. Within the precondition set 03, which is highlighted in
+pink, one precondition pair (3, 4) is absent due to its positioning outside the mistake context. Additionally, it includes an extra pair (1, 2) introduced by Step 6. The missing pair is
+
+subsequently retrieved through the Connect operation, while the extra pair is eliminated when the RuleBuilder encounters the 6-th step in Sequence 2 in the lower part. The right
+side exhibits the final spatial and intransitive temporal beliefs discovered by our framework.
+
+Assembly101 (Sener et al., 2022) is a challenging dataset for action          and the correct class. However, it also shows that LSTM picks up
+recognition. A fine-tuned TSM model (Lin et al., 2019) achieves only          some knowledge that a detach action can either be a ‘mistake’ or a
+around 30% accuracy. To show the potential to work with visual                ‘correction’ (see bottom right corner of confusion matrix). Overall, our
+perception, we introduce an intermediate scenario in which verbs              approach (Fig. 6(b)) is better at detecting the ordering mistakes with
+(attach, detach) are predicted by the fine-tuned TSM module (86.4% in         higher scores along the diagonal.
+accuracy) with ground truth object parts provided. The result in Table
+3 (last row) indicates a decrease in performance, 35.9% in recall and             Spatial and temporal beliefs. We show an example of belief
+16.1% in precision for mistake. Nevertheless, this variant still shows        building in Fig. 7. The BeliefBuilder processes the action steps from two
+superior or comparable performance in detecting ordering mistakes             sequences progressively and builds beliefs accordingly. After parsing
+compared to our LSTM and TempAgg baselines that requires the ground           two sequences, an intransitive type of temporal belief is discovered.
+truth action labels as inputs. This further underscores the potential for     We additionally run our approach on the full set of sequences on the
+integrating our module with action recognition models.                        Assembly101 dataset and find 54 temporal beliefs. Among these, 28 are
+                                                                              transitive, and 26 are intransitive. Our empirical observation indicates
+    Fine mistake detection. Fig. 6 compares confusion matrices for            a strong alignment between the temporal rules obtained and the real-
+the LSTM and our approach on fine-grained mistakes. As it is shown            world geometric constraints of certain parts. For example, the inferred
+in Fig. 6(a), the LSTM model confuses most of the ordering mistakes           temporal rule indicates that the body and chassis has to be attached
+(on B1, B2, and B3) with the correct (A) class. This is likely due            after the assembly of interior, chassis and cabin, which relates to the
+to the significant imbalance ratio between each fine mistake class            geometry constraint as shown by Fig. 4(b).
+
+                                                                           7
+G. Ding, F. Sener, S. Ma et al.                                                                           Computer Vision and Image Understanding 254 (2025) 104338
+
+Fig. 8. Hybrid temporal belief. The red edge is dependent on the remaining black edges. The hybrid belief can be decomposed into transitive and intransitive subgraphs by performing
+a DFS on the graph with an anchor object as root. (For interpretation of the references to color in this figure legend, the reader is referred to the web version of this article.)
+
+5.3. Limitations                                                                using depth-first search (DFS) with the anchor object as the root node.
+                                                                                Denoting them as  𝑡𝑟 𝑖𝑗 and  𝑖𝑛 𝑖𝑗 , we write the following:
+    A limitation of our approach is the potential for error accumulation
+when incorrect belief sets are used during prediction. However, these           𝑦̂ ←  𝑡𝑟 𝑖𝑗 (𝑀) ∶     ∀𝑖′𝑗′∈𝑡𝑟𝑖𝑗 ¬𝐴𝑖𝑗 ∈ 𝑀 ⟺ 𝑦̂                                             (14)
+incorrect beliefs are generally a superset of the actual beliefs, and           and
+as more sequences are observed over time, the belief set gradually
+converges to the correct one by pruning spurious action dependencies.           𝑦̂ ←  𝑖𝑛 𝑖𝑗 (𝑀) ∶     ¬𝐴𝑖𝑗 ∈ 𝑀 ∧ (∀(𝑖′′,𝑗′′)≠(𝑖′,𝑗′)∈𝑖𝑛 𝐴 𝑖𝑗 𝑖′′𝑗′′ ∈ 𝑀 ) ⟺ 𝑦̂ (15)
+Another limitation of our approach is that we only target the ordering
+mistakes. However, within Assembly101, errors extend beyond order-              A.2. Action planning
+ing mistakes to include issues related to part orientation and screw
+fastening. Addressing errors in orientation and fastening demands spe-               In addition to detecting the ordering mistakes in assembly se-
+cialized 3D modeling of components and the estimation of their 6D
+poses. We leave this for further exploration.                                   quences, it is also possible for us to plan and recommend courses of
+
+6. Conclusion                                                                   action. Given an action sequence up to 𝑡′-th step 𝐬 = {(𝑣, 𝑖, 𝑗)𝑡}𝑡=1 𝑡′ , we
+                                                                                                                                𝑇
+    This work addresses the challenge of identifying ordering mistakes          wish  to  generate  𝐩  =  {(  𝑣,  𝑖,  𝑗  )𝑡  }  𝑡=𝑡  ′  that  not  only  corrects  mistakes  in  the
+in assembly tasks. We propose two types of knowledge-grounded belief
+sets, leveraging the unique characteristics of assembly tasks. The first        past but also leads to a successful toy assembly. This is accomplished
+set captures the spatial arrangement of components, while the other
+represents the ordering constraints during assembly. These belief sets          through the interaction between the proposed Inferencer and an action
+are generated in a sequence stream with our proposed BeliefBuilder and
+are employed by the Inferencer to detect mistakes from assembly se-             Sampler. The Sampler utilizes a sampling pool that is comprised of
+quences. Our approach delivers promising results in detecting ordering
+mistake, consistently surpasses other methods on both synthetic and             unperformed actions and corrections to previous mistakes. The episodic
+real-world datasets.
+                                                                                memory 𝑀 is first obtained by parsing the observations 𝐬 through the
+CRediT authorship contribution statement
+                                                                                Inferencer By interpreting 𝑀, we can create the following action pool
+    Guodong Ding: Writing – original draft, Methodology, Investiga-
+tion, Data curation, Conceptualization. Fadime Sener: Writing – orig-           Pool(𝑀 ):
+inal draft, Formal analysis, Data curation, Conceptualization. Shugao
+Ma: Writing – review & editing, Writing – original draft, Methodology,          Pool(𝑀) = {(𝐴, 𝑖, 𝑗)|(𝑖, 𝑗) ∈ , 𝐴𝑖𝑗 ∉ 𝑀} ∪ {(𝐷, 𝑖, 𝑗)|¬𝐴𝑖𝑗 ∈ 𝑀}                             (16)
+Funding acquisition, Conceptualization. Angela Yao: Writing – review
+& editing, Validation, Supervision, Conceptualization.                              The planner will first randomly select an action (𝑣, 𝑖, 𝑗) from the
+                                                                                action pool and use the Inferencer to estimate its mistake label 𝑦̂. The
+Declaration of competing interest                                               action will be discarded if the estimated label is a mistake, i.e., ¬𝐴𝑖𝑗 ;
+                                                                                otherwise, the sampled action will be added to the planning list 𝐩. The
+    The authors declare that they have no known competing finan-                sampling operation will repeat until the toy is fully assembled, i.e.,
+cial interests or personal relationships that could have appeared to            Completed(𝑀) is True. Alg. 3 provides a synopsis of the action planning
+influence the work reported in this paper.                                      procedure. Note that although this planner only addresses the existing
+                                                                                mistakes in context 𝑀 and does not permit any mistakes to be included
+Appendix. My appendix                                                           in the planned sequence 𝐩, it is possible to extend the planning process
+                                                                                to sample potential mistake actions and then automatically address
+A.1. Hybrid temporal belief.                                                    them.
+
+    The hybrid temporal beliefs are depicted in Fig. 8. Similar to both         Algorithm 3 Toy Completion Planner
+transitive and intransitive temporal rules, the anchor action (red edge)
+will only be a correct action once the remaining actions (the black             1: procedure Planner(s)
+edges in the graph) have been completed. While the actions in the
+precondition set 𝑖𝑗 will apply different rules according to the transitiv-     2: 𝑀 ← ∅, 𝐩 = ∅
+ity of the subgraph they belong. The hybrid belief can be decomposed            3: for 𝑡 ∈ [1 ∶ 𝑡′] do
+
+                                                                                4:         (𝑣, 𝑖, 𝑗) ← 𝑠[𝑡]
+
+                                                                                5:         𝑦̂ ← Inferencer(𝑀, 𝑣, 𝑖, 𝑗)
+
+                                                                                6: while !Completed(𝑀) do
+
+                                                                                7:         Pool(𝑀 )                                                                ⊳ (16)
+
+                                                                                8:         Randomly Sample (𝑣, 𝑖, 𝑗) from Pool(𝑀)
+
+                                                                                9:         𝑦̂ ← Inferencer(𝑀, 𝑣, 𝑖, 𝑗)
+
+                                                                                10:        if 𝑦̂ = ¬𝐴𝑖𝑗 then
+
+                                                                                11:                 pop(𝑀, 𝑦̂)
+
+                                                                                12:                 continue
+
+                                                                                13:        else
+
+                                                                                14:                 push(𝐩, (𝑣, 𝑖, 𝑗))
+
+                                                                                15: return 𝐩
+
+                                                                             8
+G. Ding, F. Sener, S. Ma et al.                                                                                                    Computer Vision and Image Understanding 254 (2025) 104338
+
+Data availability                                                                               Lin, J., Gan, C., Han, S., 2019. Tsm: Temporal shift module for efficient video
+                                                                                                     understanding. In: ICCV.
+    Data will be made available on request.
+                                                                                                Logeswaran, L., Sohn, S., Jang, Y., Lee, M., Lee, H., 2023. Unsupervised task graph
+References                                                                                           generation from instructional video transcripts. In: ACL.
+
+Ben-Shabat, Y., Yu, X., Saleh, F., Campbell, D., Rodriguez-Opazo, C., Li, H., Gould, S.,        Mattsson, G., Hogler, M., 2018. An explorative study in the user experience of
+     2021. The ikea asm dataset: Understanding people assembling furniture through                   augmented reality enhanced manuals.
+     actions, objects and pose. In: WACV.
+                                                                                                Ragusa, F., Furnari, A., Livatino, S., Farinella, G.M., 2021. The meccano dataset: Un-
+Chakravarthy, A., Fang, Z., Yang, Y., 2022. Tragedy plus time: Capturing unintended                  derstanding human-object interactions from egocentric videos in an industrial-like
+     human activities from weakly-labeled videos. In: Proceedings of the IEEE/CVF                    domain. In: WACV.
+     Conference on Computer Vision and Pattern Recognition. pp. 3405–3415.
+                                                                                                Sener, F., Chatterjee, D., Shelepov, D., He, K., Singhania, D., Wang, R., Yao, A., 2022.
+Cicirelli, G., Marani, R., Romeo, L., Domínguez, M.G., Heras, J., Perri, A.G.,                       Assembly101: A large-scale multi-view video dataset for understanding procedural
+     D’Orazio, T., 2022. The ha4 m dataset: Multi-modal monitoring of an assembly                    activities. In: Proceedings of the IEEE/CVF Conference on Computer Vision and
+     task for human action recognition in manufacturing. Sci. Data 9, 745.                           Pattern Recognition.
+
+Epstein, D., Chen, B., Vondrick, C., 2020. Oops! predicting unintentional action in             Sener, F., Singhania, D., Yao, A., 2020. Temporal aggregate representations for
+     video. In: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern                long-range video understanding. In: ECCV.
+     Recognition.
+                                                                                                Sohn, S., Woo, H., Choi, J., Lee, H., 2020. Meta reinforcement learning with
+Hochreiter, S., Schmidhuber, J., 1997. Long short-term memory. Neural Comput. 9,                     autonomous inference of subtask dependencies. arXiv preprint arXiv:2001.00248.
+     1735–1780.
+                                                                                                Soran, B., Farhadi, A., Shapiro, L.G., 2015. Generating notifications for missing actions:
+Huang, D.A., Nair, S., Xu, D., Zhu, Y., Garg, A., Fei-Fei, L., Savarese, S., Niebles, J.C.,          Don’t forget to turn the lights off! ICCV.
+     2019. Neural task graphs: Generalizing to unseen tasks from a single video
+     demonstration. In: Proceedings of the IEEE/CVF Conference on Computer Vision               Sultani, W., Chen, C., Shah, M., 2018. Real-world anomaly detection in surveillance
+     and Pattern Recognition. pp. 8565–8574.                                                         videos. In: Proceedings of the IEEE/CVF Conference on Computer Vision and
+                                                                                                     Pattern Recognition.
+Kuehne, H., Arslan, A., Serre, T., 2014. The language of actions: Recovering the syntax
+     and semantics of goal-directed human activities. In: Proceedings of the IEEE/CVF           Tang, Y., Ding, D., Rao, Y., Zheng, Y., Zhang, D., Zhao, L., Lu, J., Zhou, J., 2019. Coin:
+     Conference on Computer Vision and Pattern Recognition.                                          A large-scale dataset for comprehensive instructional video analysis. In: Proceedings
+                                                                                                     of the IEEE/CVF Conference on Computer Vision and Pattern Recognition.
+Kumar, S., Haresh, S., Ahmed, A., Konin, A., Zia, M.Z., Tran, Q.H., 2022. Unsupervised
+     action segmentation by joint representation learning and online clustering. In: Pro-       Zatsarynna, O., Farha, Y.A., Gall, J., 2022. Self-supervised learning for unintentional
+     ceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition.                 action prediction. In: DAGM German Conference on Pattern Recognition. Springer,
+     pp. 20174–20185.                                                                                pp. 429–444.
+
+                                                                                                Zhukov, D., Alayrac, J.B., Cinbis, R.G., Fouhey, D., Laptev, I., Sivic, J., 2019. Cross-
+                                                                                                     task weakly supervised learning from instructional videos. In: Proceedings of the
+                                                                                                     IEEE/CVF Conference on Computer Vision and Pattern Recognition.
+
+                                                                                             9
+

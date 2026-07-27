@@ -1,0 +1,1172 @@
+          Ego4D: Around the World in 3,000 Hours of Egocentric Video
+
+ Kristen Grauman1,2, Andrew Westbury1, Eugene Byrne∗1, Zachary Chavis∗3, Antonino Furnari∗4,
+ Rohit Girdhar∗1, Jackson Hamburger∗1, Hao Jiang∗5, Miao Liu∗6, Xingyu Liu∗7, Miguel Martin∗1,
+
+    Tushar Nagarajan∗1,2, Ilija Radosavovic∗8, Santhosh Kumar Ramakrishnan∗1,2, Fiona Ryan∗6,
+    Jayant Sharma∗3, Michael Wray∗9, Mengmeng Xu∗10, Eric Zhongcong Xu∗11, Chen Zhao∗10,
+  Siddhant Bansal17, Dhruv Batra1, Vincent Cartillier1,6, Sean Crane7, Tien Do3, Morrie Doulaty1,
+
+            Akshay Erapalli13, Christoph Feichtenhofer1, Adriano Fragomeni9, Qichen Fu7,
+     Abrham Gebreselasie12, Cristina Gonza´lez14, James Hillis5, Xuhua Huang7, Yifei Huang15,
+ Wenqi Jia6, Weslie Khoo16, Ja´chym Kola´ˇr13, Satwik Kottur1, Anurag Kumar5, Federico Landini1,
+
+       Chao Li5, Yanghao Li1, Zhenqiang Li15, Karttikeya Mangalam1,8, Raghava Modhugu17,
+      Jonathan Munro9, Tullie Murrell1, Takumi Nishiyasu15, Will Price9, Paola Ruiz Puentes14,
+Merey Ramazanova10, Leda Sari5, Kiran Somasundaram5, Audrey Southerland6, Yusuke Sugano15,
+ Ruijie Tao11, Minh Vo5, Yuchen Wang16, Xindi Wu7, Takuma Yagi15, Ziwei Zhao16, Yunyi Zhu11,
+
+          Pablo Arbela´ez†14, David Crandall†16, Dima Damen†9, Giovanni Maria Farinella†4,
+Christian Fuegen†1, Bernard Ghanem†10, Vamsi Krishna Ithapu†5, C. V. Jawahar†17, Hanbyul Joo†1,
+
+         Kris Kitani†7, Haizhou Li†11, Richard Newcombe†5, Aude Oliva†18, Hyun Soo Park†3,
+     James M. Rehg†6, Yoichi Sato†15, Jianbo Shi†19, Mike Zheng Shou†11, Antonio Torralba†18,
+
+                          Lorenzo Torresani†1,20, Mingfei Yan†5, Jitendra Malik1,8
+
+                 1Meta AI, 2University of Texas at Austin, 3University of Minnesota, 4University of Catania,
+         5Meta Reality Labs, 6Georgia Tech, 7Carnegie Mellon University, 8UC Berkeley, 9University of Bristol,
+
+                10King Abdullah University of Science and Technology, 11National University of Singapore,
+12Carnegie Mellon University Africa, 13Meta, 14Universidad de los Andes, 15University of Tokyo, 16Indiana University,
+
+  17International Institute of Information Technology, Hyderabad, 18MIT, 19University of Pennsylvania, 20Dartmouth
+
+                        Abstract                              episodic memory), present (analyzing hand-object manipu-
+                                                              lation, audio-visual conversation, and social interactions),
+   We introduce Ego4D, a massive-scale egocentric video       and future (forecasting activities). By publicly sharing this
+dataset and benchmark suite. It offers 3,670 hours of daily-  massive annotated dataset and benchmark suite, we aim to
+life activity video spanning hundreds of scenarios (house-    push the frontier of first-person perception. Project page:
+hold, outdoor, workplace, leisure, etc.) captured by 931
+unique camera wearers from 74 worldwide locations and 9       https://ego4d-data.org/
+different countries. The approach to collection is designed
+to uphold rigorous privacy and ethics standards, with con-    1. Introduction
+senting participants and robust de-identification procedures
+where relevant. Ego4D dramatically expands the volume of         Today’s computer vision systems excel at naming objects
+diverse egocentric video footage publicly available to the    and activities in Internet photos or video clips. Their tremen-
+research community. Portions of the video are accompanied     dous progress over the last decade has been fueled by major
+by audio, 3D meshes of the environment, eye gaze, stereo,     dataset and benchmark efforts, which provide the annota-
+and/or synchronized videos from multiple egocentric cam-      tions needed to train and evaluate algorithms on well-defined
+eras at the same event. Furthermore, we present a host of     tasks [49, 60, 61, 92, 108, 143].
+new benchmark challenges centered around understanding
+the first-person visual experience in the past (querying an      While this progress is exciting, current datasets and mod-
+                                                              els represent only a limited definition of visual perception.
+                                                              First, today’s influential Internet datasets capture brief, iso-
+                                                              lated moments in time from a third-person “spectactor” view.
+
+                                                              18995
+                                                                                                                1  2
+
+                                                                                                                3  4
+
+                                                                        Doing laundry
+
+Geographic diversity                           Baking
+
+                                                                                                                Multi-perspective
+
+   IMU                                                                                                          L  R
+
+Human locomotion                                                 Shopping
+
+                                       Sports
+
+                                                                           Reading
+
+                                                                                                                   Stereo vision
+
+                                               Gardening
+
+                    Sewing / Knitting
+
+                                                                                                            3D
+                                                                           Pets
+
+                                               Playing games
+
+Social interaction                                                                                              Video + 3D scans
+
+Figure 1. Ego4D is a massive-scale egocentric video dataset of daily life activity spanning 74 locations worldwide. Here we see a snapshot of
+the dataset (5% of the clips, randomly sampled) highlighting its diversity in geographic location, activities, and modalities. The data includes
+social videos where participants consented to remain unblurred. See https://ego4d-data.org/fig1.html for interactive figure.
+
+However, in both robotics and augmented reality, the input       video content that displays the full arc of a person’s complex
+is a long, fluid video stream from the first-person or “ego-     interactions with the environment, objects, and other people.
+centric” point of view—where we see the world through            In addition to RGB video, portions of the data also provide
+the eyes of an agent actively engaged with its environment.      audio, 3D meshes, gaze, stereo, and/or synchronized multi-
+Second, whereas Internet photos are intentionally captured       camera views that allow seeing one event from multiple
+by a human photographer, images from an always-on wear-          perspectives. Our dataset draws inspiration from prior ego-
+able egocentric camera lack this active curation. Finally,       centric video data efforts [43,44,129,138,179,201,205,210],
+first-person perception requires a persistent 3D understand-     but makes significant advances in terms of scale, diversity,
+ing of the camera wearer’s physical surroundings, and must       and realism.
+interpret objects and actions in a human context—attentive
+to human-object interactions and high-level social behaviors.       Equally important to having the right data is to have the
+                                                                 right research problems. Our second contribution is a suite
+   Motivated by these critical contrasts, we present the         of five benchmark tasks spanning the essential components
+Ego4D dataset and benchmark suite. Ego4D aims to cat-            of egocentric perception—indexing past experiences, ana-
+alyze the next era of research in first-person visual percep-    lyzing present interactions, and anticipating future activity.
+tion. Ego is for egocentric, and 4D is for 3D spatial plus       To enable research on these fronts, we provide millions of
+temporal information.                                            rich annotations that resulted from over 250,000 hours of
+                                                                 annotator effort and range from temporal, spatial, and seman-
+   Our first contribution is the dataset: a massive ego-video    tic labels, to dense textual narrations of activities, natural
+collection of unprecedented scale and diversity that captures    language queries, and speech transcriptions.
+daily life activity around the world. See Figure 1. It consists
+of 3,670 hours of video collected by 931 unique participants        Ego4D is the culmination of an intensive two-year effort
+from 74 worldwide locations in 9 different countries. The        by 14 institutions around the world who came together for
+vast majority of the footage is unscripted and “in the wild”,    the common goal of spurring new research in egocentric per-
+representing the natural interactions of the camera wearers as   ception. We are kickstarting that work with a formal bench-
+they go about daily activities in the home, workplace, leisure,  mark challenge to be held at CVPR 2022. In the coming
+social settings, and commuting. Based on self-identified         years, we believe our contribution can catalyze new research
+characteristics, the camera wearers are of varying back-         not only in vision, but also robotics, augmented reality, 3D
+grounds, occupations, gender, and ages—not solely graduate       sensing, multimodal learning, speech, and language. These
+students! The video’s rich geographic diversity supports the     directions will stem not only from the benchmark tasks we
+inclusion of objects, activities, and people frequently absent   propose, but also alternative ones that the community will
+from existing datasets. Since each participant wore a camera     develop leveraging our massive, publicly available dataset.
+for 1 to 10 hours at at time, the dataset offers long-form
+
+                                                                 18996
+2. Related Work                                                     Figure 2. Ego4D camera wearer demographics—age, gender, coun-
+                                                                    tries of residence, and occupations (self-reported). Font size reflects
+Large-scale third-person datasets In the last decade, an-           relative frequency of the occupation.
+notated datasets have both presented new problems in com-
+puter vision and ensured their solid evaluation. Existing           are also of unprecedented scale and depth, with millions
+collections like Kinetics [108], AVA [92], UCF [207], Ac-           of annotations supporting multiple complex tasks. As such,
+tivityNet [61], HowTo100M [157], ImageNet [49], and                 Ego4D represents a step change in dataset scale and diversity.
+COCO [143] focus on third-person Web data, which have               We believe both factors are paramount to pursue the next
+the benefit and bias of a human photographer. In contrast,          generation of perception for embodied AI.
+Ego4D is first-person. Passively captured wearable camera
+video entails unusual viewpoints, motion blur, and lacks            3. Ego4D Dataset
+temporal curation. Notably, pre-training egocentric video
+models with third-person data [70,221,224,239] suffers from            Next we overview the dataset, which is publicly available
+the sizeable domain mismatch [139, 201].                            under an Ego4D license.
+Egocentric video understanding Egocentric video offers
+a host of interesting challenges, such as human-object in-          3.1. Collection strategy and camera wearers
+teractions [26, 46, 163], activity recognition [110, 139, 243],        Not only do we wish to amass an ego-video collection that
+anticipation [4, 75, 86, 144, 205], video summarization [48,
+129, 131, 147, 148, 232], detecting hands [16, 134], parsing        is substantial in scale, but we also want to ensure its diversity
+social interactions [66, 168, 231], and inferring the camera        of people, places, objects, and activities. Furthermore, for
+wearer’s body pose [107]. Our dataset can facilitate new            realism, we are interested in unscripted footage captured by
+work in all these areas and more, and our proposed bench-           people wearing a camera for long periods of time.
+marks (and annotations thereof) widen the tasks researchers
+can consider moving forward. We defer discussion of how                To this end, we devised a distributed approach to data
+prior work relates to our benchmark tasks to Sec. 5.                collection. The Ego4D project consists of 14 teams from
+Egocentric video datasets Multiple egocentric datasets              universities and labs in 9 countries and 5 continents (see
+have been developed over the last decade. Most relevant to          map in Figure 1). Each team recruited participants to wear a
+our work are those containing unscripted daily life activity,       camera for 1 to 10 hours at a time, for a total of 931 unique
+which includes EPIC-Kitchens [43, 44], UT Ego [129, 210],           camera wearers and 3,670 hours of video in this first dataset
+Activities of Daily Living (ADL) [179], and the Disney              release (Ego4D-3K). Participants in 74 total cities were re-
+dataset [66]. The practice of giving cameras to participants        cruited by word of mouth, ads, and postings on community
+to take out of the lab, first explored in [66, 129, 179], inspires  bulletin boards. Some teams recruited participants with occu-
+our approach. Others are (semi-)scripted, where camera              pations that have interesting visual contexts, such as bakers,
+wearers are instructed to perform a certain activity, as in         carpenters, landscapers, or mechanics.
+Charades-Ego [201] and EGTEA [138]. Whereas today’s
+largest ego datasets focus solely on kitchens [44,44,124,138],         Both the geographic spread of our team as well as our
+Ego4D spans hundreds of environments both indoors and out-          approach to recruiting participants were critical to arrive at
+doors. Furthermore, while existing datasets rely largely on         a diverse demographic composition, as shown in Figure 2.1
+graduate students as camera wearers [43,44,66,129,129,138,          Participants cover a wide variety of occupations, span many
+168, 179, 194, 210], Ego4D camera wearers are of a much             age brackets, with 96 of them over 50 years old, and 45%
+wider demographic, as detailed below. Aside from daily              are female. Two participants identified as non-binary, and
+life activity, prior ego datasets focus on conversation [170],      two preferred not to say a gender.
+inter-person interactions [66, 168, 194, 231], place localiza-
+tion [183, 208], multimodal sensor data [124, 166, 204], hu-            1for 64% of all participants; missing demographics are due to protocols
+man hands [16, 134] human-object interaction [106, 184],            or participants opting out of answering specific questions.
+and object tracking [56].
+
+   Ego4D is an order of magnitude larger than today’s largest
+egocentric datasets both in terms of hours of video (3,670
+hours vs. 100 in [43]) and unique camera wearers (931 peo-
+ple vs. 71 in [201]); it spans hundreds of environments
+(rather than one or dozens, as in existing collections); and
+its video comes from 74 worldwide locations and 9 coun-
+tries (vs. just one or a few cities). The Ego4D annotations
+
+                                                                    18997
+                                                                     Carpenter > 7 hrs of videos  Crafting > 12 hrs of videos  Bike Mechanic > 5.5 hrs of videos
+
+Figure 3. Scenarios in Ego4D. Outer circle shows the 14 most         Figure 4. Some videos (bottom) have coupled 3D meshes (top)
+common scenarios (70% of the data). Wordle shows scenarios in        from Matterport3D scanners, allowing one to relate the dynamic
+the remaining 30%. Inner circle is color coded by the contributing   video to the static 3D environment (middle).
+partner (see map color legend in Fig 1).
+                                                                     3.3. Cameras and modalities
+3.2. Scenarios composing the dataset                                    To avoid models overfitting to a single capture device,
+
+   What activities belong in an egocentric video dataset?            seven different head-mounted cameras were deployed across
+Our research is motivated by problems in robotics and aug-           the dataset: GoPro, Vuzix Blade, Pupil Labs, ZShades, OR-
+mented reality, where vision systems will encounter daily            DRO EP6, iVue Rincon 1080, and Weeview. They offer
+life scenarios. Hence, we consulted a survey from the U.S.           tradeoffs in the modalities available (RGB, stereo, gaze),
+Bureau of Labor Statistics2 that captures how people spend           field of view, and battery life. The field of view and cam-
+the bulk of their time in the home (e.g., cleaning, cooking,         era mounting are particularly influential: while a GoPro
+yardwork), leisure (e.g., crafting, games, attending a party),       mounted on the head pointing down offers a high resolu-
+transportation (e.g., biking, car), errands (e.g., shopping,         tion view of the hands manipulating objects (Fig. 5, right),
+walking dog, getting car fixed), and in the workplace (e.g,          a heads-up camera like the Vuzix shares the vantage of a
+talking with colleagues, making coffee).                             person’s eyes, but will miss interactions close to the body
+                                                                     (Fig. 5, left).
+   To maximize coverage of such scenarios, our approach is
+a compromise between directing camera wearers and giving                In addition to video, portions of Ego4D offer several other
+no guidance at all: (1) we recruited participants whose col-         data modalities: 3D scans, audio, gaze3, stereo, multiple syn-
+lective daily life activity would naturally encompass a spread       chronized wearable cameras, and textual narrations. See
+of the scenarios (as selected freely by the participant), and        Table 1. Each can support new research challenges. For
+(2) we asked participants to wear the camera at length (at           example, having Matterport3D scans of the environment
+least as long as the battery life of the device) so that the activ-  coupled with ego-video clips (Figure 4) offers a unique op-
+ity would unfold naturally in a longer context. A typical raw        portunity for understanding dynamic activities in a persistent
+video clip in our dataset lasts 8 minutes—significantly longer       3D context, as we exploit in the Episodic Memory bench-
+than the 10 second clips often studied in third-person video         mark (see Sec. 5.1). Multiple synchronized egocentric video
+understanding [108]. In this way, we capture unscripted              streams allow accounting for the first and second-person
+activity while being mindful of the scenarios’ coverage.             view in social interactions. Audio allows analysis of conver-
+                                                                     sation and acoustic scenes and events.
+   The exception is for certain multi-person scenarios, where
+we asked participants at five sites who had consented to share       3.4. Privacy and ethics
+their conversation audio and unblurred faces to take part in            From the onset, privacy and ethics standards were critical
+social activities, such as playing games. We leverage this
+portion of Ego4D for the Audio-Visual and Social Interaction         to this data collection effort. Each partner was responsible
+benchmarks (Sec. 5.3 and 5.4).                                       for developing a policy. While specifics vary per site, this
+                                                                     generally entails:
+   Figure 3 shows the wide distribution of scenarios captured
+in our dataset. Note that within each given scenario there are          • Comply with own institutional research policy, e.g.,
+typically dozens of actions taking place, e.g., the carpentry              independent ethics committee review where relevant
+scenario includes hammering, drilling, moving wood, etc.
+Overall, the 931 camera wearers bestow our dataset with a                3Eye trackers were deployed by Indiana U. and Georgia Tech only.
+glimpse of daily life activity around the world.
+
+    2https://www.bls.gov/news.release/atus.nr0.htm
+
+                                                                     18998
+Modality: RGB video Text narrations Features Audio Faces 3D scans Stereo Gaze IMU Multi-cam
+
+# hours: 3,670  3,670  3,670 2,535 612 491                              80  45 836 224
+
+Table 1. Modalities of data in Ego4D and their amounts. “Narrations” are dense, timestamped descriptions of camera wearer activity
+(cf. Sec. 4). “3D scans” are meshes from Matterport3D scanners for the full environment in which the video was captured. “Faces” refers to
+video where participants consented to remain unblurred. “Multi-cam” refers to synchronized video captured at the same event by multiple
+camera wearers. “Features” refers to precomputed SlowFast [70] video features.
+
+   • Obtain informed consent of camera wearers, who can              Figure 5. Example narrations. “C” refers to camera wearer.
+      ask questions and withdraw at any time, and are free to       The narrations allow us to (1) perform text mining for
+      review and redact their own video                          data-driven taxonomy construction for actions and objects,
+                                                                 (2) sort the videos by their content to map them to relevant
+   • Respect rights of others in private spaces, and avoid       benchmarks, and (3) identify temporal windows where cer-
+      capture of sensitive areas or activities                   tain annotations should be seeded. Beyond these uses, the
+                                                                 narrations are themselves a contribution of the dataset, po-
+   • Follow de-identification requirements for personally        tentially valuable for research on video with weakly aligned
+      identifiable information (PII)                             natural language. To our knowledge, ours is the largest repos-
+                                                                 itory of aligned language and video (e.g., HowTo100M [157],
+In short, these standards typically require that the video be    an existing Internet repository with narrations, contains noisy
+captured in a controlled environment with informed consent       spoken narrations that only sometimes comment on the ac-
+by all participants, or else in public spaces where faces and    tivities taking place).
+other PII are blurred. Appendix K in the supplementary
+materials discusses potential negative societal impact.          5. Ego4D Benchmark Suite
+
+3.5. Possible sources of bias                                       First-person vision has the potential to transform many
+   While Ego4D pushes the envelope on massive every-             applications in augmented reality and robotics. However,
+                                                                 compared to mainstream video understanding, egocentric
+day video from geographically and demographically diverse        perception requires new fundamental research to account for
+sources, we are aware of a few biases in our dataset. 74         long-form video, attention cues, person-object interactions,
+locations is still a long way from complete coverage of the      multi-sensory data, and the lack of manual temporal curation
+globe. In addition, the camera wearers are generally located     inherent to a passively worn camera.
+in urban or college town areas. The COVID-19 pandemic
+led to ample footage in stay-at-home scenarios such as cook-        Inspired by all these factors, we propose a suite of chal-
+ing, cleaning, crafts, etc. and more limited opportunities to    lenging benchmark tasks. The five benchmarks tackle the
+collect video at major social public events. In addition, since  past, present, and future of first-person video. See Figure 6.
+battery life prohibits daylong filming, the videos—though        The following sections introduce each task and its annota-
+unscripted—tend to contain more active portions of a partic-     tions. The first dataset release has annotations for 48-1,000
+ipant’s day. Finally, Ego4D annotations are done by crowd-       hours of data per benchmark, on top of the 3,670 hours of
+sourced workers in two sites in Africa. This means that there    data that is narrated. The Appendices describe how we sam-
+will be at least subtle ways in which the language-based         pled videos per benchmark to maximize relevance to the task
+narrations are biased towards their local word choices.          while maintaining geographic diversity.
+
+4. Narrations of Camera Wearer Activity                             We developed baseline models drawing on state-of-the-
+                                                                 art components from the literature in order to test drive all
+   Before any other annotation occurs, we pass all video         Ego4D benchmarks. The Appendices present the baseline
+through a narration procedure. Inspired by the pause-and-        models and quantitative results. We are running a formal
+talk narrator [44], annotators are asked to watch a 5 minute     Ego4D competition at CVPR 2022 inviting the research
+clip of video, summarize it with a few sentences, and then       community to improve on these baselines.
+re-watch, pausing repeatedly to write a sentence about each
+thing the camera wearer does. We record the timestamps
+and the associated free-form sentences. See Figure 5. Each
+video receives two independent narrations from different
+annotators. The narrations are temporally dense: on average
+we received 13.2 sentences per minute of video, for a total of
+3.85M sentences. In total the narrations describe the Ego4D
+video using 1,772 unique verbs (activities) and 4,336 unique
+nouns (objects). See Appendix D for details.
+
+                                                                 18999
+Figure 6. The Ego4D benchmark suite centers around the first-person visual experience—from remembering the past, to analyzing the
+present, to anticipating the future. The supplementary video available here https://ego4d-data.org/ overviews each task.
+
+5.1. Episodic Memory                                                      Figure 7. Episodic Memory’s three query types
+Motivation Egocentric video from a wearable camera
+records the who/what/when/where of an individual’s daily       day, e.g., setting the table is a moment, whereas pick up is
+life experience. This makes it ideal for what Tulving called   an action in our Forecasting benchmark (Sec. 5.5).
+episodic memory [213]: specific first-person experiences
+(“what did I eat and who did I sit by on my first flight          For NLQ and VQ, we ask annotators to generate lan-
+to France?”), to be distinguished from semantic memory         guage/visual queries and couple them with the “response
+(“what’s the capital of France?”). An augmented reality as-    track” in the video. For MQ, we provide the taxonomy of
+sistant that processes the egocentric video stream could give  labels and ask annotators to label clips with each and every
+us super-human memory if it could appropriately index our      temporal segment containing a moment instance. In total,
+visual experience and answer queries.                          we have ∼74K total queries spanning 1, 000 hours of video.
+Task definition Given an egocentric video and a query, the     Evaluation metrics and baselines For NLQ, we use top-k
+Ego4D Episodic Memory task requires localizing where           recall at a certain temporal intersection over union (tIoU)
+the answer can be seen within the user’s past video. We        threshold. MQ adopts a popular metric used in temporal
+consider three query types. (1) Natural language queries       action detection: mAP at multiple tIoU thresholds, as well as
+(NLQ), in which the query is expressed in text (e.g., “What    top-kx recall. VQ adopts temporal and spatio-temporal local-
+did I put in the drawer?”), and the output response is the     ization metrics as well as timeliness metrics that encourage
+temporal window where the answer is visible or deducible.      speedy searches. Appendix F presents the baseline models
+(2) Visual queries (VQ), in which the query is a static image  we developed and reports results.
+of an object, and the output response localizes the object     Relation to existing tasks Episodic Memory has some
+the last time it was seen in the video, both temporally and    foundations in existing vision problems, but also adds new
+spatially. The spatial response is a 2D bounding box on the    challenges. All three queries call for spatial reasoning in
+object, and optionally a 3D displacement vector from the       a static environment coupled with dynamic video of a per-
+current camera position to the object’s 3D bounding box. VQ    son who moves and changes things; current work largely
+captures how a user might teach the system an object with      treats these two elements separately. The timeliness met-
+an image example, then later ask for its location (“Where      rics encourage work on intelligent contextual search. While
+is this [picture of my keys]?”). (3) Moments queries (MQ),     current literature on language+vision focuses on captioning
+in which the query is the name of a high-level activity or     and question answering for isolated instances of Internet
+“moment”, and the response consists of all temporal windows    data [12, 35, 119, 228], NLQ is motivated by queries about
+where the activity occurs (e.g., “When did I read to my        the camera wearer’s own visual experience and operates over
+children?”). See Figure 7.                                     long-term observations. VQ upgrades object instance recog-
+Annotations For language queries, we devised a set of 13
+template questions meant to span things a user might ask
+to augment their memory, such as “what is the state of
+object X?”, e.g., “did I leave the window open?”. Annotators
+express the queries in free-form natural language, and also
+provide the slot filling (e.g., X = window). For moments,
+we established a taxonomy of 110 activities in a data-driven,
+semi-automatic manner by mining the narration summaries.
+Moments capture high-level activities in the camera wearer’s
+
+                                                               19000
+pre-condition  PNR  post-condition                                 moments in time (pre, PNR, post) and the bounding boxes
+                                                                   for the hands, tools, and objects in each of the three frames.
+State-change: Plant removed from ground                            We also annotate the state change types (remove, burn, etc.,
+                                                                   see Fig. 8), action verbs, and nouns for the objects.
+pre-condition  PNR  post-condition                                 Evaluation metrics and baselines Object state change
+                                                                   temporal localization is evaluated using absolute temporal
+State-change: Wood smoothed                                        error measured in seconds. Object state change classifica-
+                                                                   tion is evaluated by classification accuracy. State change
+Figure 8. Hands and Objects: Example object state changes defined  object detection is evaluated by average precision (AP). Ap-
+by pre-condition, PNR, and post-condition frames.                  pendix G details the annotations and presents baseline model
+                                                                   results for the three Hands and Objects tasks.
+nition [23, 85, 126, 155] to deal with video (frequent FoV         Relation to existing tasks Limited prior work considers
+changes, objects entering/exiting the view) and to reason          object state change in photos [102, 164] or video [8, 68, 242];
+about objects in the context of a 3D environment. Finally,         Ego4D is the first video benchmark dedicated to the task of
+MQ can be seen as activity detection [141, 229, 237] but for       understanding object state changes. The task is similar to
+the activities of the camera wearer.                               action recognition (e.g., [100, 110, 139, 221, 243]) because in
+                                                                   some cases a specific action can correspond to a specific state
+5.2. Hands and Objects                                             change. However, a single state change (e.g., cutting) can
+Motivation While Episodic Memory aims to make past                 also be observed in many forms (various object-tool-action
+video queryable, our next benchmark aims to understand             combinations). It is our hope that the proposed benchmarks
+the camera wearer’s present activity—in terms of inter-            will lead to the development of more explicit models of
+actions with objects and other people. Specifically, the           object state change, while avoiding approaches that simply
+Hands and Objects benchmark captures how the camera                overfit to action or object observations.
+wearer changes the state of an object by using or manip-
+ulating it—which we call an object state change. Though            5.3. Audio-Visual Diarization
+cutting a piece of lumber in half can be achieved through          Motivation Our next two tasks aim to understand the cam-
+many methods (e.g., various tools, force, speed, grasps, end-      era wearer’s present interactions with people. People com-
+effectors), all should be recognized as the same state change.     municate using spoken language, making the capture of con-
+This generalization ability will enable us to understand hu-       versational content in business meetings and social settings
+man actions better, as well as to train robots to learn from       a problem of great scientific and practical interest. While
+human demonstrations in video.                                     diarization has been a standard problem in the speech recog-
+Task definitions We interpret an object state change to in-        nition community, Ego4D brings in two new aspects (1)
+clude various physical changes, including changes in size,         simultaneous capture of video and audio (2) the egocentric
+shape, composition, and texture. Object state changes can be       perspective of a participant in the conversation.
+viewed along temporal, spatial and semantic axes, leading to       Task definition and annotations The Audio-Visual Di-
+these three tasks: (1) Point-of-no-return temporal localiza-       arization (AVD) benchmark is composed of four tasks (see
+tion: given a short video clip of a state change, the goal is to   Figure 9):
+estimate the keyframe that contains the point-of-no-return          • Localization and tracking of the participants (i.e., candi-
+(PNR) (the time at which a state change begins); (2) State
+change object detection: given three temporal frames (pre,            date speakers) in the visual field of view (FoV). A bound-
+post, PNR), the goal is to regress the bounding box of the            ing box is annotated around each participant‘s face.
+object undergoing a state change; (3) Object state change           • Active speaker detection where each tracked speaker is as-
+classification: given a short video clip, the goal is to classify     signed an anonymous label, including the camera wearer
+whether an object state change has taken place or not.                who never appears in the visual FoV.
+Annotations We select the data to annotate based on activi-         • Diarization of each speaker’s speech activity, where
+ties that are likely to involve hand-object interactions (e.g.,       we provide the time segments corresponding to each
+knitting, carpentry, baking, etc.). We start by labeling each         speaker’s voice activity in the clip.
+narrated hand-object interaction. For each, we label three          • Transcription of each speaker’s speech content (only En-
+                                                                      glish speakers are considered for this version).
+                                                                   Evaluation metrics and baselines We use standardized ob-
+                                                                   ject tracking (MOT) metrics [18, 19] to evaluate speaker
+                                                                   localization and tracking in the visual FoV. Speaker detec-
+                                                                   tion with anonymous labels is evaluated using the speaker
+
+                                                                   19001
+    Figure 9. Audio-Visual and Social benchmark annotations       camera-wearer, as distinguished from those directed to other
+                                                                  social partners: (1) Looking at me (LAM): given a video in
+error rate, which measures the proportion of wrongly as-          which the faces of social partners have been localized and
+signed labels. We adopt the well studied diarization error        identified, classify whether each visible face is looking at the
+rate (DER) [11] and word error rate (WER) [114] for di-           camera wearer; and (2) Talking to me (TTM): given a video
+arization and transcription, respectively. We present AVD         and audio segment with the same tracked faces, classify
+baseline models and results in Appendix H.                        whether each visible face is talking to the camera wearer.
+Relation to existing tasks The past few years have seen           Annotations Social annotations build on those from AV di-
+audio studied in computer vision tasks [245] for action clas-     arization (Sec. 5.3). Given (1) face bounding boxes labeled
+sification [110, 226], object categorization [125, 234], source   with participant IDs and tracked across frames, and (2) asso-
+localization and tracking [14, 197, 212] and embodied navi-       ciated active speaker annotations that identify in each frame
+gation [33]. Meanwhile, visual information is increasingly        whether the social partners whose faces are visible are speak-
+used in historically audio-only tasks like speech transcrip-      ing, annotators provide the ground truth labels for LAM and
+tion, voice recognition, audio spatialization [5, 80, 104, 161],  TTM as a binary label for each face in each frame. For LAM,
+speaker diarization [10,83], and source separation [57,78,82].    annotators label the time segment (start and end time) of a
+Datasets like VoxCeleb [39], AVA Speech [31], AVA active          visible person when the individual is looking at the camera
+speaker [192], AVDIAR [83], and EasyCom [53] support this         wearer. For TTM, we use the vocal activity annotation from
+research. However, these datasets are mainly non-egocentric.      AVD, then identify the time segment when the speech is
+Unlike Ego4D, they do not capture natural conversational          directed at the camera wearer. See Figure 9.
+characteristics involving a variety of noisy backgrounds,         Evaluation metrics and baselines We use mean average
+overlapping, interrupting and un-intelligible speech, environ-    precision (mAP) and Top-1 accuracy to quantify the classifi-
+ment variation, moving camera wearers, and speakers facing        cation performance for both tasks. Unlike AVD, we measure
+away from the camera wearer.                                      precision at every frame. Appendix I provides details and
+5.4. Social Interactions                                          presents Social baseline models and results.
+Motivation An egocentric video provides a unique lens for         Relation to existing tasks Compared to [67], Ego4D con-
+studying social interactions because it captures utterances       tains substantially more participants, hours of recording, and
+and nonverbal cues [115] from each participant’s unique           variety of sensors and social contexts. The LAM task is most
+view and enables embodied approaches to social understand-        closely related to prior work on eye contact detection in ego-
+ing. Progress in egocentric social understanding could lead       video [36, 159], but addresses more diverse and challenging
+to more capable virtual assistants and social robots. Compu-      scenarios. Mutual gaze estimation [54, 150–152, 172, 176]
+tational models of social interactions can also provide new       and gaze following [37, 65, 111, 186] are also relevant. The
+tools for diagnosing and treating disorders of socialization      TTM task is related to audio-visual speaker detection [7,193]
+and communication such as autism [188], and could support         and meeting understanding [21, 132, 154].
+novel prosthetic technologies for the hearing-impaired.
+Task definition While the Ego4D dataset can support such          5.5. Forecasting
+a long-term research agenda, our initial Social benchmark         Motivation Having addressed the past and present of the
+focuses on multimodal understanding of conversational in-         camera wearer’s visual experience, our last benchmark
+teractions via attention and speech. Specifically, we focus on    moves on to anticipating the future. Forecasting move-
+identifying communicative acts that are directed towards the      ments and interactions requires comprehending the camera
+                                                                  wearer’s intention. It has immediate applications in AR and
+                                                                  human-robot interaction, such as anticipatively turning on
+                                                                  appliances or moving objects for the human’s convenience.
+                                                                  The scientific motivation can be seen by analogy with lan-
+                                                                  guage models such as GPT-3 [24], which implicitly capture
+                                                                  knowledge needed by many other tasks. Rather than predict
+                                                                  the next word, visual forecasting models the dynamics of an
+                                                                  agent acting in the physical world.
+                                                                  Task definition The Forecasting benchmark includes four
+                                                                  tasks (Fig. 10): (1) Locomotion prediction: predict a set
+                                                                  of possible future ground plane trajectories of the camera
+                                                                  wearer. (2) Hand movement prediction: predict the hand
+
+                                                                  19002
+                                      take                            AI to learn from daily life experiences around the world—
+                                                                      seeing what we see and hearing what we hear—while our
+                                      dough in    take                benchmark suite provides solid footing for innovations in
+                                        0.8s    dough in              video understanding that are critical for augmented reality,
+                                                                      robotics, and many other domains. We look forward to the
+                                                0.8s                  research that will build on Ego4D in the years ahead.
+
+Locomotion Movements Hands Movements  Short-Term Anticipation         Contribution statement
+
+             prediction: knead dough put dough pack spice pour spice     Project led and initiated by Kristen Grauman. Program
+                                                                      management and operations led by Andrew Westbury. Scien-
+Input video  Long-Term Anticipation                                   tific advising by Jitendra Malik. Authors with stars (∗) were
+                                                                      key drivers of implementation, collection, and/or annotation
+Figure 10. The Forecasting benchmark aims to predict future loco-     development throughout the project. Authors with daggers
+motion, movement of hands, next object interactions, and sequences    (†) are faculty PIs and working group leads in the project.
+of future actions.                                                    The benchmarks brought together many researchers from
+                                                                      all institutions including cross-institution baseline evalua-
+positions of the camera wearer in future frames. (3) Short-           tions. The Appendices detail the contributions of individual
+term object interaction anticipation: detect a set of possible        authors for the various benchmarks.
+future interacted objects in the most recent frame of the clip.
+To each object, assign a verb indicating the possible future             Appendix A provides details about the data collection
+interaction and a “time to contact” estimate of when the inter-       done per site and acknowledges the primary contributors.
+action is going to begin. (4) Long-term action anticipation:          The video collected by Meta Reality Labs used Vuzix
+predict the camera wearer’s future sequence of actions.               Blade® Smart Glasses and was done in a closed environment
+Annotations Using the narrations, we identify the occur-              in Meta’s buildings by paid participants who signed consents
+rence of each object interaction, assigning a verb and a target       to share their data. All other video collection and participant
+object class. The verb and noun taxonomies are seeded from            recruitment was managed by the university partners. The
+the narrations and then hand-refined. For each action, we             annotation effort was led by Meta AI.
+identify a contact frame and a pre-condition frame in which
+we annotate bounding boxes around active objects. The                 Acknowledgements We gratefully acknowledge the following
+same objects as well as hands are annotated in three frames           colleagues for valuable discussions and support of our project:
+preceding the pre-condition frame by 0.5s, 1s and 1.5s. We            Aaron Adcock, Andrew Allen, Behrouz Behmardi, Serge Belongie,
+obtain ground truth ego-trajectories of the camera wearer             Antoine Bordes, Mark Broyles, Xiao Chu, Samuel Clapp, Irene
+using structure from motion.                                          D’Ambra, Peter Dodds, Jacob Donley, Ruohan Gao, Tal Hassner,
+Evaluation metrics and baselines We evaluate future loco-             Ethan Henderson, Jiabo Hu, Guillaume Jeanneret, Sanjana Krish-
+motion movement and hand movement prediction using L2                 nan, Devansh Kukreja, Tsung-Yi Lin, Bobby Otillar, Manohar
+distance. Short-term object interaction anticipation is eval-         Paluri, Maja Pantic, Lucas Pinto, Vivek Roy, Jerome Pesenti, Joelle
+uated using a Top-5 mean Average Precision metric which               Pineau, Luca Sbordone, Rajan Subramanian, Helen Sun, Mary
+discounts the Top-4 false negative predictions. Long-term ac-         Williamson, and Bill Wu. We also acknowledge Jacob Chalk for
+tion anticipation is evaluated using edit distance. Appendix J        setting up the Ego4D AWS backend and Prasanna Sridhar for de-
+details the tasks, annotations, baseline models, and results.         veloping the Ego4D website. Thank you to the Common Visual
+Relation to existing tasks Predicting future events has in-           Data Foundation (CVDF) for hosting the Ego4D dataset. The
+creasing interest [191]. Previous work considers future lo-           universities acknowledge the usage of commercial software for de-
+calization [113, 120, 174, 230], action anticipation [76, 77,         identification of video. brighter.ai was used for redacting videos by
+86, 118, 127, 219], next active object prediction [20, 74],           some universities. Personal data from the U. Bristol was protected
+future event prediction [149, 167], and future frame predic-          by Primloc’s Secure Redact software.
+tion [145, 146, 153, 215, 218, 227]. Whereas past work relies
+on different benchmarks and task definitions, we propose a                UNICT is supported by MIUR AIM - Attrazione e MobilitaIn-
+unified benchmark to assess progress in the field.                    ternazionale Linea 1 - AIM1893589 - CUP E64118002540007.
+                                                                      Bristol is supported by UKRIEngineering and Physical Sciences
+6. Conclusion                                                         Research Council (EPSRC) Doctoral Training Program (DTP), EP-
+                                                                      SRC Fellowship UMPIRE (EP/T004991/1). KAUST is supported
+   Ego4D is a first-of-its-kind dataset and benchmark suite           by the KAUST Office of Sponsored Research through the Visual
+aimed at advancing multimodal perception of egocentric                Computing Center (VCC) funding. National University of Singa-
+video. Compared to existing work, our dataset is orders of            pore is supported by Mike Shou’s Start-Up Grant. Georgia Tech is
+magnitude larger in scale and diversity. The data will allow          supported in part by NSF 2033413 and NIH R01MH114999.
+
+                                                                      19003
+References                                                              [16] Sven Bambach, Stefan Lee, David J. Crandall, and Chen Yu.
+                                                                              Lending a hand: Detecting hands and recognizing activities
+   [1] Github repository of the ESPNet model zoo. https:                      in complex egocentric interactions. In The IEEE Interna-
+        //github.com/espnet/espnet_model_zoo. We                              tional Conference on Computer Vision (ICCV), December
+        used the ShinjiWatanabe/gigaspeech_asr_                               2015. 3
+
+        train_asr_raw_en_bpe5000_valid.acc.ave                          [17] Mark A Bee and Christophe Micheyl. The cocktail party
+                                                                              problem: what is it? how can it be solved? and why should
+        model. 53                                                             animal behaviorists study it? Journal of comparative psy-
+                                                                              chology, 122(3):235, 2008. 45
+   [2] Kaldi English GLM file. https://github.com/
+                                                                        [18] Keni Bernardin, Alexander Elbs, and Rainer Stiefelhagen.
+        kaldi-asr/kaldi/blob/master/egs/ami/s5/                               Multiple object tracking performance metrics and evaluation
+                                                                              in a smart room environment. In Sixth IEEE International
+        local/english.glm. 54                                                 Workshop on Visual Surveillance, in conjunction with ECCV,
+                                                                              volume 90. Citeseer, 2006. 7, 46
+   [3] NIST SRE 2000 Evaluation Plan. https://www.nist.
+                                                                        [19] Keni Bernardin and Rainer Stiefelhagen. Evaluating mul-
+        gov/sites/default/files/documents/2017/                               tiple object tracking performance: the clear mot metrics.
+                                                                              EURASIP Journal on Image and Video Processing, 2008:1–
+        09/26/spk-2000-plan-v1.0.htm_.pdf. 48                                 10, 2008. 7, 46
+
+   [4] Yazan Abu Farha, Alexander Richard, and Juergen Gall.            [20] Gedas Bertasius, Hyun Soo Park, Stella X. Yu, and Jianbo
+        When will you do what?-anticipating temporal occurrences              Shi. First-person action-object detection with egonet. In
+        of activities. In Computer Vision and Pattern Recognition,            Proceedings of Robotics: Science and Systems, July 2017. 9
+        pages 5343–5352, 2018. 3
+                                                                        [21] Cigdem Beyan, Francesca Capozzi, Cristina Becchio, and
+   [5] Triantafyllos Afouras, Joon Son Chung, Andrew Senior,                  Vittorio Murino. Prediction of the leadership style of an
+        Oriol Vinyals, and Andrew Zisserman. Deep audio-visual                emergent leader using audio and visual nonverbal features.
+        speech recognition. IEEE transactions on pattern analysis             IEEE Transactions on Multimedia, 20(2):441–456, 2018. 8
+        and machine intelligence, 2018. 8, 45
+                                                                        [22] Goutam Bhat, Martin Danelljan, Luc Van Gool, and Radu
+   [6] Triantafyllos Afouras, Joon Son Chung, and Andrew Zisser-              Timofte. Know Your Surroundings: Exploiting Scene Infor-
+        man. The conversation: Deep audio-visual speech enhance-              mation for Object Tracking. arXiv:2003.11014 [cs], May
+        ment. In Interspeech, 2018. 45                                        2020. 30, 31
+
+   [7] Triantafyllos Afouras, Andrew Owens, Joon Son Chung,             [23] Eric Brachmann, Alexander Krull, Frank Michel, Stefan
+        and Andrew Zisserman. Self-supervised Learning of Audio-              Gumhold, Jamie Shotton, and Carsten Rother. Learning
+        Visual Objects from Video. In Proceedings of the European             6d object pose estimation using 3d object coordinates. In
+        Conference on Computer Vision (ECCV 20), volume 12363                 European conference on computer vision, pages 536–551.
+        LNCS, pages 208–224, 2020. 8                                          Springer, 2014. 7
+
+   [8] Jean-Baptiste Alayrac, Josef Sivic, Ivan Laptev, and Simon       [24] Tom B. Brown, Benjamin Mann, Nick Ryder, Melanie Sub-
+        Lacoste-Julien. Joint discovery of object states and manipu-          biah, Jared Kaplan, Prafulla Dhariwal, Arvind Neelakan-
+        lation actions. ICCV, 2017. 7, 39, 40                                 tan, Pranav Shyam, Girish Sastry, Amanda Askell, Sand-
+                                                                              hini Agarwal, Ariel Herbert-Voss, Gretchen Krueger, Tom
+   [9] Humam Alwassel, Fabian Caba Heilbron, Victor Escorcia,                 Henighan, Rewon Child, Aditya Ramesh, Daniel M. Ziegler,
+        and Bernard Ghanem. Diagnosing error in temporal action               Jeffrey Wu, Clemens Winter, Christopher Hesse, Mark Chen,
+        detectors. In Proceedings of the European Conference on               Eric Sigler, Mateusz Litwin, Scott Gray, Benjamin Chess,
+        Computer Vision (ECCV), 2018. 36, 37                                  Jack Clark, Christopher Berner, Sam McCandlish, Alec Rad-
+                                                                              ford, Ilya Sutskever, and Dario Amodei. Language models
+ [10] Xavier Anguera, Simon Bozonnet, Nicholas Evans, Corinne                 are few-shot learners, 2020. 8
+        Fredouille, Gerald Friedland, and Oriol Vinyals. Speaker
+        diarization: A review of recent research. IEEE Transactions     [25] Ian M Bullock, Thomas Feix, and Aaron M Dollar. The
+        on audio, speech, and language processing, 20(2):356–370,             yale human grasping dataset: Grasp, object, and task data in
+        2012. 8, 47, 48                                                       household and machine shop environments. IJRR, 2015. 40
+
+ [11] Xavier Anguera Miro´. Robust speaker diarization for meet-        [26] Minjie Cai, Kris M Kitani, and Yoichi Sato. Understand-
+        ings. Universitat Polite`cnica de Catalunya, 2006. 8, 47              ing hand-object manipulation with grasp types and object
+                                                                              attributes. In RSS, 2016. 3
+ [12] Stanislaw Antol, Aishwarya Agrawal, Jiasen Lu, Margaret
+        Mitchell, Dhruv Batra, C. Lawrence Zitnick, and Devi            [27] Nicolas Carion, Francisco Massa, Gabriel Synnaeve, Nicolas
+        Parikh. VQA: Visual Question Answering. In International              Usunier, Alexander Kirillov, and Sergey Zagoruyko. End-
+        Conference on Computer Vision (ICCV), 2015. 6                         to-end object detection with transformers. In European
+                                                                              Conference on Computer Vision, pages 213–229. Springer,
+ [13] Mehmet Ali Arabacı, Fatih O¨ zkan, Elif Surer, Peter Jancˇovicˇ,        2020. 43, 44
+        and Alptekin Temizel. Multi-modal egocentric activity
+        recognition using audio-visual features. arXiv preprint         [28] Jean Carletta, Simone Ashby, Sebastien Bourban, Mike
+        arXiv:1807.00612, 2018. 45                                            Flynn, Mael Guillemot, Thomas Hain, Jaroslav Kadlec,
+
+ [14] Relja Arandjelovic´ and Andrew Zisserman. Objects that
+        sound. In ECCV, 2018. 8, 45
+
+ [15] Alexei Baevski, Henry Zhou, Abdelrahman Mohamed,
+        and Michael Auli. wav2vec 2.0: A framework for self-
+        supervised learning of speech representations. arXiv preprint
+        arXiv:2006.11477, 2020. 53
+
+                                                                        19004
+      Vasilis Karaiskos, Wessel Kraaij, Melissa Kronenthal, et al.  [41] Kenneth Church and Patrick Hanks. Word association norms,
+      The AMI meeting corpus: A pre-announcement. In In-                  mutual information, and lexicography. Computational lin-
+      ternational workshop on machine learning for multimodal             guistics, 16(1):22–29, 1990. 63
+      interaction, pages 28–39. Springer, 2006. 48
+                                                                    [42] Dima Damen, Hazel Doughty, Giovanni Farinella, Sanja
+[29] Joao Carreira and Andrew Zisserman. Quo vadis, action                Fidler, Antonino Furnari, Evangelos Kazakos, Davide Molti-
+      recognition? a new model and the kinetics dataset. In pro-          santi, Jonathan Munro, Toby Perrett, Will Price, et al. The
+      ceedings of the IEEE Conference on Computer Vision and              epic-kitchens dataset: Collection, challenges and baselines.
+      Pattern Recognition, pages 6299–6308, 2017. 41, 43                  IEEE Transactions on Pattern Analysis & Machine Intelli-
+                                                                          gence, (01):1–1, 2020. 45
+[30] Chien-Yi Chang, De-An Huang, Danfei Xu, Ehsan Adeli,
+      Li Fei-Fei, and Juan Carlos Niebles. Procedure planning       [43] Dima Damen, Hazel Doughty, Giovanni Maria Farinella,
+      in instructional videos. arXiv preprint arXiv:1907.01172,           , Antonino Furnari, Jian Ma, Evangelos Kazakos, Davide
+      2019. 40                                                            Moltisanti, Jonathan Munro, Toby Perrett, Will Price, and
+                                                                          Michael Wray. Rescaling egocentric vision. IJCV, 2021. 2,
+[31] Sourish Chaudhuri, Joseph Roth, Daniel PW Ellis, Andrew              3, 40
+      Gallagher, Liat Kaver, Radhika Marvin, Caroline Pantofaru,
+      Nathan Reale, Loretta Guarino Reid, Kevin Wilson, et al.      [44] Dima Damen, Hazel Doughty, Giovanni Maria Farinella,
+      Ava-speech: A densely labeled dataset of speech activity in         Sanja Fidler, Antonino Furnari, Evangelos Kazakos, Da-
+      movies. arXiv preprint arXiv:1808.00606, 2018. 8, 46                vide Moltisanti, Jonathan Munro, Toby Perrett, Will Price,
+                                                                          and Michael Wray. Scaling egocentric vision: The epic-
+[32] C. Chen, U. Jain, C. Schissler, S. V. Amengual Gari,                 kitchens dataset. In European Conference on Computer
+      Z. Al-Halah, V. Ithapu, P. Robinson, and K. Grauman.                Vision (ECCV), 2018. 2, 3, 5, 17, 45
+      Soundspaces: Audio-visual navigation in 3d environments.
+      In ECCV, 2020. 54                                             [45] Dima Damen, Teesid Leelasawassuk, Osian Haines, Andrew
+                                                                          Calway, and Walterio Mayol-Cuevas. You-Do, I-Learn: Dis-
+[33] Changan Chen, Unnat Jain, Carl Schissler, Sebastia Vi-               covering task relevant objects and their modes of interaction
+      cenc Amengual Gari, Ziad Al-Halah, Vamsi Krishna Ithapu,            from multi-user egocentric video. In BMVC, 2014. 39, 40
+      Philip Robinson, and Kristen Grauman. Audio-visual em-
+      bodied navigation. environment, 97:103, 2019. 8               [46] Dima Damen, Teesid Leelasawassuk, and Walterio Mayol-
+                                                                          Cuevas. You-do, i-learn: Egocentric unsupervised discovery
+[34] Guoguo Chen, Shuzhou Chai, Guanbo Wang, Jiayu Du, Wei-               of objects and their modes of interaction towards video-
+      Qiang Zhang, Chao Weng, Dan Su, Daniel Povey, Jan Trmal,            based guidance. CVIU, 2016. 3
+      Junbo Zhang, et al. Gigaspeech: An evolving, multi-domain
+      asr corpus with 10,000 hours of transcribed audio. arXiv      [47] Fred J Damerau. A technique for computer detection and
+      preprint arXiv:2106.06909, 2021. 53                                 correction of spelling errors. Communications of the ACM,
+                                                                          1964. 65
+[35] Xinlei Chen, Hao Fang, Tsung-Yi Lin, Ramakrishna Vedan-
+      tam, Saurabh Gupta, Piotr Dolla´r, and C Lawrence Zitnick.    [48] Ana Garcia Del Molino, Cheston Tan, Joo-Hwee Lim, and
+      Microsoft coco captions: Data collection and evaluation             Ah-Hwee Tan. Summarization of egocentric videos: A com-
+      server. arXiv preprint arXiv:1504.00325, 2015. 6                    prehensive survey. IEEE Transactions on Human-Machine
+                                                                          Systems, 47(1), 2016. 3
+[36] Eunji Chong, Elysha Clark-Whitney, Audrey Souther-
+      land, Elizabeth Stubbs, Chanel Miller, Eliana L Ajodan,       [49] Jia Deng, Wei Dong, Richard Socher, Li-Jia Li, Kai Li, and
+      Melanie R Silverman, Catherine Lord, Agata Rozga, Re-               Li Fei-Fei. ImageNet: A large-scale hierarchical image
+      becca M Jones, and James M Rehg. Detection of eye contact           database. In CVPR, 2009. 1, 3
+      with deep neural networks is as accurate as human experts.
+      Nature Communications, 11(1):6386, dec 2020. 8                [50] Daniel DeTone, Tomasz Malisiewicz, and Andrew Rabi-
+                                                                          novich. Superpoint: Self-supervised interest point detection
+[37] Eunji Chong, Yongxin Wang, Nataniel Ruiz, and James M.               and description. In CVPR Workshop, 2018. 32
+      Rehg. Detecting Attended Visual Targets in Video. In Pro-
+      ceedings of the IEEE Conference on Computer Vision and        [51] Jacob Devlin, Ming-Wei Chang, Kenton Lee, and Kristina
+      Pattern Recognition (CVPR 20), pages 5395–5405, Seattle,            Toutanova. Bert: Pre-training of deep bidirectional trans-
+      WA, 2020. 8, 57                                                     formers for language understanding. arXiv:1810.04805,
+                                                                          2018. 25
+[38] Joon Son Chung, Jaesung Huh, Seongkyu Mun, Minjae
+      Lee, Hee Soo Heo, Soyeon Choe, Chiheon Ham, Sunghwan          [52] Jacob Devlin, Ming-Wei Chang, Kenton Lee, and Kristina
+      Jung, Bong-Jin Lee, and Icksang Han. In defence of metric           Toutanova. BERT: Pre-training of deep bidirectional trans-
+      learning for speaker recognition. In Interspeech, 2020. 56          formers for language understanding. In Proceedings of the
+                                                                          2019 Conference of the North American Chapter of the As-
+[39] Joon Son Chung, Jaesung Huh, Arsha Nagrani, Triantafyl-              sociation for Computational Linguistics: Human Language
+      los Afouras, and Andrew Zisserman. Spot the conver-                 Technologies, Volume 1 (Long and Short Papers), pages
+      sation: speaker diarisation in the wild. arXiv preprint             4171–4186, Minneapolis, Minnesota, June 2019. Associa-
+      arXiv:2007.01216, 2020. 8, 46                                       tion for Computational Linguistics. 35, 36
+
+[40] J. S. Chung, A. Nagrani, and A. Zisserman. VoxCeleb2:          [53] Jacob Donley, Vladimir Tourbabin, Jung-Suk Lee, Mark
+      Deep Speaker Recognition. In INTERSPEECH, 2018. 46,                 Broyles, Hao Jiang, Jie Shen, Maja Pantic, Vamsi Krishna
+      49                                                                  Ithapu, and Ravish Mehra. Easycom: An augmented reality
+                                                                          dataset to support algorithms for easy communication in
+
+                                                                    19005
+      noisy environments. arXiv preprint arXiv:2107.04174, 2021.     [66] Alireza Fathi, Jessica K. Hodgins, and James M. Rehg. So-
+      8, 46                                                                cial interactions: A first-person perspective. In CVPR, 2012.
+                                                                           3
+[54] Bardia Doosti, Ching-Hui Chen, Raviteja Vemulapalli,
+      Xuhui Jia, Yukun Zhu, and Bradley Green. Boosting image-       [67] A. Fathi, J. K. Hodgins, and J. M. Rehg. Social interactions:
+      based mutual gaze detection using pseudo 3d gaze. In Thirty-         A first-person perspective. In Proceedings of the IEEE Con-
+      Fifth AAAI Conference on Artificial Intelligence, pages 1273–        ference on Computer Vision and Pattern Recognition (CVPR
+      1281, 2021. 8                                                        12), pages 1226–1233. IEEE, jun 2012. 8
+
+[55] Hazel Doughty, Ivan Laptev, Walterio Mayol-Cuevas, and          [68] A. Fathi and J. Rehg. Modeling actions through state
+      Dima Damen. Action modifiers: Learning from adverbs                  changes. In CVPR, 2013. 7
+      in instructional videos. arXiv preprint arXiv:1912.06617,
+      2019. 40                                                       [69] Alireza Fathi and James M Rehg. Modeling actions through
+                                                                           state changes. In CVPR, 2013. 39, 40
+[56] Matteo Dunnhofer, Antonino Furnari, Giovanni Maria
+      Farinella, and Christian Micheloni. Is first person vision     [70] Christoph Feichtenhofer, Haoqi Fan, Jitendra Malik, and
+      challenging for object tracking? In IEEE/CVF Interna-                Kaiming He. Slowfast networks for video recognition. In
+      tional Conference on Computer Vision Workshops (ICCVW)               ICCV, 2019. 3, 5, 36, 42, 43
+      - Visual Object Tracking Challenge, 2021. 3
+                                                                     [71] Christoph Feichtenhofer, Haoqi Fan, Jitendra Malik, and
+[57] Ariel Ephrat, Inbar Mosseri, Oran Lang, Tali Dekel, Kevin             Kaiming He. Slowfast networks for video recognition. In
+      Wilson, Avinatan Hassidim, William T Freeman, and                    Proceedings of the IEEE/CVF international conference on
+      Michael Rubinstein. Looking to listen at the cocktail party:         computer vision, pages 6202–6211, 2019. 35, 66
+      A speaker-independent audio-visual model for speech sepa-
+      ration. In SIGGRAPH, 2018. 8, 45                               [72] Jonathan Fiscus. NIST sclite sscoring toolkit. https:
+                                                                           //github.com/usnistgov/SCTK. 54
+[58] Dave Epstein, Boyuan Chen, and Carl Vondrick. Oops!
+      predicting unintentional action in video. In Arxiv, 2019. 39   [73] Jianglin Fu, Ivan V Bajic´, and Rodney G Vaughan. Datasets
+                                                                           for face and object detection in fisheye images. Data in brief,
+[59] N. Ryant et. al. The Second DIHARD Diarization Challenge:             27:104752, 2019. 51
+      Dataset, task, and baselines. In Proceedings of Interspeech,
+      2019. 48                                                       [74] Antonino Furnari, Sebastiano Battiato, Kristen Grauman,
+                                                                           and Giovanni Maria Farinella. Next-active-object prediction
+[60] Mark Everingham, Luc Van Gool, Christopher KI Williams,               from egocentric videos. Journal of Visual Communication
+      John Winn, and Andrew Zisserman. The pascal visual object            and Image Representation, 49:401–411, 2017. 9
+      classes (voc) challenge. International journal of computer
+      vision, 88(2):303–338, 2010. 1, 64                             [75] Antonino Furnari and Giovanni Farinella. Rolling-unrolling
+                                                                           lstms for action anticipation from first-person video. IEEE
+[61] Bernard Ghanem Fabian Caba Heilbron, Victor Escorcia and              Transactions on Pattern Analysis and Machine Intelligence,
+      Juan Carlos Niebles. Activitynet: A large-scale video bench-         2020. 3
+      mark for human activity understanding. In Proceedings
+      of the IEEE Conference on Computer Vision and Pattern          [76] Antonino Furnari and Giovanni Maria Farinella. What would
+      Recognition, pages 961–970, 2015. 1, 3, 27, 29                       you expect? anticipating egocentric actions with rolling-
+                                                                           unrolling lstms and modality attention. In International
+[62] Heng Fan, Haibin Ling, Liting Lin, Fan Yang, Peng Chu,                Conference on Computer Vision, 2019. 9
+      Ge Deng, Sijia Yu, Hexin Bai, Yong Xu, and Chunyuan
+      Liao. LaSOT: A High-Quality Benchmark for Large-Scale          [77] Jiyang Gao, Zhenheng Yang, and Ram Nevatia. Red: Re-
+      Single Object Tracking. In 2019 IEEE/CVF Conference on               inforced encoder-decoder networks for action anticipation.
+      Computer Vision and Pattern Recognition (CVPR), pages                BMVC, 2017. 9
+      5369–5378, Long Beach, CA, USA, June 2019. IEEE. 31
+                                                                     [78] R. Gao, R. Feris, and K. Grauman. Learning to separate
+[63] Haoqi Fan, Bo Xiong, Karttikeya Mangalam, Yanghao                     object sounds by watching unlabeled video. In ECCV, 2018.
+      Li, Zhicheng Yan, Jitendra Malik, and Christoph Feicht-              8
+      enhofer. Multiscale vision transformers. arXiv preprint
+      arXiv:2104.11227, 2021. 66                                     [79] Ruohan Gao, Rogerio Feris, and Kristen Grauman. Learning
+                                                                           to separate object sounds by watching unlabeled video. In
+[64] Yue Fan, JW Kang, LT Li, KC Li, HL Chen, ST Cheng, PY                 ECCV, 2018. 45
+      Zhang, ZY Zhou, YQ Cai, and Dong Wang. CN-CELEB: a
+      challenging Chinese speaker recognition dataset. In ICASSP     [80] Ruohan Gao and Kristen Grauman. 2.5d visual sound. In
+      2020-2020 IEEE International Conference on Acoustics,                CVPR, 2019. 8, 45
+      Speech and Signal Processing (ICASSP), pages 7604–7608.
+      IEEE, 2020. 49                                                 [81] Ruohan Gao and Kristen Grauman. Co-separating sounds
+                                                                           of visual objects. In ICCV, 2019. 45
+[65] Yi Fang, Jiapeng Tang, Wang Shen, Wei Shen, Xiao Gu,
+      Li Song, and Guangtao Zhai. Dual Attention Guided Gaze         [82] R. Gao and K. Grauman. VisualVoice: Audio-visual speech
+      Target Detection in the Wild. In Proceedings of the IEEE             separation with cross-modal consistency. In CVPR, 2021. 8,
+      Conference on Computer Vision and Pattern Recognition                45
+      (CVPR 21), 2021. 8
+                                                                     [83] I. Gebru, S. Ba, X. Li, and R. Horaud. Audio-visual speaker
+                                                                           diarization based on spatiotemporal bayesian fusion. PAMI,
+                                                                           2018. 8, 45
+
+                                                                     [84] Israel D. Gebru, Sile`ye Ba, Xiaofei Li, and Radu Horaud.
+                                                                           Audio-visual speaker diarization based on spatiotemporal
+                                                                           bayesian fusion. IEEE Transactions on Pattern Analysis and
+                                                                           Machine Intelligence, 39, 2017. 46
+
+                                                                     19006
+[85] Georgios Georgakis, Md Alimoor Reza, Arsalan Mousavian,        [99]  Lianghua Huang, Xin Zhao, and Kaiqi Huang. GOT-10k: A
+      Phi-Hung Le, and Jana Kosˇecka´. Multiview rgb-d dataset     [100]  Large High-Diversity Benchmark for Generic Object Track-
+      for object instance detection. In 2016 Fourth International  [101]  ing in the Wild. IEEE Transactions on Pattern Analysis and
+      Conference on 3D Vision (3DV), pages 426–434. IEEE, 2016.           Machine Intelligence, 43(5):1562–1577, May 2021. 31
+      7                                                            [102]
+                                                                   [103]  Noureldien Hussein, Efstratios Gavves, and Arnold WM
+[86] Rohit Girdhar and Kristen Grauman. Anticipative video         [104]  Smeulders. Timeception for complex action recognition. In
+      transformer. In ICCV, 2021. 3, 9                             [105]  CVPR, 2019. 7
+                                                                   [106]
+[87] Ross Girshick. Fast r-cnn. In Proceedings of the IEEE         [107]  Go Irie, Mirela Ostrek, Haochen Wang, Hirokazu Kameoka,
+      international conference on computer vision, pages 1440–     [108]  Akisato Kimura, Takahito Kawanishi, and Kunio Kashino.
+      1448, 2015. 66                                               [109]  Seeing through sounds: Predicting visual semantic segmen-
+                                                                   [110]  tation results from multichannel audio signals. In ICASSP
+[88] Georgia Gkioxari and Jitendra Malik. Finding action tubes.    [111]  2019-2019 IEEE International Conference on Acoustics,
+      In 2015 IEEE Conference on Computer Vision and Pattern       [112]  Speech and Signal Processing (ICASSP), pages 3961–3964.
+      Recognition (CVPR), pages 759–768, Boston, MA, USA,                 IEEE, 2019. 45
+      June 2015. IEEE. 27
+                                                                          Phillip Isola, Joseph J. Lim, and Edward H. Adelson. Dis-
+[89] P. Gollwitzer. Action phases and mind-sets, Handbook of              covering states and transformations in image collections. In
+      motivation and cognition: Foundations of social behavior.           CVPR, 2015. 7
+      1990. 40
+                                                                          Phillip Isola, Joseph J Lim, and Edward H Adelson. Dis-
+[90] Raghav Goyal, Samira Ebrahimi Kahou, Vincent Michal-                 covering states and transformations in image collections. In
+      ski, Joanna Materzynska, Susanne Westphal, Heuna Kim,               CVPR, 2015. 40
+      Valentin Haenel, Ingo Fruend, Peter Yianilos, Moritz
+      Mueller-Freitag, et al. The” something something” video             Koji Iwano, Tomoaki Yoshinaga, Satoshi Tamura, and
+      database for learning and evaluating visual common sense.           Sadaoki Furui. Audio-visual speech recognition using lip
+      In ICCV, 2017. 40                                                   information extracted from side-face images. EURASIP
+                                                                          Journal on Audio, Speech, and Music Processing, 2007:1–9,
+[91] Alex Graves, Santiago Ferna´ndez, and Ju¨rgen Schmidhuber.           2007. 8, 45
+      Bidirectional lstm networks for improved phoneme classi-
+      fication and recognition. In International conference on            Andrew Jaegle, Felix Gimeno, Andrew Brock, Andrew
+      artificial neural networks, pages 799–804. Springer, 2005.          Zisserman, Oriol Vinyals, and Joao Carreira. Perceiver:
+      42, 43                                                              General perception with iterative attention. arXiv preprint
+                                                                          arXiv:2103.03206, 2021. 42, 43
+[92] Chunhui Gu, Chen Sun, David A Ross, Carl Vondrick, Car-
+      oline Pantofaru, Yeqing Li, Sudheendra Vijayanarasimhan,            Baoxiong Jia, Yixin Chen, Siyuan Huang, Yixin Zhu, and
+      George Toderici, Susanna Ricco, Rahul Sukthankar, et al.            Song-Chun Zhu. A multi-view dataset for learning multi-
+      Ava: A video dataset of spatio-temporally localized atomic          agent multi-task activities. In ECCV, 2020. 3
+      visual actions. In Proceedings of the IEEE Conference on
+      Computer Vision and Pattern Recognition, pages 6047–6056,           Hao Jiang and Kristen Grauman. Seeing invisible poses:
+      2018. 1, 3, 63                                                      Estimating 3d body pose from egocentric video. In CVPR,
+                                                                          2017. 3
+[93] Anmol Gulati, James Qin, Chung-Cheng Chiu, Niki Par-
+      mar, Yu Zhang, Jiahui Yu, Wei Han, Shibo Wang, Zheng-               Will Kay, Joao Carreira, Karen Simonyan, Brian Zhang,
+      dong Zhang, Yonghui Wu, et al. Conformer: Convolution-              Chloe Hillier, Sudheendra Vijayanarasimhan, Fabio Viola,
+      augmented transformer for speech recognition. arXiv                 Tim Green, Trevor Back, Paul Natsev, et al. The kinetics hu-
+      preprint arXiv:2005.08100, 2020. 53                                 man action video dataset. arXiv preprint arXiv:1705.06950,
+                                                                          2017. 1, 3, 4, 36
+[94] Kaiming He, Georgia Gkioxari, Piotr Dolla´r, and Ross Gir-
+      shick. Mask R-CNN. arXiv:1703.06870 [cs], Jan. 2018.                Will Kay, Joao Carreira, Karen Simonyan, Brian Zhang,
+      29                                                                  Chloe Hillier, Sudheendra Vijayanarasimhan, Fabio Viola,
+                                                                          Tim Green, Trevor Back, Paul Natsev, et al. The kinetics hu-
+[95] Kaiming He, Xiangyu Zhang, Shaoqing Ren, and Jian Sun.               man action video dataset. arXiv preprint arXiv:1705.06950,
+      Deep residual learning for image recognition. In CVPR,              2017. 67
+      2016. 41, 42, 44
+                                                                          Evangelos Kazakos, Arsha Nagrani, Andrew Zisserman, and
+[96] Kaiming He, Xiangyu Zhang, Shaoqing Ren, and Jian Sun.               Dima Damen. Epic-fusion: Audio-visual temporal binding
+      Deep residual learning for image recognition. In CVPR,              for egocentric action recognition. In Proceedings of the
+      2016. 48                                                            IEEE International Conference on Computer Vision, pages
+                                                                          5492–5501, 2019. 3, 7, 8, 45
+[97] Farnoosh Heidarivincheh, Majid Mirmehdi, and Dima
+      Damen. Detecting the moment of completion: Temporal                 Petr Kellnhofer, Simon Stent, Wojciech Matusik, and An-
+      models for localising action completion. In BMVC, 2018.             tonio Torralba. Gaze360: Physically Unconstrained Gaze
+      39                                                                  Estimation in the Wild. In Proceedings of the IEEE Interna-
+                                                                          tional Conference on Computer Vision (ICCV 19), 2019. 8,
+[98] Matthew Honnibal, Ines Montani, Sofie Van Landeghem,                 55, 57
+      and Adriane Boyd. spaCy: Industrial-strength Natural Lan-
+      guage Processing in Python, 2020. 17                                Suyoun Kim, Takaaki Hori, and Shinji Watanabe. Joint ctc-
+                                                                          attention based end-to-end speech recognition using multi-
+                                                                          task learning. In 2017 IEEE international conference on
+
+                                                                   19007
+[113]  acoustics, speech and signal processing (ICASSP), pages        [126]  Kevin Lai, Liefeng Bo, and Dieter Fox. Unsupervised fea-
+[114]  4835–4839. IEEE, 2017. 53                                      [127]  ture learning for 3d scene labeling. In 2014 IEEE Inter-
+[115]                                                                 [128]  national Conference on Robotics and Automation (ICRA),
+[116]  Kris M. Kitani, Brian Ziebart, James D. Bagnell, and Martial          pages 3050–3057. IEEE, 2014. 7
+[117]  Hebert. Activity forecasting. In ECCV, 2012. 9                 [129]
+[118]                                                                 [130]  Tian Lan, Tsung-Chuan Chen, and Silvio Savarese. A hierar-
+[119]  Dietrich Klakow and Jochen Peters. Testing the correlation     [131]  chical representation for future action prediction. In ECCV,
+[120]  of word error rate and perplexity. Speech Communication,       [132]  2014. 9
+[121]  38(1-2):19–28, 2002. 8, 47
+                                                                      [133]  Federico Landini, Ja´n Profant, Mireia Diez, and Luka´sˇ Bur-
+[122]  Mark L. Knapp, Judith A. Hall, and Terrence G. Hor-            [134]  get. Bayesian hmm clustering of x-vector sequences (vbx) in
+[123]  gan. Nonverbal Communication in Human Interaction.             [135]  speaker diarization: theory, implementation and analysis on
+[124]  Wadsworth Cengage Learning, 8th edition, 2014. 8               [136]  standard tasks. Computer Speech & Language, 71:101254,
+[125]                                                                 [137]  2022. 48
+       Ross A Knepper, Todd Layton, John Romanishin, and              [138]
+       Daniela Rus. Ikeabot: An autonomous multi-robot coor-          [139]  Y. J. Lee, J. Ghosh, and K. Grauman. Discovering important
+       dinated furniture assembly system. In 2013 IEEE Interna-       [140]  people and objects for egocentric video summarization. In
+       tional conference on robotics and automation, pages 855–              CVPR, 2012. 2, 3
+       862. IEEE, 2013. 39                                            [141]
+                                                                             Y. J. Lee, J. Ghosh, and K. Grauman. Discovering important
+       Andrew J Kolarik, Brian CJ Moore, Pavel Zahorik, Silvia               people and objects for egocentric video summarization. In
+       Cirstea, and Shahina Pardhan. Auditory distance percep-               Proceedings of the IEEE Conference on Computer Vision
+       tion in humans: a review of cues, development, neuronal               and Pattern Recognition (CVPR), 2012. 40
+       bases, and effects of sensory loss. Attention, Perception, &
+       Psychophysics, 78(2):373–395, 2016. 45                                Yong Jae Lee and Kristen Grauman. Predicting important
+                                                                             objects for egocentric video summarization. IJCV, 2015. 3
+       Hema S. Koppula and Ashutosh Saxena. Anticipating human
+       activities using object affordances for reactive robotic re-          Bruno Lepri, Ramanathan Subramanian, Kyriaki Kalimeri,
+       sponse. Pattern Analysis and Machine Intelligence, 38(1):14–          Jacopo Staiano, Fabio Pianesi, and Nicu Sebe. Connect-
+       29, 2016. 9                                                           ing meeting behavior with extraversion-a systematic study.
+                                                                             IEEE Transactions on Affective Computing, 3(4):443–455,
+       Ranjay Krishna, Kenji Hata, Frederic Ren, Li Fei-Fei, and             2012. 8
+       Juan Carlos Niebles. Dense-captioning events in videos. In
+       International Conference on Computer Vision (ICCV), 2017.             Vladimir I Levenshtein et al. Binary codes capable of cor-
+       6                                                                     recting deletions, insertions, and reversals. In Soviet physics
+                                                                             doklady, 1966. 65
+       Alexei A. Efros Krishna Kumar Singh, Kayvon Fatahalian.
+       Krishnacam: Using a longitudinal, single-person, egocentric           Cheng Li and Kris Kitani. Model recommendation with
+       dataset for scene understanding tasks. In IEEE Winter Con-            virtual probes for ego-centric hand detection. In ICCV, 2013.
+       ference on Applications of Computer Vision (WACV), 2016.              3
+       9
+                                                                             Yin Li, Alireza Fathi, and James M. Rehg. Learning to
+       Matej Kristan, Ales Leonardis, Jiri Matas, Michael                    predict gaze in egocentric video. In Proceedings of the
+       Felsberg, Roman Pflugfelder, Joni-Kristian Kamarainen,                IEEE International Conference on Computer Vision, pages
+       Luka Cˇ ehovin Zajc, Martin Danelljan, Alan Lukezic, On-              3216–3223, 2013. 57
+       drej Drbohlav, Linbo He, Yushan Zhang, Song Yan, Jinyu
+       Yang, Gustavo Fernandez, and et al. The eighth visual object          Y. Li, M. Liu, and J. Rehg. In the eye of beholder: Joint
+       tracking VOT2020 challenge results, 2020. 27                          learning of gaze and actions in first person video. In ECCV,
+                                                                             2018. 40
+       Taku Kudo and John Richardson. Sentencepiece: A
+       simple and language independent subword tokenizer and                 Yin Li, Miao Liu, and Jame Rehg. In the Eye of the Beholder:
+       detokenizer for neural text processing. arXiv preprint                Gaze and Actions in First Person Video. IEEE Transactions
+       arXiv:1808.06226, 2018. 53                                            on Pattern Analysis and Machine Intelligence, 2021. 57
+
+       Alina Kuznetsova, Hassan Rom, Neil Alldrin, Jasper Ui-                Yin Li, Miao Liu, and James M Rehg. In the eye of beholder:
+       jlings, Ivan Krasin, Jordi Pont-Tuset, Shahab Kamali, Stefan          Joint learning of gaze and actions in first person video. In
+       Popov, Matteo Malloci, Alexander Kolesnikov, et al. The               Proceedings of the European Conference on Computer Vi-
+       open images dataset v4. International Journal of Computer             sion (ECCV), pages 619–635, 2018. 2, 3
+       Vision, 128(7):1956–1981, 2020. 51
+                                                                             Yanghao Li, Tushar Nagarajan, Bo Xiong, and Kristen Grau-
+       F. De la Torre, J. Hodgins, J. Montano, S. Valcarcel, R. For-         man. Ego-exo: Transferring visual representations from
+       cada, and J. Macey. Guide to the carnegie mellon university           third-person to first-person videos. In CVPR, 2021. 3, 7
+       multimodal activity (cmu-mmac) database. In Tech. report
+       CMU-RI-TR-08-22, Robotics Institute, Carnegie Mellon Uni-             Tianwei Lin, Xiao Liu, Xin Li, Errui Ding, and Shilei Wen.
+       versity, 2009. 3                                                      Bmn: Boundary-matching network for temporal action pro-
+                                                                             posal generation. In Proceedings of the IEEE/CVF Interna-
+       Loic Lacheze, Yan Guo, Ryad Benosman, Bruno Gas, and                  tional Conference on Computer Vision, pages 3889–3898,
+       Charlie Couverture. Audio/video fusion for objects recog-             2019. 41, 43
+       nition. In 2009 IEEE/RSJ International Conference on In-
+       telligent Robots and Systems, pages 652–657. IEEE, 2009.              Tianwei Lin, Xu Zhao, Haisheng Su, Chongjing Wang, and
+       8                                                                     Ming Yang. Bsn: Boundary sensitive network for temporal
+                                                                             action proposal generation. In Proceedings of the European
+
+                                                                      19008
+[142]  Conference on Computer Vision (ECCV), pages 3–19, 2018.        [156]  Conference on Applications of Computer Vision (WACV),
+[143]  7, 22, 29, 36                                                  [157]  pages 1507–1516, January 2021. 7
+[144]
+[145]  Tsung-Yi Lin, Piotr Dolla´r, Ross Girshick, Kaiming He,        [158]  Christophe Micheyl, Christian Kaernbach, and Laurent De-
+[146]  Bharath Hariharan, and Serge Belongie. Feature Pyramid         [159]  many. An evaluation of psychophysical models of auditory
+[147]  Networks for Object Detection. arXiv:1612.03144 [cs], Apr.     [160]  change perception. Psychological review, 115(4):1069, 2008.
+[148]  2017. 29                                                       [161]  45
+[149]                                                                 [162]
+       Tsung-Yi Lin, Michael Maire, Serge Belongie, James Hays,              Antoine Miech, Dimitri Zhukov, Jean-Baptiste Alayrac,
+[150]  Pietro Perona, Deva Ramanan, Piotr Dolla´r, and C Lawrence     [163]  Makarand Tapaswi, Ivan Laptev, and Josef Sivic.
+       Zitnick. Microsoft COCO: Common objects in context. In         [164]  HowTo100M: Learning a Text-Video Embedding by Watch-
+[151]  ECCV, 2014. 1, 3, 41                                           [165]  ing Hundred Million Narrated Video Clips. In ICCV, 2019.
+[152]                                                                 [166]  3, 5
+[153]  Miao Liu, Siyu Tang, Yin Li, and James M Rehg. Fore-           [167]
+[154]  casting human-object interaction: joint prediction of motor    [168]  Ishan Misra, Abhinav Gupta, and Martial Hebert. From red
+       attention and actions in first person video. In ECCV, 2020.    [169]  wine to red tomato: Composition with context. In CVPR,
+[155]  3                                                                     2017. 40
+
+       Wen Liu, Weixin Luo, Dongze Lian, and Shenghua Gao. Fu-               Yu Mitsuzumi, Atsushi Nakazawa, and Toyoaki Nishida.
+       ture frame prediction for anomaly detection–a new baseline.           Deep eye contact detector: Robust eye contact bid detection
+       In Proceedings of the IEEE Conference on Computer Vision              using convolutional neural network. In BMVC, 2017. 8
+       and Pattern Recognition, pages 6536–6545, 2018. 9
+                                                                             Davide Moltisanti, Michael Wray, Walterio Mayol-Cuevas,
+       William Lotter, Gabriel Kreiman, and David Cox. Deep                  and Dima Damen. Trespassing the boundaries: Labelling
+       predictive coding networks for video prediction and unsu-             temporal bounds for object interactions in egocentric video.
+       pervised learning. arXiv preprint arXiv:1605.08104, 2016.             In ICCV, 2017. 39, 40
+       9
+                                                                             Pedro Morgado, Nono Vasconcelos, Timothy Langlois, and
+       Cewu Lu, Renjie Liao, and Jiaya Jia. Personal object dis-             Oliver Wang. Self-supervised generation of spatial audio for
+       covery in first-person videos. TIP, 2015. 3                           360◦ video. In NeurIPS, 2018. 8, 45
+
+       Zheng Lu and Kristen Grauman. Story-driven summariza-                 Matthias Mu¨ller, Adel Bibi, Silvio Giancola, Salman Alsub-
+       tion for egocentric video. In CVPR, 2013. 3                           aihi, and Bernard Ghanem. TrackingNet: A Large-Scale
+                                                                             Dataset and Benchmark for Object Tracking in the Wild. In
+       Tahmida Mahmud, Mahmudul Hasan, and Amit K Roy-                       Vittorio Ferrari, Martial Hebert, Cristian Sminchisescu, and
+       Chowdhury. Joint prediction of activity labels and starting           Yair Weiss, editors, Computer Vision – ECCV 2018, volume
+       times in untrimmed videos. In Proceedings of the IEEE                 11205, pages 310–327. Springer International Publishing,
+       International Conference on Computer Vision, pages 5773–              Cham, 2018. 31
+       5782, 2017. 9
+                                                                             Tushar Nagarajan, Christoph Feichtenhofer, and Kristen
+       Manuel J Marin-Jimenez, Vicky Kalogeiton, Pablo Medina-               Grauman. Grounded human-object interaction hotspots from
+       Suarez, and Andrew Zisserman. Laeo-net: revisiting people             video. ICCV, 2019. 3
+       looking at each other in videos. In Proceedings of the IEEE
+       Conference on Computer Vision and Pattern Recognition,                Tushar Nagarajan and Kristen Grauman. Attributes as op-
+       pages 3477–3485, 2019. 8                                              erators: factorizing unseen attribute-object compositions.
+                                                                             In Proceedings of the European Conference on Computer
+       Manuel Jesu´s Mar´ın-Jime´nez, Andrew Zisserman, Marcin               Vision (ECCV), pages 169–185, 2018. 7, 40
+       Eichner, and Vittorio Ferrari. Detecting people looking at
+       each other in videos. International Journal of Computer               A. Nagrani, J. S. Chung, and A. Zisserman. VoxCeleb:
+       Vision, 106(3):282–296, 2014. 8                                       a large-scale speaker identification dataset. In INTER-
+                                                                             SPEECH, 2017. 46, 49
+       Manuel J Mar´ın-Jime´nez, Andrew Zisserman, and Vittorio
+       Ferrari. Here’s looking at you, kid. Detecting people looking         Katsuyuki Nakamura, Serena Yeung, Alexandre Alahi, and
+       at each other in videos. In BMVC, 5, 2011. 8                          Li Fei-Fei. Jointly learning energy expenditures and activ-
+                                                                             ities using egocentric multimodal signals. In CVPR, 2017.
+       Michael Mathieu, Camille Couprie, and Yann LeCun. Deep                3
+       multi-scale video prediction beyond mean square error.
+       arXiv preprint arXiv:1511.05440, 2015. 9                              Lukas Neumann, Andrew Zisserman, and Andrea Vedaldi.
+                                                                             Future event prediction: If and when. In Proceedings of the
+       Iain McCowan, Jean Carletta, Wessel Kraaij, Simone Ashby,             IEEE Conference on Computer Vision and Pattern Recogni-
+       Sebastien Bourban, Mike Flynn, Mael Guillemot, Thomas                 tion Workshops, pages 0–0, 2019. 9
+       Hain, Jaroslav Kadlec, Vasilis Karaiskos, Melissa Kronen-
+       thal, Guillaume Lathoud, Mike Lincoln, Agnes Lisowska,                Evonne Ng, Donglai Xiang, Hanbyul Joo, and Kristen Grau-
+       Wilfried Post, Dennis Reidsma, and Pierre Wellner. The                man. You2me: Inferring body pose in egocentric video via
+       AMI meeting corpus. In Proceedings of Measuring Behav-                first and second person interactions. In CVPR, 2020. 3
+       ior 2005, the 5th International Conference on Methods and
+       Techniques in Behavioral Research, pages 137–140, 2005. 8             Joonas Nikunen and Tuomas Virtanen. Direction of arrival
+                                                                             based spatial covariance model for blind sound source sep-
+       Jean-Philippe Mercier, Mathieu Garon, Philippe Giguere,               aration. IEEE/ACM Transactions on Audio, Speech, and
+       and Jean-Francois Lalonde. Deep template-based object                 Language Processing, 22(3):727–739, 2014. 45
+       instance detection. In Proceedings of the IEEE/CVF Winter
+
+                                                                      19009
+[170]  C. Northcutt, S. Zha, S. Lovegrove, and R. Newcombe. Ego-       [185]  in an industrial-like domain. In IEEE Winter Conference on
+[171]  com: A multi-person multi-modal egocentric communica-           [186]  Application of Computer Vision (WACV), 2021. 3
+[172]  tions dataset. PAMI, 2020. 3                                    [187]
+                                                                       [188]  Rene´ Ranftl, Alexey Bochkovskiy, and Vladlen Koltun. Vi-
+[173]  Andrew Owens and Alexei A Efros. Audio-visual scene anal-       [189]  sion transformers for dense prediction. In Proceedings of the
+[174]  ysis with self-supervised multisensory features. In ECCV,       [190]  IEEE/CVF International Conference on Computer Vision,
+[175]  2018. 45                                                        [191]  pages 12179–12188, 2021. 32, 34
+[176]                                                                  [192]
+[177]  Cristina Palmero, Elsbeth A van Dam, Sergio Escalera, Mike             Adria Recasens, Aditya Khosla, Carl Vondrick, and Antonio
+[178]  Kelia, Guido F Lichtert, Lucas PJJ Noldus, Andrew J Spink,      [193]  Torralba. Where are they looking? In Advances in Neural
+[179]  and Astrid van Wieringen. Automatic mutual gaze detec-                 Information Processing Systems, pages 199–207, 2015. 8
+[180]  tion in face-to-face dyadic interaction videos. Measuring       [194]
+[181]  Behavior 2018, 2018. 8                                          [195]  Joseph Redmon and Ali Farhadi. Yolov3: An incremental
+                                                                              improvement. arXiv preprint arXiv:1804.02767, 2018. 51
+[182]  Daniel S Park, William Chan, Yu Zhang, Chung-Cheng Chiu,        [196]
+       Barret Zoph, Ekin D Cubuk, and Quoc V Le. Specaugment:          [197]  James M. Rehg, Agata Rozga, Gregory D. Abowd, and
+[183]  A simple data augmentation method for automatic speech          [198]  Matthew S. Goodwin. Behavioral Imaging and Autism.
+[184]  recognition. arXiv preprint arXiv:1904.08779, 2019. 53                 IEEE Pervasive Computing, 13(2):84–87, 2014. 8
+
+       H. S. Park, J.-J. Hwang, Y. Niu, and J. Shi. Egocentric future         Shaoqing Ren, Kaiming He, Ross Girshick, and Jian Sun.
+       localization. In CVPR, 2016. 9                                         Faster r-cnn: Towards real-time object detection with region
+                                                                              proposal networks. In NeurIPS, 2015. 29
+       H. S. Park, J.-J. Hwang, Y. Niu, and J. Shi. Egocentric future
+       localization. In Conference on Computer Vision and Pattern             Shaoqing Ren, Kaiming He, Ross Girshick, and Jian Sun.
+       Recognition (CVPR), 2016. 65                                           Faster r-cnn: Towards real-time object detection with re-
+                                                                              gion proposal networks. Advances in neural information
+       Hyun Soo Park, Eakta Jain, and Yaser Sheikh. 3D social                 processing systems, 28:91–99, 2015. 43, 44
+       saliency from head-mounted cameras. In Advances in Neural
+       Information Processing Systems, volume 1, pages 422–430,               Ivan Rodin, Antonino Furnari, Dimitrios Mavroedis, and
+       2012. 8                                                                Giovanni Maria Farinella. Predicting the future from first
+                                                                              person (egocentric) vision: A survey. Computer Vision and
+       Tae Jin Park, Naoyuki Kanda, Dimitrios Dimitriadis, Kyu J              Image Understanding, 2021. 9
+       Han, Shinji Watanabe, and Shrikanth Narayanan. A review
+       of speaker diarization: Recent advances with deep learning.            Joseph Roth, Sourish Chaudhuri, Ondrej Klejch, Rad-
+       arXiv preprint arXiv:2101.09624, 2021. 47, 48                          hika Marvin, Andrew Gallagher, Liat Kaver, Sharadh
+                                                                              Ramaswamy, Arkadiusz Stopczynski, Cordelia Schmid,
+       David R Perrott and Kourosh Saberi. Minimum audible                    Zhonghua Xi, et al. Ava-activespeaker: An audio-visual
+       angle thresholds for sources varying in both elevation and             dataset for active speaker detection. arXiv preprint
+       azimuth. The Journal of the Acoustical Society of America,             arXiv:1901.01342, 2019. 8, 46, 47
+       87(4):1728–1731, 1990. 45
+                                                                              Joseph Roth, Sourish Chaudhuri, Ondrej Klejch, Rad-
+       Hamed Pirsiavash and Deva Ramanan. Detecting activi-                   hika Marvin, Andrew Gallagher, Liat Kaver, Sharadh
+       ties of daily living in first-person camera views. In 2012             Ramaswamy, Arkadiusz Stopczynski, Cordelia Schmid,
+       IEEE conference on computer vision and pattern recogni-                Zhonghua Xi, and Caroline Pantofaru. Ava Active Speaker:
+       tion, pages 2847–2854. IEEE, 2012. 2, 3                                An Audio-Visual Dataset for Active Speaker Detection.
+                                                                              In ICASSP, IEEE International Conference on Acoustics,
+       H. Pirsiavash and D. Ramanan. Detecting activities of daily            Speech and Signal Processing - Proceedings, volume 2020-
+       living in first-person camera views. In Computer Vision and            May, pages 4492–4496, 2020. 8
+       Pattern Recognition (CVPR), 2012. 40
+                                                                              M. S. Ryoo and L. Matthies. First-person activity recogni-
+       Daniel Povey, Arnab Ghoshal, Gilles Boulianne, Lukas Bur-              tion: What are they doing to me? In IEEE Conference on
+       get, Ondrej Glembek, Nagendra Goel, Mirko Hannemann,                   Computer Vision and Pattern Recognition (CVPR), 2013. 3
+       Petr Motlicek, Yanmin Qian, Petr Schwarz, Jan Silovsky,
+       Georg Stemmer, and Karel Vesely. The Kaldi speech recog-               Paul-Edouard Sarlin, Daniel DeTone, Tomasz Malisiewicz,
+       nition toolkit. In IEEE 2011 Workshop on Automatic Speech              and Andrew Rabinovich. Superglue: Learning feature match-
+       Recognition and Understanding, 2011. 48                                ing with graph neural networks. In Proceedings of the
+                                                                              IEEE/CVF conference on computer vision and pattern recog-
+       Senthil Purushwalkam, Maximilian Nickel, Abhinav Gupta,                nition, pages 4938–4947, 2020. 32
+       and Marc’Aurelio Ranzato. Task-driven modular networks
+       for zero-shot compositional learning. In Proceedings of the            Johannes L Schonberger and Jan-Michael Frahm. Structure-
+       IEEE International Conference on Computer Vision, pages                from-motion revisited. In Proceedings of the IEEE con-
+       3593–3602, 2019. 40                                                    ference on computer vision and pattern recognition, pages
+                                                                              4104–4113, 2016. 32
+       F. Ragusa, A. Furnari, S. Battiato, G. Signorello, and G. M.
+       Farinella. Egocentric visitors localization in cultural sites.         A. Senocak, T.-H. Oh, J. Kim, M. Yang, and I. S. Kweon.
+       Journal on Computing and Cultural Heritage (JOCCH),                    Learning to localize sound sources in visual scenes: Analysis
+       2019. 3                                                                and applications. TPAMI, 2019. 8, 45
+
+       Francesco Ragusa, Antonino Furnari, Salvatore Livatino,                Dandan Shan, Jiaqi Geng, Michelle Shu, and David Fouhey.
+       and Giovanni Maria Farinella. The meccano dataset: Under-              Understanding human hands in contact at internet scale. In
+       standing human-object interactions from egocentric videos              CVPR, 2020. 40, 41
+
+                                                                       19010
+[199]  Dandan Shan, Jiaqi Geng, Michelle Shu, and David Fouhey.         [214]  TwentyBN. The 20BN-jester Dataset V1. https://
+[200]  Understanding human hands in contact at internet scale. In       [215]  20bn.com/datasets/jester. 40
+[201]  CVPR, 2020. 43, 44                                               [216]
+[202]                                                                   [217]  Joost Van Amersfoort, Anitha Kannan, Marc’Aurelio Ran-
+[203]  Mohit Sharma, Kevin Zhang, and Oliver Kroemer. Learning          [218]  zato, Arthur Szlam, Du Tran, and Soumith Chintala.
+[204]  semantic embedding spaces for slicing vegetables. arXiv          [219]  Transformation-based models of video sequences. arXiv
+       preprint arXiv:1904.00303, 2019. 39                              [220]  preprint arXiv:1701.08435, 2017. 9, 35
+[205]                                                                   [221]
+[206]  Gunnar A Sigurdsson, Abhinav Gupta, Cordelia Schmid, Ali         [222]  Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszko-
+       Farhadi, and Karteek Alahari. Charades-ego: A large-scale        [223]  reit, Llion Jones, Aidan N Gomez, Łukasz Kaiser, and Illia
+[207]  dataset of paired third and first person videos. arXiv preprint  [224]  Polosukhin. Attention is all you need. In Advances in neural
+[208]  arXiv:1804.09626, 2018. 2, 3, 40                                 [225]  in processing systems, pages 5998–6008, 2017. 43
+[209]                                                                   [226]
+       Nathan Silberman, Derek Hoiem, Pushmeet Kohli, and Rob           [227]  Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszko-
+[210]  Fergus. Indoor segmentation and support inference from                  reit, Llion Jones, Aidan N Gomez, Łukasz Kaiser, and Illia
+[211]  rgbd images. In European conference on computer vision,          [228]  Polosukhin. Attention is all you need. In Advances in neural
+       pages 746–760. Springer, 2012. 32                                [229]  information processing systems, pages 5998–6008, 2017. 53
+[212]
+[213]  Silero Team. Silero vad: Pre-trained enterprise-grade                   Ruben Villegas, Jimei Yang, Seunghoon Hong, Xunyu
+       voice activity detector (VAD), number detector and lan-                 Lin, and Honglak Lee. Decomposing motion and con-
+       guage classifier. https://github.com/snakers4/                          tent for natural video sequence prediction. arXiv preprint
+       silero-vad, 2021. 52                                                    arXiv:1706.08033, 2017. 9
+
+       Michel Silva, Washington Ramos, Joa˜o Ferreira, Felipe Cha-             Carl Vondrick, Hamed Pirsiavash, and Antonio Torralba.
+       mone, Mario Campos, and Erickson R. Nascimento. A                       Anticipating visual representations from unlabeled video. In
+       weighted sparse sampling and smoothing frame transition                 CVPR, 2016. 9
+       approach for semantic fast-forward first-person videos. In
+       2018 IEEE/CVF Conference on Computer Vision and Pat-                    He Wang, So¨ren Pirk, Ersin Yumer, Vladimir G Kim, Ozan
+       tern Recognition (CVPR), 2018. 3                                        Sener, Srinath Sridhar, and Leonidas J Guibas. Learning a
+                                                                               generative model for multi-step human-object interactions
+       Krishna Kumar Singh, Kayvon Fatahalian, and Alexei A                    from videos. In Eurographics, 2019. 40
+       Efros. Krishnacam: Using a longitudinal, single-person,
+       egocentric dataset for scene understanding tasks. In WACV,              Limin Wang, Yuanjun Xiong, Zhe Wang, Yu Qiao, Dahua
+       2016. 2, 3                                                              Lin, Xiaoou Tang, and Luc Van Gool. Temporal segment net-
+                                                                               works: Towards good practices for deep action recognition.
+       David Snyder, Daniel Garcia-Romero, Gregory Sell, Daniel                In ECCV, 2016. 3, 7
+       Povey, and Sanjeev Khudanpur. X-vectors: Robust DNN
+       embeddings for speaker recognition. In 2018 IEEE Interna-               Qiang Wang, Li Zhang, Luca Bertinetto, Weiming Hu, and
+       tional Conference on Acoustics, Speech and Signal Process-              Philip H. S. Torr. Fast online object tracking and segmenta-
+       ing (ICASSP), 2018. 48                                                  tion: A unifying approach, 2019. 14
+
+       Khurram Soomro, Amir Roshan Zamir, and Mubarak Shah.                    Xiaolong Wang, Ali Farhadi, and Abhinav Gupta. Actions˜
+       Ucf101: A dataset of 101 human action classes from videos               transformations. In CVPR, 2016. 40
+       in the wild. In CRCV-TR-12-01, 2012. 3
+                                                                               Xiaolong Wang, Ross Girshick, Abhinav Gupta, and Kaim-
+       Emiliano Spera, Antonino Furnari, Sebastiano Battiato, and              ing He. Non-local neural networks. In CVPR, 2018. 3
+       Giovanni Maria Farinella. Egocentric shopping cart local-
+       ization. In International Conference on Pattern Recognition             Yuxin Wu, Alexander Kirillov, Francisco Massa, Wan-Yen
+       (ICPR), 2018. 3                                                         Lo, and Ross Girshick. Detectron2. 31
+
+       Julian Straub, Thomas Whelan, Lingni Ma, Yufan Chen,                    Fanyi Xiao, Yong Jae Lee, Kristen Grauman, Jitendra Malik,
+       Erik Wijmans, Simon Green, Jakob J Engel, Raul Mur-Artal,               and Christoph Feichtenhofer. Audiovisual slowfast networks
+       Carl Ren, Shobhit Verma, et al. The replica dataset: A digital          for video recognition. arXiv preprint arXiv:2001.08740,
+       replica of indoor spaces. arXiv preprint arXiv:1906.05797,              2020. 8, 45
+       2019. 12
+                                                                               SHI Xingjian, Zhourong Chen, Hao Wang, Dit-Yan Yeung,
+       Yu-Chuan Su and Kristen Grauman. Detecting engagement                   Wai-Kin Wong, and Wang-chun Woo. Convolutional lstm
+       in egocentric video. In ECCV, 2016. 2, 3, 40                            network: A machine learning approach for precipitation
+                                                                               nowcasting. In Advances in neural information processing
+       Ruijie Tao, Zexu Pan, Rohan Kumar Das, Xinyuan Qian,                    systems, pages 802–810, 2015. 9
+       Mike Zheng Shou, and Haizhou Li. Is someone speaking?
+       exploring long-term temporal features for audio-visual active           Jun Xu, Tao Mei, Ting Yao, and Yong Rui. Msr-vtt: A large
+       speaker detection. arXiv preprint arXiv:2107.06592, 2021.               video description dataset for bridging video and language.
+       47, 51, 53                                                              IEEE International Conference on Computer Vision and
+                                                                               Pattern Recognition (CVPR), June 2016. 6
+       Y. Tian, J. Shi, B. Li, Z. Duan, and C. Xu. Audio-visual
+       event localization in unconstrained videos. In ECCV, 2018.              Mengmeng Xu, Chen Zhao, David S Rojas, Ali Thabet,
+       8, 45                                                                   and Bernard Ghanem. G-tad: Sub-graph localization for
+                                                                               temporal action detection. In Proceedings of the IEEE/CVF
+       E. Tulving. Episodic and semantic memory. In E. Tulv-                   Conference on Computer Vision and Pattern Recognition,
+       ing and W. Donaldson, editors, Organization of memory.                  pages 10156–10165, 2020. 7, 22, 29, 36
+       Academic Press, 1972. 6
+
+                                                                        19011
+[230]  Takuma Yagi, Karttikeya Mangalam, Ryo Yonetani, and
+[231]  Yoichi Sato. Future person localization in first-person videos.
+[232]  In The IEEE Conference on Computer Vision and Pattern
+[233]  Recognition (CVPR), June 2018. 9
+[234]
+[235]  Ryo Yonetani, Kris M. Kitani, and Yoichi Sato. Recognizing
+       micro-actions and reactions from paired egocentric videos.
+[236]  In CVPR, 2016. 3
+[237]
+       Ryo Yonetani, Kris M Kitani, and Yoichi Sato. Visual motif
+[238]  discovery via first-person vision. In ECCV, 2016. 3
+[239]
+[240]  Fisher Yu, Dequan Wang, Evan Shelhamer, and Trevor Dar-
+       rell. Deep layer aggregation. In Proceedings of the IEEE con-
+[241]  ference on computer vision and pattern recognition, pages
+[242]  2403–2412, 2018. 44
+[243]
+[244]  Hua Zhang, Xiaochun Cao, and Rui Wang. Audio visual
+[245]  attribute discovery for fine-grained object recognition. In
+       Proceedings of the AAAI Conference on Artificial Intelli-
+       gence, volume 32, 2018. 8
+
+       Hao Zhang, Aixin Sun, Wei Jing, and Joey Tianyi Zhou.
+       Span-based localizing network for natural language video
+       localization. In Proceedings of the 58th Annual Meeting of
+       the Association for Computational Linguistics, pages 6543–
+       6554, Online, July 2020. Association for Computational
+       Linguistics. 35, 36
+
+       Songyang Zhang, Houwen Peng, Jianlong Fu, and Jiebo
+       Luo. Learning 2d temporal adjacent networks formoment
+       localization with natural language. In AAAI, 2020. 22, 28,
+       29, 34, 35
+
+       Chen Zhao, Ali K Thabet, and Bernard Ghanem. Video
+       self-stitching graph network for temporal action localization.
+       In Proceedings of the IEEE/CVF International Conference
+       on Computer Vision, pages 13658–13667, 2021. 7, 22, 29,
+       35, 36
+
+       Hang Zhao, Chuang Gan, Andrew Rouditchenko, Carl Von-
+       drick, Josh McDermott, and Antonio Torralba. The sound
+       of pixels. In ECCV, 2018. 45
+
+       Bolei Zhou, Alex Andonian, Aude Oliva, and Antonio Tor-
+       ralba. Temporal relational reasoning in videos. In ECCV,
+       2018. 3
+
+       Hao Zhou, Chongyang Zhang, Yan Luo, Yanjun Chen, and
+       Chuanping Hu. Embracing uncertainty: Decoupling and
+       de-bias for robust temporal grounding. In Proceedings of
+       the IEEE/CVF Conference on Computer Vision and Pattern
+       Recognition, pages 8445–8454, 2021. 29
+
+       Xingyi Zhou, Dequan Wang, and Philipp Kra¨henbu¨hl. Ob-
+       jects as points. arXiv preprint arXiv:1904.07850, 2019. 43,
+       44
+
+       Y. Zhou and T. Berg. Learning temporal transformations
+       from time-lapse videos. In ECCV, 2016. 7
+
+       Yipin Zhou and Tamara L Berg. Temporal perception and
+       prediction in ego-centric video. In ICCV, 2015. 3, 7
+
+       Yipin Zhou and Tamara L Berg. Learning temporal transfor-
+       mations from time-lapse videos. In ECCV, 2016. 40
+
+       Hao Zhu, Man-Di Luo, Rui Wang, Ai-Hua Zheng, and Ran
+       He. Deep audio-visual learning: A survey. International
+       Journal of Automation and Computing, pages 1–26, 2021. 8
+
+                                                                        19012
+

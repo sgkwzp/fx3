@@ -1,0 +1,466 @@
+{
+  "sha": "a8a920a3293c4db27099a20ddbe3a3a9be1283e3",
+  "url": "https://api.github.com/repos/CaptainCook4D/annotations/git/trees/a8a920a3293c4db27099a20ddbe3a3a9be1283e3",
+  "tree": [
+    {
+      "path": ".gitignore",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b6e47617de110dea7ca47e087ff1347cc2646eda",
+      "size": 1799,
+      "url": "https://api.github.com/repos/CaptainCook4D/annotations/git/blobs/b6e47617de110dea7ca47e087ff1347cc2646eda"
+    },
+    {
+      "path": "ANNOTATIONS.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e9da621a438c0a10bd06ab866570261628fad148",
+      "size": 9599,
+      "url": "https://api.github.com/repos/CaptainCook4D/annotations/git/blobs/e9da621a438c0a10bd06ab866570261628fad148"
+    },
+    {
+      "path": "LICENSE",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "fab46665247f59aeffe73c861cd3d6ab8940ce21",
+      "size": 1070,
+      "url": "https://api.github.com/repos/CaptainCook4D/annotations/git/blobs/fab46665247f59aeffe73c861cd3d6ab8940ce21"
+    },
+    {
+      "path": "README.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c7130a1f043bd210bb37354c6f984ce54bcfdd6b",
+      "size": 3883,
+      "url": "https://api.github.com/repos/CaptainCook4D/annotations/git/blobs/c7130a1f043bd210bb37354c6f984ce54bcfdd6b"
+    },
+    {
+      "path": "annotation_csv",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "23c352f34b39bf4154fa0106b018aa772f907c31",
+      "url": "https://api.github.com/repos/CaptainCook4D/annotations/git/trees/23c352f34b39bf4154fa0106b018aa772f907c31"
+    },
+    {
+      "path": "annotation_csv/activity_idx_step_idx.csv",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "322a1be5906ea61ff616bcdeef264784317ec332",
+      "size": 21725,
+      "url": "https://api.github.com/repos/CaptainCook4D/annotations/git/blobs/322a1be5906ea61ff616bcdeef264784317ec332"
+    },
+    {
+      "path": "annotation_csv/activity_step_description.csv",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "7e083018a15adcd8ba79c73a0c59a208d8a7e523",
+      "size": 466467,
+      "url": "https://api.github.com/repos/CaptainCook4D/annotations/git/blobs/7e083018a15adcd8ba79c73a0c59a208d8a7e523"
+    },
+    {
+      "path": "annotation_csv/average_segment_length.csv",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0df92826e3c62c3dfb87c2dee9af63c6c0a03cc3",
+      "size": 1323,
+      "url": "https://api.github.com/repos/CaptainCook4D/annotations/git/blobs/0df92826e3c62c3dfb87c2dee9af63c6c0a03cc3"
+    },
+    {
+      "path": "annotation_csv/error_annotations.csv",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b6f385668b60b5c6598409e346635fd141c59bb9",
+      "size": 1186275,
+      "url": "https://api.github.com/repos/CaptainCook4D/annotations/git/blobs/b6f385668b60b5c6598409e346635fd141c59bb9"
+    },
+    {
+      "path": "annotation_csv/error_category_idx.csv",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "75478d250d03ac690a3e660d70895bcf44fbfa5f",
+      "size": 200,
+      "url": "https://api.github.com/repos/CaptainCook4D/annotations/git/blobs/75478d250d03ac690a3e660d70895bcf44fbfa5f"
+    },
+    {
+      "path": "annotation_csv/recording_id_step_idx.csv",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "4729403fbe74a37c6c335fde2f06c41e20ba2910",
+      "size": 26545,
+      "url": "https://api.github.com/repos/CaptainCook4D/annotations/git/blobs/4729403fbe74a37c6c335fde2f06c41e20ba2910"
+    },
+    {
+      "path": "annotation_csv/step_annotations.csv",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b7b81c42fbd55c248742c33c0a07dfcfb6fab402",
+      "size": 589048,
+      "url": "https://api.github.com/repos/CaptainCook4D/annotations/git/blobs/b7b81c42fbd55c248742c33c0a07dfcfb6fab402"
+    },
+    {
+      "path": "annotation_csv/step_idx_description.csv",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "a072869b9a3127a6129ffb239ec53b29ed776207",
+      "size": 20454,
+      "url": "https://api.github.com/repos/CaptainCook4D/annotations/git/blobs/a072869b9a3127a6129ffb239ec53b29ed776207"
+    },
+    {
+      "path": "annotation_json",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "ae86ad4e7972930390c6f8e418425b7aad3c189c",
+      "url": "https://api.github.com/repos/CaptainCook4D/annotations/git/trees/ae86ad4e7972930390c6f8e418425b7aad3c189c"
+    },
+    {
+      "path": "annotation_json/activity_idx_step_idx.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0ebd6275b9958e95bda3591aec380c96237327a4",
+      "size": 72779,
+      "url": "https://api.github.com/repos/CaptainCook4D/annotations/git/blobs/0ebd6275b9958e95bda3591aec380c96237327a4"
+    },
+    {
+      "path": "annotation_json/complete_step_annotations.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "2734372c92b41ae691c81437d225305d904c8d2d",
+      "size": 1599142,
+      "url": "https://api.github.com/repos/CaptainCook4D/annotations/git/blobs/2734372c92b41ae691c81437d225305d904c8d2d"
+    },
+    {
+      "path": "annotation_json/error_annotations.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "238867b58b88eeac262b2c7e361168c815343247",
+      "size": 2031765,
+      "url": "https://api.github.com/repos/CaptainCook4D/annotations/git/blobs/238867b58b88eeac262b2c7e361168c815343247"
+    },
+    {
+      "path": "annotation_json/error_category_idx.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c6dc00fec36452654c7353c6602928400bc0fa30",
+      "size": 196,
+      "url": "https://api.github.com/repos/CaptainCook4D/annotations/git/blobs/c6dc00fec36452654c7353c6602928400bc0fa30"
+    },
+    {
+      "path": "annotation_json/recording_id_step_idx.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "9465c7f4c804f5d34296d68c382937a9c4bced1f",
+      "size": 80232,
+      "url": "https://api.github.com/repos/CaptainCook4D/annotations/git/blobs/9465c7f4c804f5d34296d68c382937a9c4bced1f"
+    },
+    {
+      "path": "annotation_json/step_annotations.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "64afb3e36acb016935a3380706b3b6939aa2624e",
+      "size": 1552152,
+      "url": "https://api.github.com/repos/CaptainCook4D/annotations/git/blobs/64afb3e36acb016935a3380706b3b6939aa2624e"
+    },
+    {
+      "path": "annotation_json/step_idx_description.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0d84c0ece473ef4c91ab86998c44ecb06a6bd9ae",
+      "size": 22526,
+      "url": "https://api.github.com/repos/CaptainCook4D/annotations/git/blobs/0d84c0ece473ef4c91ab86998c44ecb06a6bd9ae"
+    },
+    {
+      "path": "data_splits",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "1c47aa4eef82c76cd64bbdf36722fb96dd135aeb",
+      "url": "https://api.github.com/repos/CaptainCook4D/annotations/git/trees/1c47aa4eef82c76cd64bbdf36722fb96dd135aeb"
+    },
+    {
+      "path": "data_splits/environment_data_split_combined.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "047ca44e95e7f613dfca847ba12eabefe1be977c",
+      "size": 3299,
+      "url": "https://api.github.com/repos/CaptainCook4D/annotations/git/blobs/047ca44e95e7f613dfca847ba12eabefe1be977c"
+    },
+    {
+      "path": "data_splits/environment_data_split_normal.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "a9ff39ef5588823de138df358f9f621838530edc",
+      "size": 1393,
+      "url": "https://api.github.com/repos/CaptainCook4D/annotations/git/blobs/a9ff39ef5588823de138df358f9f621838530edc"
+    },
+    {
+      "path": "data_splits/person_data_split_combined.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e15b2e7c0a53f42eb5733cb830a70f71142b7f54",
+      "size": 3299,
+      "url": "https://api.github.com/repos/CaptainCook4D/annotations/git/blobs/e15b2e7c0a53f42eb5733cb830a70f71142b7f54"
+    },
+    {
+      "path": "data_splits/person_data_split_normal.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "3e0b44704dd797c328df9ce2a39bf1dca32ba4c1",
+      "size": 1393,
+      "url": "https://api.github.com/repos/CaptainCook4D/annotations/git/blobs/3e0b44704dd797c328df9ce2a39bf1dca32ba4c1"
+    },
+    {
+      "path": "data_splits/recipes_data_split_combined.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "9ad46890e90fbb466f2ec777765b5119e09a1a77",
+      "size": 36,
+      "url": "https://api.github.com/repos/CaptainCook4D/annotations/git/blobs/9ad46890e90fbb466f2ec777765b5119e09a1a77"
+    },
+    {
+      "path": "data_splits/recipes_data_split_normal.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "9ad46890e90fbb466f2ec777765b5119e09a1a77",
+      "size": 36,
+      "url": "https://api.github.com/repos/CaptainCook4D/annotations/git/blobs/9ad46890e90fbb466f2ec777765b5119e09a1a77"
+    },
+    {
+      "path": "data_splits/recordings_data_split_combined.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "cad3a68dfabacaffaffc17b4510dcd1a39d7f8c7",
+      "size": 3299,
+      "url": "https://api.github.com/repos/CaptainCook4D/annotations/git/blobs/cad3a68dfabacaffaffc17b4510dcd1a39d7f8c7"
+    },
+    {
+      "path": "data_splits/recordings_data_split_normal.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5a8884edf30d74b51353ae6b0d73b66751834ef3",
+      "size": 1393,
+      "url": "https://api.github.com/repos/CaptainCook4D/annotations/git/blobs/5a8884edf30d74b51353ae6b0d73b66751834ef3"
+    },
+    {
+      "path": "metadata",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "5eeab646e9213d51cb6d60bda08e5c9b4fc935c8",
+      "url": "https://api.github.com/repos/CaptainCook4D/annotations/git/trees/5eeab646e9213d51cb6d60bda08e5c9b4fc935c8"
+    },
+    {
+      "path": "metadata/average_segment_length.csv",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b566d627e7aaced714b65225f4695a6420aed59b",
+      "size": 951,
+      "url": "https://api.github.com/repos/CaptainCook4D/annotations/git/blobs/b566d627e7aaced714b65225f4695a6420aed59b"
+    },
+    {
+      "path": "metadata/video_information.csv",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "9cbbcf0fd914536fe062e06d3cfb935081e693cd",
+      "size": 8684,
+      "url": "https://api.github.com/repos/CaptainCook4D/annotations/git/blobs/9cbbcf0fd914536fe062e06d3cfb935081e693cd"
+    },
+    {
+      "path": "task_graphs",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "6d85886d5ac5671d6118ae9fa75e77df317e134b",
+      "url": "https://api.github.com/repos/CaptainCook4D/annotations/git/trees/6d85886d5ac5671d6118ae9fa75e77df317e134b"
+    },
+    {
+      "path": "task_graphs/blenderbananapancakes.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f9903901659761e30aac6057237bb4842e24398c",
+      "size": 1018,
+      "url": "https://api.github.com/repos/CaptainCook4D/annotations/git/blobs/f9903901659761e30aac6057237bb4842e24398c"
+    },
+    {
+      "path": "task_graphs/breakfastburritos.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "fd8ca446dd290cf7dbc666c361b818088dc50d40",
+      "size": 887,
+      "url": "https://api.github.com/repos/CaptainCook4D/annotations/git/blobs/fd8ca446dd290cf7dbc666c361b818088dc50d40"
+    },
+    {
+      "path": "task_graphs/broccolistirfry.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "81ef50f6f91bd27e2011f6a5d7fea774227d8e5d",
+      "size": 1689,
+      "url": "https://api.github.com/repos/CaptainCook4D/annotations/git/blobs/81ef50f6f91bd27e2011f6a5d7fea774227d8e5d"
+    },
+    {
+      "path": "task_graphs/buttercorncup.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "a4815f713a9f1fd03e954f460d1ba8c6cc1bce16",
+      "size": 1201,
+      "url": "https://api.github.com/repos/CaptainCook4D/annotations/git/blobs/a4815f713a9f1fd03e954f460d1ba8c6cc1bce16"
+    },
+    {
+      "path": "task_graphs/capresebruschetta.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "1bd757691016182f4a3c212c0056523302ca7e2d",
+      "size": 858,
+      "url": "https://api.github.com/repos/CaptainCook4D/annotations/git/blobs/1bd757691016182f4a3c212c0056523302ca7e2d"
+    },
+    {
+      "path": "task_graphs/cheesepimiento.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "21cd13547c1a3fd9cff2968c90f85980a4fe093f",
+      "size": 868,
+      "url": "https://api.github.com/repos/CaptainCook4D/annotations/git/blobs/21cd13547c1a3fd9cff2968c90f85980a4fe093f"
+    },
+    {
+      "path": "task_graphs/coffee.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "9e0248927f5f93adbc7f3dca7241d41fe82fdd98",
+      "size": 1661,
+      "url": "https://api.github.com/repos/CaptainCook4D/annotations/git/blobs/9e0248927f5f93adbc7f3dca7241d41fe82fdd98"
+    },
+    {
+      "path": "task_graphs/cucumberraita.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "de49cbde8f96d6db412454eef8d619a13ce8c3b0",
+      "size": 918,
+      "url": "https://api.github.com/repos/CaptainCook4D/annotations/git/blobs/de49cbde8f96d6db412454eef8d619a13ce8c3b0"
+    },
+    {
+      "path": "task_graphs/dressedupmeatballs.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "8f0c67b0d17bf5dcb8b59186566979408282e5b2",
+      "size": 1103,
+      "url": "https://api.github.com/repos/CaptainCook4D/annotations/git/blobs/8f0c67b0d17bf5dcb8b59186566979408282e5b2"
+    },
+    {
+      "path": "task_graphs/herbomeletwithfriedtomatoes.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e30f347d32f20378934ce07a04fe00550a420489",
+      "size": 1087,
+      "url": "https://api.github.com/repos/CaptainCook4D/annotations/git/blobs/e30f347d32f20378934ce07a04fe00550a420489"
+    },
+    {
+      "path": "task_graphs/microwaveeggsandwich.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "aa4e6ada60c0c693c69722d375936e867d7819cb",
+      "size": 906,
+      "url": "https://api.github.com/repos/CaptainCook4D/annotations/git/blobs/aa4e6ada60c0c693c69722d375936e867d7819cb"
+    },
+    {
+      "path": "task_graphs/microwavefrenchtoast.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "6279fd0700dc1ed881bce1eb67fe5a2e6308c1ec",
+      "size": 1003,
+      "url": "https://api.github.com/repos/CaptainCook4D/annotations/git/blobs/6279fd0700dc1ed881bce1eb67fe5a2e6308c1ec"
+    },
+    {
+      "path": "task_graphs/microwavemugpizza.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "55a947a643f77405d7603bb291a3754a2b5c73db",
+      "size": 1145,
+      "url": "https://api.github.com/repos/CaptainCook4D/annotations/git/blobs/55a947a643f77405d7603bb291a3754a2b5c73db"
+    },
+    {
+      "path": "task_graphs/mugcake.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "31983f9e0dbc0396dd498c338f991f9789dfac56",
+      "size": 1931,
+      "url": "https://api.github.com/repos/CaptainCook4D/annotations/git/blobs/31983f9e0dbc0396dd498c338f991f9789dfac56"
+    },
+    {
+      "path": "task_graphs/panfriedtofu.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ad8199b073088c0687b89e232255e7dfc6c681d4",
+      "size": 1261,
+      "url": "https://api.github.com/repos/CaptainCook4D/annotations/git/blobs/ad8199b073088c0687b89e232255e7dfc6c681d4"
+    },
+    {
+      "path": "task_graphs/pinwheels.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "89c4b8f1eb7cdd4330439e572cb0d6448e2046b2",
+      "size": 1768,
+      "url": "https://api.github.com/repos/CaptainCook4D/annotations/git/blobs/89c4b8f1eb7cdd4330439e572cb0d6448e2046b2"
+    },
+    {
+      "path": "task_graphs/ramen.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f14091a1a8491a8cd175afaa60c38b19d325349c",
+      "size": 1036,
+      "url": "https://api.github.com/repos/CaptainCook4D/annotations/git/blobs/f14091a1a8491a8cd175afaa60c38b19d325349c"
+    },
+    {
+      "path": "task_graphs/sautedmushrooms.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "4ca799bbb47e3b7003c83a511960c8da6b13ab90",
+      "size": 1157,
+      "url": "https://api.github.com/repos/CaptainCook4D/annotations/git/blobs/4ca799bbb47e3b7003c83a511960c8da6b13ab90"
+    },
+    {
+      "path": "task_graphs/scrambledeggs.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0a8630cc3fa003c4404e5d2fad3e326cade6dd43",
+      "size": 1468,
+      "url": "https://api.github.com/repos/CaptainCook4D/annotations/git/blobs/0a8630cc3fa003c4404e5d2fad3e326cade6dd43"
+    },
+    {
+      "path": "task_graphs/spicedhotchocolate.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0cbcd69dcc2525df714972254ae5f006d91865b7",
+      "size": 585,
+      "url": "https://api.github.com/repos/CaptainCook4D/annotations/git/blobs/0cbcd69dcc2525df714972254ae5f006d91865b7"
+    },
+    {
+      "path": "task_graphs/spicytunaavocadowraps.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5e7ab77c802beeeb327f9fea9d354c119971c781",
+      "size": 989,
+      "url": "https://api.github.com/repos/CaptainCook4D/annotations/git/blobs/5e7ab77c802beeeb327f9fea9d354c119971c781"
+    },
+    {
+      "path": "task_graphs/tomatochutney.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "31411558353144b49e0a965ba900edee8f86db68",
+      "size": 1203,
+      "url": "https://api.github.com/repos/CaptainCook4D/annotations/git/blobs/31411558353144b49e0a965ba900edee8f86db68"
+    },
+    {
+      "path": "task_graphs/tomatomozzarellasalad.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c0dd212cb0192fd1a3580760243228ddc899bf6a",
+      "size": 749,
+      "url": "https://api.github.com/repos/CaptainCook4D/annotations/git/blobs/c0dd212cb0192fd1a3580760243228ddc899bf6a"
+    },
+    {
+      "path": "task_graphs/zoodles.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "faddb47ed4b1a7e8103a2d4a379d4853b178515f",
+      "size": 850,
+      "url": "https://api.github.com/repos/CaptainCook4D/annotations/git/blobs/faddb47ed4b1a7e8103a2d4a379d4853b178515f"
+    }
+  ],
+  "truncated": false
+}

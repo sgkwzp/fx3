@@ -1,0 +1,779 @@
+This CVPR paper is the Open Access version, provided by the Computer Vision Foundation.
+                 Except for this watermark, it is identical to the accepted version;
+
+          the final published version of the proceedings is available on IEEE Xplore.
+
+Error Detection in Egocentric Procedural Task Videos
+
+Shih-Po Lee1    Zijia Lu1 Zekun Zhang2 Minh Hoai2 Ehsan Elhamifar1
+              1Northeastern University 2Stony Brook University
+
+1{lee.shih, lu.zij, e.elhamifar}@northeastern.edu                     2{zekzhang, minhhoai}@cs.stonybrook.edu
+
+                        Abstract                                           Erroneous                        Normal
+
+   We present a new egocentric procedural error dataset               Spill out coffee grounds (S)     Pour water from kettle
+containing videos with various types of errors as well as
+normal videos and propose a new framework for procedural              Add oatmeal onto tortilla (A)    Fold tortilla
+error detection using error-free training videos only. Our
+framework consists of an action segmentation model and a              Drop tea bag (S)                 Put tea bag in mug
+contrastive step prototype learning module to segment ac-
+tions and learn useful features for error detection. Based            Directly pour oat into bowl (M)  Measure 4 table spoon of oat
+on the observation that interactions between hands and ob-
+jects often inform action and error understanding, we pro-     Figure 1. The normal and erroneous examples from the tasks of making
+pose to combine holistic frame features with relations fea-    coffee, quesadilla, tea and oatmeal (top to bottom) in our dataset, showing
+tures, which we learn by building a graph using active ob-     step Modification (M), Addition (A), and Slip (S).
+ject detection followed by a Graph Convolutional Network.
+To handle errors, unseen during training, we use our con-      [7, 9, 20, 21, 38, 40, 47, 72], planning [8, 10, 56, 66, 70, 82]
+trastive step prototype learning to learn multiple prototypes  and progress prediction [14] models from training videos
+for each step, capturing variations of error-free step execu-  that correspond to correct executions of tasks.
+tions. At inference time, we use feature-prototype similari-
+ties for error detection. By experiments on three datasets,       On the other hand, the following may sound familiar:
+we show that our proposed framework outperforms state-of-      in the morning you were in rush to make coffee and sand-
+the-art video anomaly detection methods for error detection    wiches and forgot to put some ingredients in your sandwich,
+and provides smooth action and error predictions.1             or when you were assembling an IKEA furniture and forgot
+                                                               to put the washer into the bolt and after a few steps real-
+1. Introduction                                                ized it. Indeed, the chance of making errors during task
+                                                               execution increases, when i) the complexity (e.g., duration,
+We perform a wide range of procedural tasks in our per-        number, difficulty) of steps or tasks increases, ii) we deal
+sonal life (e.g., cooking recipes, setting up devices, phys-   with new tasks, iii) we are cognitively overloaded. There-
+ical therapy routines) and professional life (e.g., medical    fore, detecting errors during or after task executions and
+emergencies, mechanical repairs, assembling and operat-        providing corrections for them is a much needed capabil-
+ing instruments). The large number of daily tasks, the ne-     ity in WITAs.
+cessity of preparing the workforce for new tasks and en-
+vironments and the growing population age calls for Wear-
+able Intelligent Task Assistants (WITAs) that monitor and
+guide users through familiar and unfamiliar tasks to im-
+prove the accuracy and speed of task learning/execution.
+This has motivated exciting recent research on learning
+from instructional and procedural task videos, mostly fo-
+cusing on learning step segmentation [2, 5, 17, 27, 29,
+35, 36, 42, 46, 55, 59, 61–64, 74, 75, 80], recognition
+
+    1Code and data is available at https : / / github . com /
+robert80203/EgoPER_official.
+
+                                                               18655
+Prior Works. Despite its importance, error understand-                           <Start>           <End>                                 <Start>
+ing in procedural tasks has not received much attention
+in the literature, with almost all existing works addressing            Measure           Measure   Sprinkle  Drizzle       Measure      Place    Fold filter           Weigh
+segmentation, recognition and planning using correct/error-                oat              water  cinnamon   honey           water      dripper                        coffee
+free task videos [9, 21, 35, 42, 47, 70, 75, 82]. One limiting                                                                                                          beans
+factor has been the lack of a good egocentric procedural
+error dataset with visually recognizable and diverse types                                                                  Transfer to           Place filter          Grind
+of errors. Therefore, few recent works have gathered error                                                                     kettle                                   coffee
+datasets for assembling toys [13, 24] or chemical processes                                                                                                             beans
+[49], with [24] containing static view and [13, 49] contain-
+ing egocentric view. However, only action ordering errors               Put bowl into microwave    Take bowl from                                 Transfer coffee ground
+are present in these dataset, where each action by itself is                                         microwave                                            to dripper
+still performed correctly. The recent work in [71] has re-
+leased an egocentric two-person interactive task completion             Take bowl from             Put bowl into microwave                 Check water temperature
+dataset for assembling objects. The dataset contains errors               microwave                                                      Pour water in circular motion
+when performing a step, however, lacks other errors related
+to omission, addition or modification of steps. Also, errors                                                                                       Discard filter
+are often quickly corrected by a human instructor at the be-
+ginning of a step, which does not reflect the real-world error          Add raisins                Stir using spoon                               <End>
+scenarios where no human instructors are available.
+                                                                        Figure 2. The task graph of oatmeal (left) and coffee (right).
+   Procedural errors are different from anomalies studied in
+the anomaly detection literature [1, 4, 12, 30, 41, 48, 54, 68,  action segmentation and error detection. To handle errors
+73, 76–78, 81, 84]. Conventional anomalies correspond to         that are unseen during training, we use a contrastive
+deviations from some regular pattern, are not goal-oriented      learning approach to learn multiple prototypes for each
+and are identifiable by their inherent semantics (e.g., a per-   step, capturing variations of correctly performing a step.
+son falling on the ground). On the other hand, procedu-          By extensive experiments on three datasets, we show that
+ral errors correspond to deviations from a procedure (e.g.,      our framework improves over existing methods. We plan to
+missing, adding, modifying, incorrectly executing a step)        publicly release our code and the EgoPER dataset.
+and depend on the goal, therefore require long-range tem-
+poral reasoning. Additionally, most existing anomaly de-         2. Related Works
+tection methods work with static views, whereas egocentric
+views pose challenges such as constantly changing scenes         Procedural Task Understanding. Learning from proce-
+and varying object sizes. As we show in the paper, existing      dural task videos has been studied under various setting,
+anomaly detection methods cannot properly address error          such as action/step recognition, action/step segmentation
+detection in egocentric procedural videos.                       and procedure planning. Action recognition methods aim
+                                                                 to classify the action labels of short, trimmed video clips
+Paper Contributions. We present a new procedural error           by studying various end-to-end video backbone models
+dataset from egocentric cameras and with various types of        [7, 9, 20, 21, 38, 40, 47, 72]. Action segmentation meth-
+errors and also propose a new framework for procedural er-       ods take a step further to classify the action label of each
+ror detection. Our dataset consists of 28 hours of egocen-       frame in long, untrimmed procedural videos, thus they fo-
+tric videos from different procedural cooking tasks and con-     cus on better modeling of long temporal relationships [2, 5,
+tains RGB, depth, audio, gaze and hand tracking modalities.      17, 27, 29, 35, 36, 42, 46, 55, 59, 61–64, 74, 75, 80]. Many
+We temporally annotated videos with step labels, provide         works also explore the segmentation task in un-, weakly-
+ground-truth bounding boxes for objects and active objects       or semi-supervised settings [3, 15, 16, 19, 22, 28, 32–
+and annotate frames as being error or normal. We define          34, 39, 44, 44, 45, 51–53, 58, 60, 64, 85] to reduce the
+a new taxonomy of procedural errors (step omission, addi-        amount of annotations. Procedure planning methods aim to
+tion, modification, slip and correction) based on which we       anticipate the actions between the given start and end state
+gather normal and erroneous videos.                              observations [8, 10, 56, 66, 70, 82], thus they have focused
+                                                                 on modeling the dependencies between actions and flexi-
+   For procedural error detection by using only                  ble procedures to achieve certain goal states. To support
+normal/error-free videos during training, we propose             the tasks above, many procedural video datasets have been
+a framework that consist of an action segmentation and           released. While some datasets are egocentric, e.g., GTEA
+a contrastive step prototype learning module. We learn           [18], EGTEA [37], MECCANO [50], Assembly101 [57],
+both holistic features and relational features (using active     HoloAssist [71], most datasets are third-person view, e.g.,
+object detection) and combine them for more effective            Breakfast [26], Coin [67], CrossTask [85], ATA [24], etc.
+                                                                 There are other video datasets, such as Ego4D [25] and
+                                                                 EpicKitchen [11], yet their videos consist of many different
+                                                                 actions and are non-procedural. In this work, we propose
+                                                                 a new egocentric and procedural dataset in the cooking do-
+                                                                 main for procedure understanding and error detection.
+
+                                                                 18656
+            Normal Videos          Erroneous Videos                                         (Oatmeal) Forget to add bananas           (Tea) Drop tea bag
+                                                                                              (Tea) Forget to discard tea bag     (Pinwheel) Drop tortilla
+   Task     # Vid. Min. # Actions  # Vid. Min. Avg # errors                                                                       (Coffee) Tear paper filter
+                                                                                           (Pinwheels) Forget to scoop nutella     (Coffee) Spill out water
+  Coffee    32 8.4 24              35 9.3  2.2                                            (Pinwheel) Unfold tortilla and roll it
+Pinwheels   42 5.6 14              42 4.2  10.8                                         (Tea) Discard tea bag and place new one    (Pinwheel) Fold tortilla
+            47 2.6 11              32 2.5  4.9
+    Tea     48 1.6  9              32 1.8  4.9
+Quesadilla  44 4.2 12              32 4.3  4.6                                            (Quesadilla) Discard tortilla            (Oatmeal) Pour oat on tortilla
+ Oatmeal                                                                                                                          (Pinwheel) Pour sugar on tortilla
+                                                                                     (Coffee) Directly pour water to kettle       (Tea) Sprinkle cinnamon to mug
+Table 1. Information about the EgoPER dataset. The number of actions             (Quesadilla) Place tortilla wedges into bowl
+indicates the number of action classes including the background class.
+Min. denotes the average length of videos in minutes. The average number                (Tea) Stir using knife                    (Oatmeal) Clean spoon after stirring
+of errors per video reflects repetitive actions, e.g., not inserting toothpicks
+5 times will be counted as 5.                                                    Figure 3. Examples of the errors in EgoPER dataset. Orange: Omission.
+                                                                                 Blue: Correction. Red: Modification. Purple: Slip. Green: Addition.
+
+Error Detection for Procedural Tasks. Error understand-                          3.1. Data Collection
+ing in procedural tasks has been an understudied problem
+on two fronts: i) lack of an (egocentric) procedural error                       We have collected a multimodal egocentric procedural error
+dataset with visually recognizable and diverse types of er-                      dataset for cooking tasks from 11 participants at two dif-
+rors, ii) lack of a specialized framework to address detection                   ferent environments using Microsoft HoloLens2. We gath-
+of various procedural errors. Recently, a few works released                     ered normal and erroneous egocentric videos while captur-
+error datasets for assembling toys [13, 24, 57] or chemical                      ing RGB, depth, gaze, audio and hand tracking data for task
+processes [49]. However, they contain only action order-                         executions. Prior to collecting data, we manually built the
+ing errors, where each action itself is still performed cor-                     task graph for each recipe, which encodes all possible ways
+rectly. [57] also assume having access to error videos during                    that the recipe could be made (see Figure 2).
+training, which is restrictive. On the other hand, [71] has
+released an egocentric two-person task completion dataset                           Using the task graphs, we generated different transcripts
+for assembling objects with a performer wearing egocentric                       for correct and incorrect executions of each task. For correct
+cameras and an instructor watching videos and correcting                         (normal) videos, the sequence of steps is consistent with
+the performer in real-time. However, [71] does not contain                       the task graph (although each video can have a different se-
+step omission, addition and modification errors, which we                        quence from others) and the execution of each step follows
+will consider in addition to step slip errors. Also, the errors                  the specific description of the step. For incorrect (abnormal)
+in [71] are often quickly corrected by a human instructor                        videos, there will be some deviation with respect to the task
+at the beginning of a step, which does not reflect the real-                     graph, e.g., some steps are omitted, some unnecessary steps
+world scenarios where the performer often proceeds with                          are added, some steps are modified (e.g., using a different
+their action before realizing the presence of error.                             tool or different ingredients from the ones specified by the
+Anomaly Detection. There has been a large body of lit-                           recipe) or some steps are performed with errors (e.g., drop-
+erature on anomaly detection in videos, most focusing on                         ping the tortilla or pouring water into the wrong mug).
+surveillance videos [1, 4, 12, 30, 31, 41, 48, 54, 68, 73, 76–
+78, 81, 83, 84]. Unlike procedural errors, which correspond                         After recording each video, settings such as the set of ob-
+to deviations from a procedure (e.g., missing, adding, mod-                      jects on the desk, initial object locations and the room light-
+ifying, incorrectly executing a step) and depend on the goal,                    ing are randomly changed to better capture the real-world
+conventional anomalies are not goal-oriented and are iden-                       variability in task executions and prevent the undesired bias
+tifiable by their inherent semantics (e.g., a person falling                     towards certain configurations of objects for recognition
+on the ground). Moreover, most existing anomaly detec-                           (e.g., placing tortilla and jam on the table while making tea).
+tion methods work with static views, whereas egocentric                          More details are provided in the supplementary materials.
+views pose challenges such as changing scenes, head mo-
+tions and varying object sizes. As we show by our exper-                         3.2. Data and Annotations
+iments, anomaly detection methods cannot effectively ad-
+dress error detection in egocentric procedural videos.                           EgoPER contains multimodal (RGB, depth, audio, gaze,
+                                                                                 hand) data from 5 tasks/recipes: making pinwheels, que-
+3. EgoPER Dataset                                                                sadilla, oatmeal, coffee, and tea. It consists of 386
+                                                                                 untrimmed videos with 213 normal and 173 erroneous
+We describe the data collection and annotation for our Ego-                      videos for a total of 28 hours of footage. Table 1 shows
+centric Procedural ERror (EgoPER) dataset, see Figure 1.                         the detailed information for each task. The video resolu-
+                                                                                 tion is 1280 ˆ 720 pixels with a frame rate of 15 fps. Ta-
+                                                                                 ble 2 compares EgoPER with other procedural task video
+                                                                                 datasets. Notice that our dataset is egocentric and has both
+                                                                                 object and active object bounding boxes, errors and multi-
+
+                                                                                 18657
+Dataset name      Has Errors Egocentric Obj bbx Active obj bbx Multimodal Domain Hours # Vid. Year
+
+GTEA [18]         ˆ  ✓  ˆ                                        ˆ      ˆ  cooking 0.6            28 2012
+
+50 Salads [65]    ˆ  ˆ  ˆ                                        ˆ      ˆ  cooking 4.5            50 2013
+
+Breakfast [26]    ˆ  ˆ  ˆ                                        ˆ      ˆ  cooking 77 1,712 2014
+
+EGTEA [37]        ˆ  ✓  ˆ                                        ˆ      ✓  cooking 28 10,321 2018
+
+CrossTask [85]    ˆ  ˆ  ˆ                                        ˆ      ˆ  multiple 375 4,700 2019
+
+COIN [67]         ˆ  ˆ  ˆ                                        ˆ      ˆ  multiple 476 11,827 2019
+
+IKEA [6]          ˆ  ˆ  ✓                                        ˆ      ✓  assembly 35.3 1,113 2021
+
+MECCANO [50]      ˆ  ✓  ˆ                                        ✓      ✓  assembly 7             20 2021
+
+Assembly101 [57]  ✓  ✓  ˆ                                        ˆ      ˆ  assembly 167 1,425 2022
+
+ATA [24]          ✓  ˆ  ✓                                        ˆ      ˆ  assembly 24.8 1,152 2023
+
+HoloAssist [71]   ✓  ✓  ˆ                                        ˆ      ✓  assembly 166 2,221 2023
+
+EgoPER (Ours)     ✓  ✓  ✓                                        ✓      ✓  cooking 28             386 2024
+
+                  Table 2. Comparison between EgoPER with the existing procedural task datasets.
+
+modal data. From our results, utilizing active object infor-        every step segment and also specified which objects are ac-
+mation can achieve a better error and action understanding          tive (i.e., objects related to the step) or inactive, see Figure
+in egocentric videos.                                               5. We additionally gathered the contact state of the active
+Error Taxonomy. EgoPER aims at error understanding                  objects with hands (touching or not touching).
+from cooking egocentric procedural videos. We define error
+as any deviation from the task graph. An erroneous video            4. Procedural Error Detection
+contains one or several of the following types of steps.
+– Step Omission: corresponds to skipping one or multiple            In this section, we present our Egocentric Procedural Error
+steps, e.g., not checking water temperature in the kettle, or       Detection (EgoPED) framework.
+not putting bananas on the tortilla.                                4.1. Problem Setting
+– Step Addition: corresponds to having unnecessary extra            Assume we have a training set of normal (error-free) ego-
+steps that are not in the task graph, e.g., adding raisins to       centric videos from a given task, which has S steps. Each
+the tortilla when making pinwheels.                                 video n in the training set consists of pre-extracted frame-
+– Step Modification: corresponds to performing a step in            wise features and ground-truth step labels as
+a different way than the one specified by the recipe, e.g.,
+using a different tool such as stirring using knife instead of             Xn “ pxn,1, xn,2, . . .q, Yn “ pyn,1, yn,2, . . .q, (1)
+spoon or using different ingredients such as using sugar to         where xn,t denotes the pre-extracted feature vector of frame
+sweeten the tea instead of honey. This does not necessarily         t in video n and yn,t P t1, . . . , S ` 1u denotes its ground-
+change the outcome of the step.                                     truth label. We use I3D [9] to extract framewise features
+– Step Slip: corresponds to executing a step in a way that          and use the additional label S ` 1 for the background class,
+leads to not achieving the goal of the step, e.g., adding water     i.e., task-irrelevant actions and additional steps not seen in
+to a different bowl from the one containing oats, or dropping       the training videos. Notice that we assume i) having only
+tortilla on the floor. Therefore, a slip is an error that needs     normal (error-free) videos during training, ii) having full su-
+corrective action(s) subsequently.                                  pervision (framewise step labels) for training videos. We do
+– Step Correction: corresponds to performing an action to           not assume access to task graphs during training and testing.
+mitigate the effect of an slip error, e.g., transferring water
+from the second bowl to the one containing oats or discard-            During inference, a test video could be normal or erro-
+ing the tortilla on the floor and picking a new one.                neous. Our goal is to segment the video into different steps
+Annotations. We annotated the start and end time of each            and background and find all frames, if any, in the test video
+step, including the normal steps and different error-related        that correspond to errors, defined in Section 3.2. In the pa-
+steps defined above. Thus, our dataset has dense framewise          per, we consider the offline action segmentation and error
+annotations with action labels and whether each frame has           detection setting, where we have an entire video at inference
+error or not. For videos that contained one or multiple er-         time. This is particularly useful for task evaluation and pro-
+rors, we also annotated the type of error (defined above) in        viding feedback after task execution to improve learning.
+the associated frames. In addition to framewise step and            4.2. EgoPED Framework
+error annotations, we annotated object and hand bounding-           We propose EgoPED, which is a contrastive learning-based
+boxes for at least three frames (beginning, middle, end) of         framework for simultaneous action segmentation and error
+                                                                    detection in egocentric procedural videos, see Figure 4. Our
+
+                                                                 18658
+           Contrastive Step Prototype Learning
+
+           Action Segmentation Classifier                              Figure 5. Our frameworks detects active from non-active objects (left)
+                                                                       and use them to build a relational graph (right) for better feature learning
+           Action Segmentation Backbone                                and subsequently action segmentation and error detection.
+
+           GCN             GCN                  GCN                    by holistic pre-extracted and refined framewise features. To
+                                                                       do so, we leverage an active object detection (AOD) model,
+ Feature   AOD   Feature   AOD   Feature        AOD                    which extracts bounding-boxes from objects and hands and
+Extractor       Extractor       Extractor                              provides contact states between objects with hands (objects
+                                                                       that are manipulated by hand are active), see Figure 5 (left).
+
+                                                                              Next, we build a graph for each frame whose nodes cor-
+                                                                       respond to object classes and its edges connect active ob-
+Figure 4. EgoPED uses an action segmentation backbone for              jects together, see Figure 5 (right). For example, when a
+holistic feature learning and an active object detection (AOD) and     user is pouring water from a kettle with right-hand into a
+GCN for relational feature understanding. We use both types of         mug held with the left-hand, the active objects are the two
+features for final action predictions as well as in a contrastive      hands, kettle and mug and they will be connected by edges.
+step prototype learning module, which learns multiple prototypes       Notice that this graph allows us to encode fine-grained and
+per step capturing different variations of the step across error-free  relevant scene information about how the user interacts with
+videos. We use these prototypes for detecting deviations from          the step-relevant objects and subsequently to better detect
+steps, hence, errors.                                                  errors, as we also show in our experiments. We use a Graph
+                                                                       Convolutional Network (GCN) to extract relational features
+method leverages composite features by aggregating holis-              from our interaction graph Zg “ pzn,1 g , zn,2 g , . . . , q (see
+tic features with learned relational graph features, has an ac-        Section 5 for details). We use the concatenation of the two
+tion segmentation model that learns to segment videos into             types  of  features               hg        as  input  to  the  action
+steps or background and a contrastive step prototype learn-                                 zn,t  “
+ing (CSPL) module that learns multiple prototypes for each                                           rzn,t, zn,ts
+action to allow error detection at inference time.                     classification head of TAS and our step prototype learning
+                                                                       module, which we describe next.
+4.2.1 Action Segmentation with Hybrid Features
+To assign a step label to every frame in a long and                    4.2.2 Contrastive Step Prototype Learning (CSPL)
+untrimmed video, we use a temporal action segmenta-
+tion (TAS) model. TAS consists of an action segmenta-                  During training, we have seen only normal videos corre-
+tion backbone, which receives pre-extracted features X “               sponding to correct task executions. Therefore, it is not pos-
+pxn,1, xn,2, . . . , q and learns refined holistic framewise fea-      sible to train an error detection head on hybrid features to
+tures Zh “ pzhn,1, zhn,2, . . . , q by capturing long-range tem-       classify a frame into normal or error. To address this chal-
+poral dependencies among frames. TAS has also an action                lenge, we propose to learn multiple prototypes for each step
+classifier head, which assigns a label to each frame using its         to capture normal ways of performing it. Therefore, erro-
+refined feature vector. As we show in the experiments, our             neous frames can be detected by measuring similarities to
+error detection method works with any existing TAS model.              these normal step prototypes.
+
+   We use TAS not only for action segmentation, but also                  More specifically, for each step i P t1, 2, . . . , S ` 1u,
+for error detection. Given the fine-grained nature of most             we use the hybrid features Z “ pzn,1, zn,2, . . . , q to learn
+errors, which correspond to small deviations from the cor-             k prototype vectors Ci “ tci,1, . . . , ci,ku using Kmeans.
+rect way of performing a step (e.g., using knife instead of            They represent different variations of the step across dif-
+spoon for stirring or spilling coffee beans), it is important to       ferent videos. To make the features of frames/prototypes
+capture fine-grained frame details that are mostly ignored             associated with the same action distinct from the features
+                                                                       of other actions, we use contrastive learning using InfoNCE
+                                                                       [69]. For a video n, let An denote the set of its ground-
+
+                                                                       18659
+        Method        Quesadilla             Oatmeal               Pinwheel     Coffee       Tea       All
+                     EDA AUC               EDA AUC               EDA AUC     EDA AUC    EDA AUC   EDA AUC
+
+        Random       19.9 50.0 11.8 50.0 15.7 50.0 8.20 50.0 17.0 50.0 14.5 50.0
+   HF2-VAD [43]      34.5 62.6 25.4 62.3 29.1 52.7 10.0 59.6 36.6 62.1 27.1 59.9
+HF2-VAD + SSPCAB [54] 30.4 60.9 25.3 61.9 33.9 51.7 10.0 60.1 35.4 63.2 27.0 59.6
+        S3R [73]     52.6 51.8 47.8 61.6 50.5 52.4 16.3 51.0 47.8 57.9 43.0 54.9
+
+   EgoPED (with AF)  62.7 65.6 51.4 65.1 59.6 55.0 55.3 58.3 56.0 66.0 57.0 62.0
+
+   Table 3. Error detection results of different methods on the EgoPER dataset for each task and the average over all tasks.
+
+truth actions. For each action i P An in video n, let Pn,i       find the closest sequence of steps among training videos to
+be the set of ‘positive’ frames that belong to action i and      the predicted steps in the test video, using Edit distance. Let
+let Nn,t be the set of ‘negative’ frames from other actions.     D denote the set of predicted steps from the output of the
+We use the cosine similarity function cosp¨, ¨q to compute       action segmentation and G be the set of steps corresponding
+the similarity between a frame zn,t belonging to action i        to the best matched training sequence. We estimate the set
+(i.e., yn,t “ i) and the closest prototype from Ci, denoted      of omitted steps as Do “ GzD.
+by ci,lt , as well as the similarity between ci,lt and several
+negative examples in Nn,t and form                               5. Experiments
+                                                                 5.1. Experimental Setup
+`       ÿ          ´ cospci,lt , zn,tq ¯,
+sn,i “     exp                                                   Dataset. We perform evaluation on EgoPER and HoloAs-
+        tPPn,i τ                                                 sist [70] when using framewise annotations and on ATA
+´ ÿ ´ cospci,lt , zn,t1 q ¯ (2)                                  [24] using weak supervision. We train our model and the
+sn,i “          exp                        ,                     baselines on each task in EgoPER separately using RGB
+        t1PNn,t τ                                                data (we do not use audio, depth, gaze for any method and
+                                                                 leave it for future studies). HoloAssist consists of 20 tasks
+where τ is a learnable temperature value. We then form the       with 2,221 egocentric videos, and its errors correspond to
+contrastive step prototype learning loss as                      slip errors, e.g., unable to insert a battery into GoPro. We
+                                                                 use verbs and nouns as the labels of actions. ATA has 1,152
+           ÿ ´ s`n,i ¯                        (3)                videos from 4 viewpoints and errors correspond to omission
+   Lcspl “ ´ log ` ´ .                                           or reordering. For EgoPER, we use 80% of normal videos
+                     sn,i ` sn,i                                 for training, 10% for validation, and the remaining 10% plus
+                i                                                all erroneous videos for testing. For HoloAssist and ATA,
+                                                                 we follow the same splits mentioned in their work.
+The final loss L to train our method consists of Lcspl for       Evaluation Metrics. We report the performance of error
+contrastive step prototype learning and the temporal action      detection and action segmentation. For error detection, we
+segmentation loss Ltas from the backbone we use.                 use different metrics. First, we compute segment-wise Er-
+                                                                 ror Detection Accuracy (EDA) as De{GTe, where De and
+4.2.3 Inference                                                  GTe are the total number of correct predictions and seg-
+At the inference time, we use the learned action segmen-         ments of all test videos. The ground-truth action segment is
+tation model and the learned step prototype sets tCiui“1 S`1.    erroneous if some of its frames have an error, otherwise cor-
+We apply the action segmentation model on the test video,        rect. Second, we follow [23] and report micro Area Under
+which gives labels to all frames. We then compute the sim-       the Curve (AUC) based on framwise error predictions. For
+ilarities between a frame and prototypes associated with its     omission error, we use Omission Accuracy (O-Acc), which
+predicted action label and take the maximum similarity. We       measures if each ground-truth omitted error is detected, and
+use a threshold θi for each step i to decide if a frame labeled  Omission Intersection over Union (O-IoU), which equals to
+as i is normal or erroneous: if the similarity between the       |GTo X Do|{|GTo Y Do|, where GTo is the set of ground-
+frame and the closest prototype of step i is lower than the      truth omission errors. Finally, for action segmentation, we
+threshold, it is classified as error, otherwise normal. After    report the conventional TAS metrics (Acc, IoU, edit score
+classifying frames as normal or erroneous, we use majority       and F1@0.5) as in [24].
+voting on the predictions of the frames in a step segment to     Baselines. Given the lack of a prior general method for
+determine the final prediction of the segment as being nor-      procedural error detection, we compare our EgoPED frame-
+mal or erroneous. To set θi, we compute the mean µi and          work with video anomaly detection baselines. HF2-VAD
+standard deviation σi from the similarities of all the frames
+belonging to step i in the validation set and θi “ µi ` γ ¨ σi,
+where γ P t´2.0, ´1.9, ..., 1.9, 2.0u is a hyper-parameter.
+
+   Notice that the above approach, using which frame is la-
+beled as erroneous or normal, applies to all error types ex-
+cept omission error. For omission error detection, we first
+
+                                                                 18660
+Method Method                          VVeerrbb  NNoouunn                                                                   50                                                                         100                            Training script
+                                       EEDDAA AAUUCC EDEADAAUACUC                                                                                                                                       60                              Task graph
+                                                                                                                                           37.2 38.4                                                          56.7 56.7
+Random Random                          1111.2.2 5500..00 1133.0.0 505.00.0                                                                                                                      32 32                               47.6 47.6
+HF2-VAHDF2[4-V3]AD [42]                2244.0.0 3388..00 2233.2.2 383.28.2
+HHF2F-2V-AVADD+ +SSSPSCPCAABB[5[45]3]  2233.7.7 3388..00 2222.9.9 393.19.1                                                  30 27.5 28.5
+S3R [73] S3R [71]                      5511.2.2 4488..66 5511.6.6 494.59.5
+                                                                                                                            10
+                                                                                                                     O-IoU                                                                                               42.3 42.3
+                                                                                                                                                                                 O-Acc
+
+                                                                                                                                                                                                          20
+
+EgoPEODur(sM(MSTSCTNC+N++)+)           4455.6.6 5555..11 6677.8.8 545.34.3                                                  AF   DiffACT MSTCN++                                                              AF         DiffACT MSTCN++
+EgoPEDOu(rDsi(fDfAifCfAT)CT)           6688.2.2 4466..44 7711.4.4 474.67.6
+EgoPED (OAuFr)s (AF)                   6688.0.0 4477..33 7711.0.0 505.80.8                                           Figure 6. Omission detection results of our method for three TAS models.
+
+TTaabbllee 44.. TThhee rreessuullttss ooff eerrrroorr ddeetteeccttiioonn oonn HHoollooAAssssiisstt..                        AOD  # Prototypes # Negatives                                                      EDA        AUC
+                                                                                                                             ✓   Method                                                                       EDA        AUC
+                                                                                                                             ✓   1                                                                     2       55.5
+                                                                                                                             ✓   Ours (A3 F) w/o AOD 2                                                        5525.5.4     58.2
+MethodMethod        EDEADAAUACUC IoUIoUEdEitditF1F@1@0.50.5AcAccc                                                                Ours (4AF) w/ AOD 2                                                          5575.0.7   585.87.8
+                                                                                                                                                                                                                         625.70.8
+
+EgOouPrEs D(M(MSTSCTNC+N++)+)484.48.4 585.58.5 474.97.9717.21.2 525.82.8 747.64.6                                           O✓urs (AF) w2/ AOD (1 proto1type) 5557.5.4 586.02.4
+EgoOPuErsD(D(DififAfACCTT)) 494.29.2 616.91.9 393.49.4636.83.8 474.67.6 696.59.5                                            O✓urs (AF) w2/ AOD (2 proto3type) 5575.0.8 626.00.0
+EgoPEODur(sA(FA)F)  575.07.0 626.02.0 444.64.6616.31.3 474.57.5 686.58.5                                                    ✓    2                                                                     4      56.7 59.8
+                                                                                                                            Ours (AF) w/ AOD (3 prototype) 55.4 58.8
+                                                                                                                            Oˆurs (AF) w2/ AOD (4 proto2type) 5552.7.5 575.88.7
+TTaabble 5. EErrororrdedteetcetcitoinonanadndseTgAmSenrteastiuolntsrfeosruldtsiffoerednitffTeAreSntmTAodSemls oodn-         ✓    2                                                                     2      57.0 62.0
+EelgsooPnEtRhedEatgaosePtE. R dataset.                                                                                      Ours (AF) w/ AOD (1 negative) 57.4 60.4
+                                                                                                                     Table 6. AObluartsio(nArFe)suwlt/sAfOorDth(e2 enfefgecattiovfe)active57o.b0ject d6e2te.0ction (AOD),
+                                                                                                                     number of sOteuprpsr(oAtoFt)ywpe/sAaOndDn(e3gnateigvaetifvraem) es fo5r5c.8ontras6t0iv.0e learning.
+B[4a3s]ealidnoepst.s oGpitviceanl ftlhoewlarecckonosftraucptriioonr agnednferraaml empertehdoidctifoonr                     Ours (AF) w/ AOD (4 negative) 56.7 59.8
+ptorodceetdeurmrailneerriofrtdheetencetxiot nf,rawmeecoismapnareerroour.r fHraFm2e-VwAorDk wwiitthh
+vSiSdPeoCAanBommaolydudleete[5ct4i]onusbeassealinmeass.kHcFo2n-vVoAluDtio[n42s]traudcotuprtse                        T5a.2bl.eE6.xpAbelratiimonerenstualtsl fRoretshue eltffsect of active object detection (AOD),
+otopteicnahlanflcoewthreeccoanpsatrcuitcytioonf tahnedfefraatumree epxretrdaiccttoior.n Sto3Rde[t7e3r-]
+mgeinneeriaftethsennoermxtaflraamnde aisnoanmearlorours. HfeFat2u-rVeAs DforwcitlhasSsiSfiPcCatAioBn                 number of step prototypes and negative frames for contrastive learning.
+mbyoduusilneg[5p3se]uudsoesanaommaaslyk scaomnvpolelustfiroonmstdriucctitounreartyo leenahrnainncge.
+tWhee aclaspoarceitpyorotfthtehepefrefaotrumreanecxetroafcatoRr.anSd3oRm m[7e1t]hogde,nwerhaitcehs                   Error Detection Results. Table 3 shows the error detection
+nraonrmdoaml layndpraendoicmtsaelorruosr foerantuorremsaflolrabcelalsfsoirfiecaactihonfrabmy euwsinitgh              dpeefrafourltm, wanecuesoef2dpifrfoetroetnytpmesettohordepsroenseEngt oePacEhRs.teOpuarnmdeutsheo2d
+pthseeusdaomaenopmroablaybsilaimtyp. leGsifvreonmthdaicttiHoonlaorAy slesaisrtnianngd. WATeAaldsoo                   noeugtpaetirvfeorsmegsmalelntthsefobraseealcinheps,oesistpiveecisaellgymoenntt.heWEeDsAhoswcotrhee,
+rneoptoprrtotvhiedepaecrftoivremoabnjceectolfabaelRs,awndeormunmouerthmodet,hwodhiocnhthraenm-                       eafcfheicetvoinfgth5e7s.e0h%ypoevrepratrhaemdeatetarsseitnctohme peaxrpeedritmo e4n3t%s. by S3R
+dwoimthloyutptrheediacctstiveerroobrjeocrtndoertmecatilolnabberlanfochr .each frame with                             and 27.0% by HF2-VAD. On AUC, our method achieves at
+the same probability. Given that HoloAssist and ATA do
+nImotpplreomviednetaactitoivne doebtjaeciltsl.abWeles,uwsee arunnd ocuormmpeatrheotdhroene ttheemm-                  5le.a2s.tE2.x1p%erhimgheenr tsacol rRe ethsaunltosther methods. The predictions
+wpoitrhaol uatctthioenacsteivgemoebnjteactitodnetmecotidoenlsbraasncohu.r action segmen-
+tation backbone and classifier: ActionFormer (AF) [79],                                                              of HF2-VAD are framewise and often fluctuate (see Figure
+IMmSpTleCmNe+n+ta[t3io6n] adnedtaDilisf.fuWsioenusAecatinodn cSoemgmpaernetathtiroene (tDemif--                      E7)r,rworhiDchetleecatdisontoRmeuscuhltlso.wTearbEleDA3 sshcoowres. the error detec-
+pfAorCaTl )ac[t4i2o]n. sAegFmgeenntaetriaotnesmfroadmeels-waisseoustrepacatinodnbsoeugnmdeanry-                      tionTpaberlefo4rmshaonwcesothf ediefrfreorerndtemteectthioondsreosnulEtsgooPnEthRe. HOoulropAros--
+tparteiodnictbioancks.boWnee afnodllocwlasthsiefiesar:meAcintifoenreFnocremsetrep(AaFs)in[7A7]F,                     psiossteddatmaseetht owdhoenutpweerfuosremtsheallgrtohuenbda-streulitnhevs,erebspoercniaolulyn oans
+MbyScToCmNb+in+in[g35b]oaunnddaDryiffpurseidoinctiAocntsioanndSethgemceonrtraetisopnon(dDiinfg-                      tthhee ElaDbAel socforeea,cahchgireovuinndg-5tr7u.t0h%seogvmerentht.e dOautarsemt ectohmodpasriegd-
+fsAteCpTs )w[i4th1]n.onA-mF agxeinmeuramtessufprpamreess-wioins.eFsoterpMaSnTdCbNo+un+daanryd                        tnoifi4c3a%ntlybyimSp3rRovaensdth2e7.E0D%AbsycoHreF2b-yVA17D%. oOvnerAbUasCe,lionuesr
+pDriefdfAicCtioTn, sw. eWsiempfolyllouwse tthhee sfarammee-inwfiesreenstceepspterepdiacstiionnsAtFo                  mfoertbhootdhaccahsieesv.eTs hatisleiassdtu2e.1t%o hhaivgihnegr ascboertetethr aunndoethrsetramndeitnhg-
+bfiyndcotmhebisneignmg ebnotunodf aeraycphresdteipct.ionTso aonbdtatihne tchoerrgersappohndfienag-                   oodf sa.cTtihoen psreegdmicetniotsnsporofvHidFe2d-VbAyDouarremfreatmhoedwaisnedatnhdeocfotenn-
+stuterpesvwecithornfoonr-meaacxhimfruames,uwpperuesesioan3.-lFaoyreMr GSrTaCphNC++onavnod-                           ftlruacsttiuvaetele(asreneinFgig, uwrehi7ch), awllhoiwchs lheaavdisngtoremfiuncehd lroewperersEenDtaA-
+DluitfifoAnCalTN, wetewsoirmkpsl(yGuCseNt)h. eWfreamtraei-nweidseasftaespteprrReNdiNctimonosdteol                    sticoonrse.of frames and step prototypes. Notice that for HoloAs-
+ftiondoutthpeutseogbmjeecnttaonfd ehaacnhdsbteopu.ndTinog-obbotaxiens tahned gtrhaephobfjeeac-t                      sistT,awbeled4idsnhootwussethteheerAroOrDdebtreacnticohninreosuurltfsraomn ethweoHrko,lsoiAncse-
+tculraessveescatonrdfsotrateeasc(hacftriavme eo,rwineacutsievea).3-layer Graph Convo-                                si)istthdeadtaasteatsewt hdeoneswneout sheavtheeogbrjoecutnbdo-turuntdhinvge-rbboxoersn, oiiu)naaps-
+lutiWonealfirNstetpwreotrrkasin(oGuCrNm)o. dWelewtritahintehde taemfapsoterraRl NacNtiomnosdegel-                    tphleyilnagbeoluor ftreaaincehdgAroOuDndm-troudthelsfeogrmceonotk.inOguornmHeothlooAd sssiigs-t
+tmoeonutatptiuotnolbojsesctLatnasd ahnadndthbeonuennddin-tgo--beonxdestranind itthewoitbhjeacltl                     nanifdicAanTtAly, wimhpicrohvaerse tfhoer aEsDseAmsbcloy,redibdyn1o7t %woorkvewr eblal.selines
+clolassseess. aWnde srtantedso(maclytivueseor5i0napcetrivcen).t of training videos to                                for both cases. This is due to having a better understanding
+forWmepfriorstot tpyrpeetrsaiannoduursme othdelrwesithtothterateinmtphoeraml oacdteiloninsegv-                       oOfmacistsioionnseEgrmroerntsDeptreocvtiidoend. bFyigouurrem6etshhoodwasntdhethpeercfoonr--
+mereynetaptoiocnh olof stsraiLntiansga. nDdutrhinegn inenfedr-etnoc-en, dwetruaisne aitllwtriatihnianlgl             tmraasnticvee olefardneitnegc,tiwnghicohmaisllsoiowns eursrotor hwahveenreufisninedg rtehperetsreann--
+lvoisdseeoss. toWgeenraenradtoemplryotuostyep5e0s. pWerecceonmt opfuteratihneinmgevaindµeoi santod                   tsactriiopntss ooff tthreainfrianmg evsidaenodssvtespupsriontgottyhpeesg.roNuontdi-cterutthhattafsokr
+fsotarmndaprrdotdoetyvpiaetsioannsdσuisefotrhethreestetpo thrarienshtohledmθoi dueslining ethve-                     HgroalpohAs(tshiset wlaettedridwnooutludsebetheanacutipvpeeorbbjeocutndde)t.ecNtioonticberatnhcaht
+evrayliedpaoticohn osfetrtahiantinagls.oDcuorninsigstisnfoefreonnclye,nwoermusael vaildl etroasi.niBngy              itnheouscr ofrreasmfeowr ourski,nsgintcraeini)intghetrdaantsacsreitpdtsoeasrencoltohsaevteo oubsjiencgt
+vdiedfeaousltt,owgeeunseera2tepprorotototytyppesest.oWreeprceosmenptuetaecthestmepeaanndµiusaend2                    bthoeungdroinugn-db-otrxuetsh, taiis)kagprpalpyhin. gThoiusristrbaeincaeudseAoOuDr dmatoadseetl hfoasr
+snteagnadtaivrde sdeegvmiaetinotnssfoσriefaocrh tphoesisttievpe sthergemsheonltd. Wθieusshionwg the                  cdoivoekrisnigtyoonf HacotliooAnssseisqtuaenndceAsTaAm,ownghicnhoramrealfovridaesosse.mbFloyr,
+veaffleidcattoiofnthseestethyatpearlspoarcaomnestiesrts ionf tohnelyexnpoerrmimael nvtisd.eos. By                    dalildmnoetthwoodrsk, twheelOl. -IoU scores are lower than O-Acc, since
+                                                                                                                     some normal steps are not detected in the action segmen-
+                                                                                                                     Otatmioinssaionnd tEhrerroefrorDeeatreectpiorend.ictFeidguarseo6misshsoiowns. tIhteispwerofortrh-
+                                                                                                                     maenctieonoifngdethteacttiinngooumr disastiaosnet,eroromriswsihoenneurrsoinrsg atnhde otrtahne-r
+                                                                                                                     stycpriepstsofofertroarinsinogftevnidheaopspevns tuosginetghetrh,emgarkoiunngd-tthreut(homtaissk-
+                                                                                                                     gsiroanp)he(rtrhoer dlaetteecrtiwonouclhdalbleenganingu.pper bound). Notice that
+
+                                                                                                                     18661
+                              Tea  Oatmeal  Quesadilla                             Method                    Acc IoU Edit F1@0.5 F1error
+GT Seg.
+
+                                                                                   MuCon [64]                52.6 42.7 37.3 24.0  43.5
+                                                                                   TASL [44]
+                                                                                   CDFL [34]                 40.5 27.7 57.3 27.1  0.0
+                                                                                   ATA [24]
+GT                                                                                                           59.2 45.5 60.0 51.9  0.0
+
+                                                                                                             66.1 57.7 68.8 62.0  59.2
+
+                                                                                   EgoPED (MSTCN++) w/o AOD 63.6 54.6 66.0 57.2   57.5
+
+     S3R                                                                           EgoPED (DiffAct) w/o AOD  67.9 57.5 74.0 63.7  61.7
+     Ours
+                                                                                   EgoPED (AF) w/o AOD       71.3 61.1 69.2 64.0  53.9
+Figure 7. Qualitative error detection results for tea, oatmeal, and que-
+sadilla tasks in EgoPER. Top row shows the ground-truth action segmenta-    Table 7. Results of weakly-supervised TAS and error detection on ATA.
+tion, where each color represents a step. Second row visualizes some error
+frames. Third, fourth, fifth, and sixth rows show, respectively, ground-      GT
+truth, HF2-VAD, S3R and our predictions of errors (in red).                   AF
+                                                                            Ours
+Effect of Action Segmentation Models. Table 5 shows
+the effect of the action segmentation model in the EgoPED                       Figure 8. Action segmentation results on Coffee in EgoPER.
+framework. The error detection accuracies of our method
+do not change much while using different TAS models.                        and predictions of our framework, HF2-VAD and S3R. Our
+This is an advantage that shows our active object detection                 method can capture step segments and errors simultane-
+branch and the contrastive prototype learning can work well                 ously. However, HF2-VAD generates fluctuating error pre-
+with off-the-shelf action segmentation models. However, as                  dictions, which shows a disadvantage of video anomaly
+the results show, using that AF leads to better error detection             detection models for error detection in procedural videos.
+performance. This is because AF has a boundary detection                    Figure 8 shows that our method can more accurately seg-
+module, allowing better handling of additional, background                  ment videos than the baseline TAS model (AF), especially
+and error-related actions by finding their boundaries.                      for recognizing background segments (in purple), thanks to
+                                                                            leveraging relational features and contrastive learning.
+   It is worth noting that better action segmentation accu-                 Weakly-Supervised Action Segmentation and Error De-
+racy itself does not necessarily translate to better error de-              tection. Table 7 shows the results on the ATA dataset
+tection. For example, MSTCN++ obtains higher F1@0.5                         [24]. For fair comparison, we follow its setting to learn our
+score (52.8%) than AF (47.5%) but lower AUC (58.7) than                     model with weak supervision and without AOD. We gen-
+AF (62.0). This is because a model (e.g., MSTCN++) can                      erate pseudo framewise labels using [34] for training and
+learn features that are discriminative across actions yet fea-              use the framewise predictions without the post-processing
+tures of errors of an action are less distinct from normal                  from [24] at inference. We observed that results from the
+execution of the same action. Thus, the model can easily                    AF backbone contain many short incorrect action segments,
+classify those frames into normal steps rather than errors.                 leading to a lower Edit score, F1@50 and eventually low
+Ablation Studies. Table 6 shows the ablation of using ac-                   F1error. Overall, our method with DiffAct backbone outper-
+tive objects detection with GCN, effect of different number                 forms all previous methods.
+of step prototypes as well as negative examples in our con-
+trastive framework for the AF action segmentation model                     6. Conclusions
+(results for other segmentation models were similar). No-
+tice that using active object detection with GCN leads to                   We studied error detection in egocentric procedural task
+4.5% and 3.3% improvement of the EDA and AUC, respec-                       videos. Our EgoPED framework has an action segmen-
+tively. This demonstrates the effectiveness of leveraging ac-               tation model (can be any off-the-shelf model) and a con-
+tive (step-relevant) objects for better error understanding.                trastive step prototype learning module to learn useful fea-
+Having more than one prototype per step helps, improving                    tures (using holistic and relational featurss) for action and
+the EDA and AUC by 1.5% and 3.8%, respectively. How-                        error understanding. We introduced the EgoPER dataset
+ever, further increasing the number of prototypes does not                  with both normal and erroneous procedural videos. Our ex-
+help, due to over-representation of each action/step. We be-                periments on three datasets showed that our framework can
+lieve automatically selecting the right number of prototypes                leverage any action segmentation model easily and obtain
+for each action to better capture variations can improve the                promising results on detecting various types of errors.
+results, however, it is a non-trivial problem, which we leave
+for future studies. Finally, notice that our results are not                Acknowledgements
+sensitive to the number of negative samples or prototypes.
+Qualitative Analysis. Figure 7 visualizes the ground-truth                  This work is sponsored by DARPA PTG
+                                                                            (HR00112220001), NSF (IIS-2115110), ARO
+                                                                            (W911NF2110276). Content does not necessarily re-
+                                                                            flect the position/policy of the Government.
+
+                                                                            18662
+References                                                           [14] G. Donahue and E. Elhamifar. Learning to predict activity
+                                                                           progress by self-supervised video alignment. IEEE Confer-
+ [1] Andra Acsintoae, Andrei Florescu, Mariana-Iuliana                     ence on Computer Vision and Pattern Recognition, 2024. 1
+      Georgescu, Tudor Mare, Paul Sumedrea, Radu Tudor
+      Ionescu, Fahad Shahbaz Khan, , and Mubarak Shah. Ub-           [15] E. Elhamifar and D. Huynh. Self-supervised multi-task pro-
+      normal: New benchmark for supervised open-set video                  cedure learning from instructional videos. European Confer-
+      anomaly detection. IEEE Conference on Computer Vision                ence on Computer Vision, 2020. 2
+      and Pattern Recognition, 2022. 2, 3
+                                                                     [16] E. Elhamifar and Z. Naing. Unsupervised procedure learning
+ [2] Hyemin Ahn and Dongheui Lee. Refining action segmenta-                via joint dynamic summarization. International Conference
+      tion with hierarchical video representations. In Proceedings         on Computer Vision, 2019. 2
+
+      of the IEEE/CVF International Conference on Computer Vi-       [17] Yazan Abu Farha and Jurgen Gall. Ms-tcn: Multi-stage tem-
+                                                                           poral convolutional network for action segmentation. In Pro-
+      sion (ICCV), pages 16302–16310, 2021. 1, 2
+                                                                           ceedings of the IEEE/CVF conference on computer vision
+ [3] J. B. Alayrac, P. Bojanowski, N. Agrawal, J. Sivic, I. Laptev,
+      and S. Lacoste-Julien. Unsupervised learning from narrated           and pattern recognition, pages 3575–3584, 2019. 1, 2
+      instruction videos. IEEE Conference on Computer Vision
+      and Pattern Recognition, 2016. 2                               [18] Alireza Fathi, Xiaofeng Ren, and James M Rehg. Learning
+                                                                           to recognize objects in egocentric activities. In IEEE Confer-
+ [4] Marcella Astrid, Muhammad Zaigham Zaheer, Jae-Yeong                   ence on Computer Vision and Pattern Recognition (CVPR),
+      Lee, and Seung-Ik Lee. Learning not to reconstruct anoma-            2011. 2, 4
+      lies. arXiv: 2110.09742, 2021. 2, 3
+                                                                     [19] Mohsen Fayyaz and Jurgen Gall. Sct: Set constrained tempo-
+ [5] Nadine Behrmann, S. Alireza Golestaneh, Zico Kolter, Juer-            ral transformer for set supervised action segmentation. IEEE
+      gen Gall, and Mehdi Noroozi. Unified fully and timestamp             Conference on Computer Vision and Pattern Recognition,
+      supervised temporal action segmentation via sequence to se-          2020. 2
+      quence translation. In ECCV, 2022. 1, 2
+                                                                     [20] C. Feichtenhofer. X3d: Expanding architectures for efficient
+ [6] Yizhak Ben-Shabat, Xin Yu, Fatemehsadat Saleh, Dylan                  video recognition. In 2020 IEEE/CVF Conference on Com-
+      Campbell, Cristian Rodriguez-Opazo, Hongdong Li, and                 puter Vision and Pattern Recognition (CVPR), 2020. 1, 2
+      Stephen Gould. The ikea asm dataset: Understanding people
+      assembling furniture through actions, objects and pose. Win-   [21] C. Feichtenhofer, H. Fan, J. Malik, and K. He. Slowfast net-
+      ter Conference on Applications of Computer Vision, 2021.             works for video recognition. In 2019 IEEE/CVF Interna-
+      4                                                                    tional Conference on Computer Vision (ICCV), 2019. 1, 2
+
+ [7] Gedas Bertasius, Heng Wang, and Lorenzo Torresani. Is           [22] Daniel Fried, Jean-Baptiste Alayrac, Phil Blunsom, Chris
+      space-time attention all you need for video understanding?           Dyer, Stephen Clark, and Aida Nematzadeh. Learning to
+      In Proceedings of the International Conference on Machine            segment actions from observation and narration. Annual
+      Learning (ICML), 2021. 1, 2                                          Meeting of the Association for Computational Linguistics,
+                                                                           2020. 2
+ [8] Jing Bi, Jiebo Luo, and Chenliang Xu. Procedure planning
+      in instructional videos via contextual modeling and model-     [23] Mariana Iuliana Georgescu, Radu Tudor Ionescu, Fa-
+      based policy learning. IEEE International Conference on              had Shahbaz Khan, Marius Popescu, and Mubarak Shah. A
+      Computer Vision, 2021. 1, 2                                          background-agnostic framework with adversarial training for
+                                                                           abnormal event detection in video. IEEE Transactions on
+ [9] J. Carreira and A. Zisserman. Quo vadis, action recognition?          Pattern Analysis and Machine Intelligence, 2022. 6
+      a new model and the kinetics dataset. In IEEE Conference
+      on Computer Vision and Pattern Recognition, 2017. 1, 2, 4      [24] Reza Ghoddoosian, Isht Dwivedi, Nakul Agarwal, and Be-
+                                                                           hzad Dariush. Weakly-supervised action segmentation and
+[10] Chien-Yi Chang, De-An Huang, Danfei Xu, Ehsan Adeli,                  unseen error detection in anomalous instructional videos. In
+      Li Fei-Fei, and Juan Carlos Niebles. Procedure planning in
+      instructional videos. In Computer Vision – ECCV 2020: 16th           Proceedings of the IEEE/CVF International Conference on
+
+      European Conference, Glasgow, UK, August 23–28, 2020,                Computer Vision, pages 10128–10138, 2023. 2, 3, 4, 6, 8
+
+      Proceedings, Part XI, 2020. 1, 2                               [25] Kristen Grauman, Andrew Westbury, Eugene Byrne,
+                                                                           Zachary Chavis, Antonino Furnari, Rohit Girdhar, Jackson
+[11] Dima Damen, Hazel Doughty, Giovanni Maria Farinella,                  Hamburger, Hao Jiang, Miao Liu, Xingyu Liu, Miguel Mar-
+      Antonino Furnari, Jian Ma, Evangelos Kazakos, Davide                 tin, Tushar Nagarajan, Ilija Radosavovic, Santhosh K. Ra-
+      Moltisanti, Jonathan Munro, Toby Perrett, Will Price, and            makrishnan, Fiona Ryan, Jayant Sharma, Michael Wray,
+      Michael Wray. Rescaling egocentric vision: Collection,               Mengmeng Xu, Eric Z. Xu, Chen Zhao, Siddhant Bansal,
+      pipeline and challenges for epic-kitchens-100. International         Dhruv Batra, Vincent Cartillier, Sean Crane, Tien Do, Morrie
+      Journal of Computer Vision (IJCV), 130:33–55, 2022. 2                Doulaty, Akshay Erapalli, Christoph Feichtenhofer, Adriano
+                                                                           Fragomeni, Qichen Fu, Christian Fuegen, Abrham Gebre-
+[12] Hanqiu Deng, Zhaoxiang Zhang, Shihao Zou, , and Xingyu                selasie, Cristina Gonza´lez, James M. Hillis, Xuhua Huang,
+      Li. Bi-directional frame interpolation for unsupervised video        Yifei Huang, Wenqi Jia, Weslie Khoo, Ja´chym Kola´r, Satwik
+      anomaly detection. IEEE Winter Conference on Applications            Kottur, Anurag Kumar, Federico Landini, Chao Li, Yang-
+      of Computer Vision, 2023. 2, 3                                       hao Li, Zhenqiang Li, Karttikeya Mangalam, Raghava Mod-
+                                                                           hugu, Jonathan Munro, Tullie Murrell, Takumi Nishiyasu,
+[13] Guodong Ding, Fadime Sener, Shugao Ma, and Angela Yao.                Will Price, Paola Ruiz Puentes, Merey Ramazanova, Leda
+      Every mistake counts in assembly. arXiv: 2307.16453, 2023.
+      2, 3
+
+                                                                     18663
+      Sari, Kiran K. Somasundaram, Audrey Southerland, Yusuke        [38] Yanghao Li, Chao-Yuan Wu, Haoqi Fan, Karttikeya Man-
+      Sugano, Ruijie Tao, Minh Vo, Yuchen Wang, Xindi Wu,                  galam, Bo Xiong, Jitendra Malik, and Christoph Feichten-
+      Takuma Yagi, Yunyi Zhu, Pablo Arbela´ez, David J. Crandall,          hofer. Mvitv2: Improved multiscale vision transformers for
+      Dima Damen, Giovanni Maria Farinella, Bernard Ghanem,                classification and detection. In 2022 IEEE/CVF Conference
+      Vamsi Krishna Ithapu, C. V. Jawahar, Hanbyul Joo, Kris               on Computer Vision and Pattern Recognition (CVPR), 2022.
+      Kitani, Haizhou Li, Richard A. Newcombe, Aude Oliva,                 1, 2
+      Hyun Soo Park, James M. Rehg, Yoichi Sato, Jianbo Shi,
+      Mike Zheng Shou, Antonio Torralba, Lorenzo Torresani,          [39] Zhe Li, Yazan Abu Farha, and Jurgen Gall. Temporal action
+      Mingfei Yan, and Jitendra Malik. Ego4d: Around the world             segmentation from timestamp supervision. IEEE/CVF Con-
+      in 3,000 hours of egocentric video. 2022 IEEE/CVF Confer-            ference on Computer Vision and Pattern Recognition, 2021.
+      ence on Computer Vision and Pattern Recognition (CVPR),              2
+      pages 18973–18990, 2021. 2
+                                                                     [40] Ji Lin, Chuang Gan, and Song Han. Tsm: Temporal shift
+[26] Hilde Kuehne, Ali Arslan, and Thomas Serre. The language              module for efficient video understanding. In Proceedings
+      of actions: Recovering the syntax and semantics of goal-             of the IEEE International Conference on Computer Vision,
+      directed human activities. IEEE Conference on Computer               2019. 1, 2
+      Vision and Pattern Recognition, 2014. 2, 4
+                                                                     [41] Yunze Liu, Yun Liu, Che Jiang, Kangbo Lyu, Weikang Wan,
+[27] H. Kuehne, J. Gall, and T. Serre. An end-to-end gener-                Hao Shen, Boqiang Liang, Zhoujie Fu, He Wang, and Li Yi.
+      ative framework for video segmentation and recognition.              Hoi4d: A 4d egocentric dataset for category-level human-
+                                                                           object interaction. IEEE Conference on Computer Vision and
+      IEEE Winter Conference on Applications of Computer Vi-               Pattern Recognition, 2022. 2, 3
+
+      sion, 2016. 1, 2                                               [42] Yang Liu, Jiayu Huo, Jingjing Peng, Rachel Sparks, Prokar
+                                                                           Dasgupta, Alejandro Granados, and Sebastien Ourselin.
+[28] Anna Kukleva, Hilde Kuehne, Fadime Sener, and Jurgen                  Skit: a fast key information video transformer for online sur-
+      Gall. Unsupervised learning of action classes with contin-           gical phase recognition. In Proceedings of the IEEE/CVF
+      uous temporal embedding. IEEE Conference on Computer                 International Conference on Computer Vision, pages 21074–
+      Vision and Pattern Recognition, 2019. 2                              21084, 2023. 1, 2, 7
+
+[29] C. Lea, M. D. Flynn, R. Vidal, A. Reiter, and G. D. Hager.      [43] Zhian Liu, Yongwei Nie, Chengjiang Long, Qing Zhang, and
+      Temporal convolutional networks for action segmentation              Guiqing Li. A hybrid video anomaly detection framework
+      and detection. IEEE Conference on Computer Vision and                via memory-augmented flow reconstruction and flow-guided
+      Pattern Recognition, 2017. 1, 2                                      frame prediction. IEEE Conference on Computer Vision and
+                                                                           Pattern Recognition, 2021. 6, 7
+[30] Jungbeom Lee, Jihun Yi, Chaehun Shin, and Sungroh Yoon.
+      Bbam: Bounding box attribution map for weakly supervised       [44] Z. Lu and E. Elhamifar. Weakly-supervised action segmenta-
+      semantic and instance segmentation. IEEE Conference on               tion and alignment via transcript-aware union-of-subspaces
+      Computer Vision and Pattern Recognition, 2021. 2, 3                  learning. International Conference on Computer Vision,
+                                                                           2021. 2, 8
+[31] Sangmin Lee, Hak Gu Kim, and Yong Man Ro. Bman:
+      Bidirectional multi-scale aggregation networks for abnormal    [45] Z. Lu and E. Elhamifar. Set-supervised action learning in
+      event detection. IEEE Transactions on Image Processing,              procedural task videos via pairwise order consistency. IEEE
+      2019. 3                                                              Conference on Computer Vision and Pattern Recognition,
+                                                                           2022. 2
+[32] Jun Li and Sinisa Todorovic. Set-constrained viterbi for set-
+      supervised action segmentation. IEEE Conference on Com-        [46] Z. Lu and E. Elhamifar. Fact: Frame-action cross-attention
+      puter Vision and Pattern Recognition, 2020. 2                        temporal modeling for efficient action segmentation. IEEE
+                                                                           Conference on Computer Vision and Pattern Recognition,
+[33] J. Li and S. Todorovic. Anchor-constrained viterbi for set-           2024. 1, 2
+      supervised action segmentation. IEEE/CVF Conference on
+      Computer Vision and Pattern Recognition, 2021.                 [47] K. Mangalam, H. Fan, Y. Li, C. Wu, B. Xiong, C. Feicht-
+                                                                           enhofer, and J. Malik. Reversible vision transformers. In
+[34] J. Li, P. Lei, and S. Todorovic. Weakly supervised energy-
+      based learning for action segmentation. International Con-           2022 IEEE/CVF Conference on Computer Vision and Pat-
+      ference on Computer Vision, 2019. 2, 8
+                                                                           tern Recognition (CVPR), 2022. 1, 2
+[35] M. Li, L. Chen, Y. Duarr, Z. Hu, J. Feng, J. Zhou, and J.
+      Lu. Bridge-prompt: Towards ordinal action understanding        [48] Didik Purwanto, Yie-Tarng Chen, and Wen-Hsien Fang.
+      in instructional videos. In 2022 IEEE/CVF Conference on              Dance with self-attention: A new look of conditional random
+      Computer Vision and Pattern Recognition (CVPR), 2022. 1,             fields on anomaly detection in videos. IEEE International
+      2                                                                    Conference on Computer Vision, 2021. 2, 3
+
+[36] Shi-Jie Li, Yazan AbuFarha, Yun Liu, Ming-Ming Cheng,           [49] Yicheng Qian, Weixin Luo, Dongze Lian, Xu Tang, Peilin
+      and Juergen Gall. Ms-tcn++: Multi-stage temporal convolu-            Zhao, and Shenghua Gao. Svip: Sequence verification for
+      tional network for action segmentation. IEEE Transactions            procedures in videos. IEEE Conference on Computer Vision
+      on Pattern Analysis and Machine Intelligence, pages 1–1,             and Pattern Recognition, 2022. 2, 3
+      2020. 1, 2, 7
+                                                                     [50] Francesco Ragusa, Antonino Furnari, Salvatore Livatino,
+[37] Yin Li, Miao Liu, and James M. Rehg. In the eye of beholder:          and Giovanni Maria Farinella. The meccano dataset: Under-
+      Joint learning of gaze and actions in first person video. Eu-        standing human-object interactions from egocentric videos
+      ropean Conference on Computer Vision, 2018. 2, 4
+
+                                                                     18664
+      in an industrial-like domain. Winter Conference on Applica-     [64] Yaser Souri, Mohsen Fayyaz, Luca Minciullo, Gianpiero
+      tions of Computer Vision, 2021. 2, 4                                  Francesca, and Juergen Gall. Fast Weakly Supervised Ac-
+                                                                            tion Segmentation Using Mutual Consistency. PAMI, 2021.
+[51] Rahul Rahaman, Dipika Singhania, Alexandre Thiery, and                 1, 2, 8
+      Angela Yao. A generalized and robust framework for times-
+      tamp supervision in temporal action segmentation. In Com-       [65] Sebastian Stein and Stephen J. McKenna. Combining em-
+      puter Vision–ECCV 2022: 17th European Conference, 2022.               bedded accelerometers with computer vision for recognizing
+      2                                                                     food preparation activities. In Proceedings of the 2013 ACM
+
+[52] A. Richard, H. Kuehne, and J. Gall. Action sets: Weakly su-            International Joint Conference on Pervasive and Ubiquitous
+      pervised action segmentation without ordering constraints.
+                                                                            Computing, 2013. 4
+      IEEE Conference on Computer Vision and Pattern Recogni-
+                                                                      [66] T. Tai, G. Fiameni, C. Lee, S. See, and O. Lanz. Uni-
+      tion, 2018.                                                           fied recurrence modeling for video action anticipation. In
+
+[53] A. Richard, H. Kuehne, A. Iqbal, and J. Gall.                          2022 26th International Conference on Pattern Recognition
+      Neuralnetwork-viterbi: A framework for weakly super-
+      vised video learning. IEEE Conference on Computer Vision              (ICPR), 2022. 1, 2
+      and Pattern Recognition, 2018. 2
+                                                                      [67] Yansong Tang, Dajun Ding, Yongming Rao, Yu Zheng,
+[54] Nicolae-Ca˘ta˘lin Ristea, Neelu Madan, Radu Tudor Ionescu,             Danyang Zhang, Lili Zhao, Jiwen Lu, and Jie Zhou. Coin:
+      Kamal Nasrollahi, Fahad Shahbaz Khan, Thomas B. Moes-                 A large-scale dataset for comprehensive instructional video
+      lund, and Mubarak Shah. Self-supervised predictive convo-             analysis. IEEE Conference on Computer Vision and Pattern
+      lutional attentive block for anomaly detection. IEEE Confer-          Recognition, 2019. 2, 4
+      ence on Computer Vision and Pattern Recognition, 2022. 2,
+      3, 6, 7                                                         [68] Kamalakar Vijay Thakare, Yash Raghuwanshi, Debi Prosad
+                                                                            Dogra, Heeseung Choi, and Ig-Jae Kim. Dyannet: A scene
+[55] M. Rohrbach, S. Amin, M. Andriluka, and B. Schiele. A                  dynamicity guided self-trained video anomaly detection net-
+      database for fine grained activity detection of cooking ac-           work. IEEE Winter Conference on Applications of Computer
+      tivities. IEEE Conference on Computer Vision and Pattern              Vision, 2023. 2, 3
+      Recognition, 2012. 1, 2
+                                                                      [69] Aaron van den Oord, Yazhe Li, and Oriol Vinyals. Repre-
+[56] Fadime Sener and Angela Yao. Zero-shot anticipation for in-            sentation learning with contrastive predictive coding. arXiv:
+      structional activities. International Conference on Computer          1807.03748, 2018. 5
+      Vision, 2019. 1, 2
+                                                                      [70] Hanlin Wang, Yilu Wu, Sheng Guo, and Limin Wang.
+[57] Fadime Sener, Dibyadip Chatterjee, Daniel Shelepov, Kun                Pdpp:projected diffusion for procedure planning in instruc-
+      He, Dipika Singhania, Robert Wang, and Angela Yao. As-                tional videos. In CVPR, 2023. 1, 2, 6
+      sembly101: A large-scale multi-view video dataset for un-
+      derstanding procedural activities. IEEE Conference on Com-      [71] Jiahao Wang, Guo Chen, Yifei Huang, Limin Wang, and
+      puter Vision and Pattern Recognition, 2022. 2, 3, 4                   Tong Lu. Memory-and-anticipation transformer for online
+                                                                            action understanding. In Proceedings of the IEEE/CVF In-
+[58] Y. Shen and E. Elhamifar. Semi-weakly-supervised learn-                ternational Conference on Computer Vision, pages 13824–
+      ing of complex actions from instructional task videos. IEEE           13835. 2, 3, 4
+      Conference on Computer Vision and Pattern Recognition,
+      2022. 2                                                         [72] Mengmeng Wang, Jiazheng Xing, and Yong Liu. Actionclip:
+                                                                            A new paradigm for video action recognition. CoRR, 2021.
+[59] Y. Shen and E. Elhamifar. Progress-aware online action seg-            1, 2
+      mentation for egocentric procedural task videos. IEEE Con-
+      ference on Computer Vision and Pattern Recognition, 2024.       [73] Jhih-Ciang Wu, He-Yen Hsieh, Ding-Jie Chen, Chiou-Shann
+      1, 2                                                                  Fuh, and Tyng-Luh Liu. Self-supervised sparse representa-
+                                                                            tion for video anomaly detection. European Conference on
+[60] Y. Shen, L. Wang, and E. Elhamifar. Learning to segment ac-            Computer Vision, 2022. 2, 3, 6, 7
+      tions from visual and language instructions via differentiable
+      weak sequence alignment. IEEE Conference on Computer            [74] S. Yeung, O. Russakovsky, N. Jin, M. Andriluka, G. Mori,
+      Vision and Pattern Recognition, 2021. 2                               and L. Fei-Fei. Every moment counts: Dense detailed label-
+                                                                            ing of actions in complex videos. International Journal of
+[61] G. A. Sigurdsson, S. Divvala, A. Farhadi, and A. Gupta.                Computer Vision, 2018. 1, 2
+      Asynchronous temporal fields for action recognition. IEEE
+      Conference on Computer Vision and Pattern Recognition,          [75] Fangqiu Yi, Hongyu Wen, and Tingting Jiang. Asformer:
+      2017. 1, 2                                                            Transformer for action segmentation. In The British Machine
+                                                                            Vision Conference (BMVC), 2021. 1, 2
+[62] B. Singh, T. K. Marks, M. Jones, O. Tuzel, and M. Shao.
+      A multi-stream bi-directional recurrent neural network for      [76] Guang Yu, Siqi Wang, Zhiping Cai, Xinwang Liu, Chuanfu
+      finegrained action detection. IEEE Conference on Computer             Xu, and Chengkun Wu. Deep anomaly discovery from unla-
+      Vision and Pattern Recognition, 2016.                                 beled videos via normality advantage and self-paced refine-
+                                                                            ment. IEEE Conference on Computer Vision and Pattern
+[63] Dipika Singhania, Rahul Rahaman, and Angela Yao. Coarse                Recognition, 2022. 2, 3
+      to fine multi-resolution temporal convolutional network.
+      CoRR, abs/2105.10859, 2021.                                     [77] Muhammad Zaigham Zaheer, Arif Mahmood, Marcella
+                                                                            Astrid, and Seung-Ik Lee. Claws: Clustering assisted weakly
+                                                                            supervised learning with normalcy suppression for anoma-
+                                                                            lous event detection. European Conference on Computer Vi-
+                                                                            sion, 2020.
+
+                                                                      18665
+[78] M Zaigham Zaheer, Arif Mahmood, M Haris Khan, Mat-
+      tia Segu, Fisher Yu, and Seung-Ik Lee. Generative coop-
+      erative learning for unsupervised video anomaly detection.
+      IEEE Conference on Computer Vision and Pattern Recogni-
+      tion, 2022. 2, 3
+
+[79] Chen-Lin Zhang, Jianxin Wu, and Yin Li. Actionformer:
+      Localizing moments of actions with transformers. European
+      Conference on Computer Vision, 2022. 7
+
+[80] Junbin Zhang, Pei-Hsuan Tsai, and Meng-Hsun Tsai. Se-
+      mantic2graph: Graph-based multi-modal feature fusion for
+      action segmentation in videos, 2022. 1, 2
+
+[81] Bin Zhao, Li Fei-Fei, , and Eric P. Xing. Online detection of
+      unusual events in videos via dynamic sparse coding. IEEE
+      Conference on Computer Vision and Pattern Recognition,
+      2011. 2, 3
+
+[82] He Zhao, Isma Hadji, Nikita Dvornik, Konstantinos G. Der-
+      panis, Richard P. Wildes, and Allan D. Jepson. P3iv: Prob-
+      abilistic procedure planning from instructional videos with
+      weak supervision. In 2022 IEEE/CVF Conference on Com-
+      puter Vision and Pattern Recognition (CVPR), 2022. 1, 2
+
+[83] Joey Tianyi Zhou, Jiawei Du, Hongyuan Zhu, Xi Peng, Yong
+      Liu, , and Rick Siow Mong Goh. Anomalynet: An anomaly
+      detection network for video surveillance. IEEE Transactions
+      on Information Forensics and Security, 2019. 3
+
+[84] Yuansheng Zhu, Wentao Bao, , and Qi Yu. Towards open
+      set video anomaly detection. European Conference on Com-
+      puter Vision, 2022. 2, 3
+
+[85] D. Zhukov, J. B. Alayrac, R. G. Cinbis, D. Fouhey, I. Laptev,
+      and J. Sivic. Cross-task weakly supervised learning from
+      instructional videos. IEEE Conference on Computer Vision
+      and Pattern Recognition, 2019. 2, 4
+
+                                                                                  18666
+

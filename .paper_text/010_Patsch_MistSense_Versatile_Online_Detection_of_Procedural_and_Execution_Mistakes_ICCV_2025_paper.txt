@@ -1,0 +1,552 @@
+This ICCV paper is the Open Access version, provided by the Computer Vision Foundation.
+                Except for this watermark, it is identical to the accepted version;
+
+          the final published version of the proceedings is available on IEEE Xplore.
+
+MistSense: Versatile Online Detection of Procedural and Execution Mistakes
+
+      Constantin Patsch1, Yuankai Wu1, Marsil Zakour1, Driton Salihu1, Eckehard Steinbach1
+     1 Technical University of Munich, School of Computation, Information, and Technology,
+
+                  Department of Computer Engineering, Chair of Media Technology,
+                    Munich Institute of Robotics and Machine Intelligence (MIRMI)
+
+  {constantin.patsch,yuankai.wu,marsil.zakour,driton.salihu,eckehard.steinbach}@tum.de
+
+                        Abstract                                  Figure 1. MistSense framework for mistake detection and explana-
+                                                                  tion: Compared to prior approaches that mainly focus on temporal
+Online mistake detection is crucial across various domains,       and ordering relations in the form of procedural mistakes, our ap-
+ranging from industrial automation to educational applica-        proach can consider procedural as well as execution mistakes, that
+tions, as mistakes can be corrected by the human operator         capture how an action is performed, in an online fashion. We fur-
+after their detection due to the continuous inference on a        ther integrate hand pose information during the mistake detection
+video stream. While prior research mainly addresses pro-          process. Upon detecting an error, an LLM is queried to provide an
+cedural errors that often relate to temporal and ordering         explanation for why the action is incorrect based on the extracted
+information, identifying a broader range of error types is        video features.
+essential for real-world implementation. In this work, we
+present MistSense, an approach for online mistake identi-         proaches [9, 18, 30], to provide timely feedback, the system
+fication that includes versatility by considering both pro-       should be able to conduct inference in an online setting, en-
+cedural errors, which involve incorrect action sequences,         abling it to identify errors from a continuous video stream.
+and execution errors, such as motor inaccuracies or im-           This allows the user to respond promptly, preventing fur-
+proper equipment use. Our method integrates RGB and               ther consequences of the mistake. An egocentric perspec-
+hand pose features to capture fine-grained contextual cues        tive offers a valuable advantage by capturing task execu-
+in order to detect a mistake. By jointly modeling spatial         tion from the user’s point of view, circumventing the limi-
+and sequential aspects of human actions, our framework            tations of static viewpoints that may suffer from occlusions
+enables robust and adaptive error detection in dynamic en-        caused by the human body. Furthermore, recent advances in
+vironments. Once a mistake has been detected, we leverage         augmented reality enhance the relevance of egocentric sys-
+a large language model (LLM) which provides an error ex-          tems [2, 5]. The unique egocentric perspective additionally
+planation that gives the user further insights into why an        makes it easier to recognize the human hand pose. While
+action has been identified as a mistake. The evaluation on        this hand-specific information has proven to be helpful for
+common mistake detection benchmarks shows the effective-          action recognition and detection tasks [11, 32, 37], it can
+ness of our approach.                                             be leveraged for determining the correctness of an executed
+                                                                  action and thus used as another modality alongside images.
+1. Introduction
+
+Recent action detection and recognition approaches [26, 27,
+34, 38] enable the accurate perception of human actions
+from video data while relying on spatiotemporal informa-
+tion to reason about human behavior. An intelligent assis-
+tant, however, should have the capability to further reason
+about the correctness of certain actions, to assist users in ac-
+curately performing actions or completing tasks. Such intel-
+ligent systems could be applied to daily tasks like cooking
+or home maintenance, as well as industrial settings such as
+assembly lines or mechanical repairs.
+
+   In line with recent online mistake detection ap-
+
+14528
+   While recent methods predominantly focus on procedu-          type variations, where our approach shows strong results
+ral errors [9, 18, 28, 30], such as improper sequencing or       and improves over existing methods.
+missed actions, the spectrum of possible errors is broader
+and application-dependent. Thus, the partial ordering of ac-   2. Related Work
+tions and the successful completion of key steps may only
+partially represent correct task execution. By additionally    2.1. Mistake Detection
+considering execution errors that range from motor errors
+to misusing a piece of equipment, one can get a more holis-    Due to the strong semantic reasoning and zero-shot capa-
+tic interpretation of the successful task completion. Recent   bilities of Large Language Models (LLMs), recent work
+datasets further extend to varying error types and consider    has also leveraged these models for online mistake detec-
+a mixture of procedural and execution errors [13, 29, 35],     tion. Flaborea et al. [9] and Plini et al. [28] leverage the
+which enables a comprehensive evaluation comparable to         in-context learning capabilities of LLMs to predict feasible
+real-world circumstances. In contrast to anomaly detection     next action while simultaneously detecting actions. Errors
+methods [22, 36, 39], procedural and execution errors relate   are then determined based on discrepancies between the de-
+to completing a task and its corresponding steps and indi-     tected and the anticipated action. However, since these ap-
+cate potential deviations from it in terms of the correctness  proaches first use an action detection method and then pass
+of ordering or motor execution. As shown by [18] anomaly       the recognized events to the LLM, they cannot capture ex-
+detection methods struggle to perform procedural and exe-      ecution errors related to specific object manipulations or
+cution error detection in videos.                              other spatial clues that indicate the correctness of the ma-
+                                                               nipulation task. Seminara et al. [30] introduced a differen-
+   Current mistake detection approaches mainly focus on        tiable approach for learning task graphs by directly optimiz-
+only detecting a mistake [9, 28, 30]. However, to under-       ing edge weights via maximum likelihood to perform mis-
+stand why an action is incorrect, additional context is re-    take detection. Lee et al. [18] introduced a framework com-
+quired for the user in order to analyze the executed action.   bining action segmentation with contrastive step prototype
+Further information such as the omission of a prerequisite     learning to detect procedural errors. By leveraging hand-
+for the current action or the way of executing the action      object interaction modeling via a Graph Convolutional Net-
+can provide helpful guidance for correcting the behavior.      work and relying on feature-prototype similarities, offline
+Therefore, drawing inspiration from recent advancements        mistake detection is performed.
+in language and vision-language models [15, 20, 24, 33],
+we utilize an LLM to generate possible explanations for the       Other methods further investigate the use of additional
+detected mistakes. Thus, within our approach, we focus on      modalities. Lehmann et al. [19] identified assembly errors
+capturing procedural errors that mainly relate to the rela-    by comparing a test image with a correct assembly state, us-
+tive ordering of actions and depend on temporal relations,     ing synthetically generated image pairs to enable controlled
+as well as execution errors, which refer to how the human      change detection. This method is particularly focused on
+is performing certain actions that relate to spatial as well   assembly applications as CAD models of objects are re-
+as temporal relations. As a result, our approach can better    quired. Wang et al. [35] leveraged a TSFormer [4] while
+capture the correct execution of a task while being versatile  combining RGB and hand pose information. Mazzamuto et
+concerning varying error types. As an additional modality      al. [25] rely on eye gaze and RGB information while lever-
+to RGB, we also investigate the use of hand pose data dur-     aging GLC modules [16], that relate global visual tokens to
+ing the mistake detection process. To the best of our knowl-   local embeddings for eye gaze estimation. They detect mis-
+edge, we are the first to provide a versatile error detection  takes by recognizing differences between the predicted and
+method that further provides textual explanations regarding    the observed gaze trajectory.
+the detected mistakes. Our contribution is three-fold:
+                                                                  Compared to previous approaches, we focus on detecting
+• We propose MistSense, a versatile online mistake-            not only procedural errors but also execution errors in order
+  detection approach that can recognize procedural and ex-     to better evaluate the correctness of an action. Additionally,
+  ecution errors. Thus, our model is capable of evaluating     we integrate hand pose information as an extra modality to
+  the correct execution of a task in a holistic way compared   consider the correctness of particular hand movements dur-
+  to only relying on considering temporal ordering.            ing the execution of an action.
+
+• Our method also offers explanations for why an action        2.2. Language based Reasoning
+  was erroneous, enabling proactive guidance. By provid-
+  ing users with insights into how an error occurred, our      The recent progress in Large Language models has enabled
+  approach facilitates easier issue resolution.                a more elaborate and advanced way of reasoning that has
+                                                               been further improved by training on large datasets [8, 15,
+• We evaluate our approach on the Epic-tent-O [13] and         33]. Additional work further expanded the reasoning ca-
+  Holo-Assist [35] datasets, which contain several error       pabilities of LLMs to additional modalities and in particu-
+
+14529
+lar vision-based language models (VLMs) [1, 21, 40]. Liet       3. Methodology
+al. [20] proposed BLIP-2, an efficient approach for aligning
+vision and language representations that can create captions    In this section, we give an overview of our approach and
+based on the projected embeddings. With VideoLlama,             explain the individual components with respect to the mis-
+Zhang et al. [40] propose a method that further extends the     take detection and error explanation tasks. Additionally, we
+Q-Former of BLIP-2 to a Video Q-Former that can compre-         explain the learning objectives and the overall training strat-
+hend temporal dependencies rather than just image-specific      egy that we use to obtain the results of Section 4.
+features. The resulting representations are projected to a
+frozen LLM to create captions. Maaz et al. [24] introduced      3.1. Mistake Detection
+VideoChatGPT, which further considers the temporal rela-
+tions between the extracted features while supporting multi-    As depicted in Figure 2 for the online scenario, we expect
+turn chat interactions. Videollava [21] proposed a unified      a continuous video stream as an input, where we process
+visual representation space where image and video embed-        the overall frames in segments up to the current timestep
+dings are aligned before being passed to the LLM, further       t. The frames get passed through a combination of a vi-
+enhancing the multimodal reasoning capabilities for visual      sual encoder and a Q-Former, similar to the one proposed
+content. Previous approaches further utilized the reasoning     in Blip2 [20] in order to extract visual features. The video
+capabilities of LLMs to anticipate future actions [9, 28, 41].  encoder in our case is a ViT [7]. We denote a segment of
+                                                                features as v = [vt−ts , ..., vt], with v ∈ Rts×d1 where ts
+   In our approach, we also leverage the Q-Former to effi-      denotes the number of overall considered timesteps within
+ciently encode vision features and an LLM to provide text       the segment and d1 indicates the feature dimension. In com-
+descriptions. However, instead of generating image content      bination with learnable queries qrgb ∈ Rtq×d2 , the features
+or video descriptions or anticipating actions, the LLM pro-     v are input to the Video Q-Former. The learnable queries
+vides explanations of recognized mistakes, offering insights    are trainable token embeddings that guide the model to
+into why an action is incorrect.                                extract task-relevant information from features with cross-
+                                                                attention. Compared to the Q-Former that extracts spatial
+2.3. Mistake Detection Datasets                                 information within a frame, the Video Q-Former considers
+                                                                the temporal relations between multiple framewise features
+Various datasets have been proposed to deal with the chal-      but retains the overall structure of [20] similarly as shown
+lenge of mistake detection. The ATA dataset [10] is focused     in [40], meaning that it consists of a BERT encoder [6]. This
+on offline mistake detection for assembly tasks. The Epic-      results in the features frgb ∈ Rtq×d2 .
+tent-O and Assembly101-O datasets [9] introduce online
+procedural mistake detection in an industrial and an outdoor       In addition to the RGB-based features, we further ex-
+environment. The former is based on the Epic-tent [13]          tract framewise hand pose representations h ∈ Rc×ts×v×m,
+dataset and adapted for an online use case under open-set       where c denotes the number of coordinate dimensions, v
+conditions. It captures the outdoor assembly of a tent and      defines the number of joints and m represents the number
+introduces execution and procedural errors. The latter is       of hands. These hand pose representations are forwarded
+based on Assembly101 [31], which captures toy assembly          to the hand pose encoder, which we adapt from [32]. It
+processes, emphasizing procedural mistakes and their cor-       consists of Temporal Convolutional Networks (TCNs) [17]
+rections, where the actor reverses the error.                   that model the separate joints as well as the wrist individu-
+                                                                ally and subsequently combine them with self-attention into
+   In addition to procedural errors, the IndustReal [29]        the feature representation h1 ∈ Rts×dh . We do not per-
+dataset captures execution errors, which indicate whether       form temporal pooling over the features or extract a clas-
+the action has been completed correctly. The HoloAssist         sification token but directly use these spatiotemporal fea-
+dataset [35] is a large-scale dataset that also incorporates    tures for further processing. The features h1 are passed
+procedural and execution errors, along with error expla-        through a projection layer that adjusts the feature dimension
+nations, while the user wears a HoloLens headset during         to h2 ∈ Rts×d2 . Similarly to the RGB processing, a frame-
+various object-centered manipulation tasks. Focusing not        wise positional embedding is added to these features. The
+only on capturing the temporal and logical dependencies be-     Hand Q-Former, which has the same structure as the Video
+tween actions in the form of procedural errors but also on      Q-Former, subsequently processes h2 in combination with
+investigating the correct execution of actions, we utilize the  the learnable queries qhand ∈ Rtq×d2 , which results in the
+HoloAssist and Epic-tent-O datasets, as both contain vary-      features fhand ∈ Rtq×d2 .
+ing error types. This allows us to assess how effectively
+our approach integrates spatio-temporal reasoning of action        The features frgb and fhand are then added together and
+execution and the logical connections between consecutive       passed to the mistake classification layer to obtain the fi-
+actions. The egocentric perspective of both datasets further    nal mistake logits m ∈ Rtq . The error explanation gener-
+helps to capture hand poses accurately.                         ation process is initiated once a mistake is identified based
+                                                                on those logits.
+
+14530
+Figure 2. Overview: Based on a continuous RGB stream, a video encoder, and a Q-Former are used to extract framewise visual relations.
+Within our approach, hand pose information is used as an additional modality during the mistake detection process. Subsequently, a Video
+Q-Former is leveraged to extract temporal dependencies between the RGB features. The colored squares represent learnable queries, similar
+to the ones proposed by [20]. The extracted hand pose features are passed to the Hand Q-Former and added to the extracted RGB-based
+representations. The mistake classification layer then obtains the final predictions. The Video Q-Former features are forwarded through
+the gate gm and projected to the LLM embeddings space to create the error explanations. The double slahes indicate no backpropagation.
+
+3.2. Error Explanation                                           3.3. Learning Objectives
+
+The error explanation aims to provide further reasoning as       MistSense is trained in several stages with respect to mis-
+to why an action is incorrect in the form of a text descrip-     take detection and explanation generation learning objec-
+tion. The explanation of our model relates to execution and      tives. For mistake detection, during the first stage, we apply
+procedural mistakes observed in the considered segment. In       a weighted binary cross-entropy loss on the predicted prob-
+case multiple mistakes appear in the same segment, the cor-      abilities yˆi regarding a mistake, defined as
+responding captions are concatenated. To provide a tex-
+tual explanation regarding recognized mistakes, the afore-                     1N
+mentioned Video Q-Former features frgb that are obtained         LMist = − N [w1yi log(yˆi) + w0(1 − yi) log(1 − yˆi)]
+from the mistake detection part are routed through the gat-
+ing mechanism gm. During the error explanation task, we                                   i=1
+only consider the RGB-based features to be forwarded to
+the LLM. This is formulated as                                                                                                       (2)
+                                                                 where yi denotes the binary ground truth label, N speci-
+gm(σ(m)) =  1, if σ(m) ≥ τ  (1)                                  fies the number of samples, and w0, w1 are the respective
+                                                                 weights for a correct and wrong action. The weights are ap-
+            0, otherwise                                         plied in order to mitigate the imbalance between correct and
+                                                                 wrong actions, where a correct action is annotated as 0 and
+where σ is the sigmoid function. Once the predicted logit        a mistake as 1. We finetune all components of the model,
+reaches a threshold τ , the features of the video Q-Former       besides the LLM projection layer and the LLM, during the
+are further forwarded to the projection layer. The projection    mistake detection training while keeping the video encoder
+layer is a linear layer that maps the features to the dimension  and the corresponding Q-Former frozen.
+of the LLM embedding space. The resulting features, as
+well as a prompt, are forwarded to the LLM in order to cre-         For the error explanation task, we use a regular cross-
+ate the final explanation. Thus, we ensure that our approach     entropy loss and annotated explanations as supervision.
+generates error explanations once an error is detected.          During this second stage of the training, we first freeze all
+                                                                 model components and only fine-tune the projection layer.
+                                                                 The resulting features from the Video Q-Former frgb are
+                                                                 processed in segments so that only one given video seg-
+
+                            14531
+Methods           Modality                                            Holo Assist          Mistake
+                                                                                         Prec Rec
+TSformer [4]      RGB                                           F1-Score Correct
+TSformer [4][35]  RGB + H(GT)                                                  Prec Rec  12.9 26.9
+GazeCompl [25]    RGB + E                                                                 9.7 11.5
+MistSense         RGB                                              35.1 82.6 51.8         6.0 9.0
+MistSense         RGB+H(P)                                         36.2 85.5 43.1        11.4 21.1
+                                                                   51.0 95.0 92.0        10.3 31.6
+                                                                   54.8 95.6 91.3
+                                                                   55.7 95.9 85.4
+
+Table 1. Performance comparison on Holo Assist [35]. TSformer [4] + H(GT)[35] denotes the TimeSformer model combined with ground
+truth hand pose as reported by [35]. E denotes the eye gaze information acquired by the HoloLense device. H(P) refers to the hand pose
+predicted by Mediapipe [23].
+
+ment is considered during a training step. In the last stage,                            Holo Assist
+we finetune the LLM parameters efficiently with Low-Rank
+Adaption (LoRA) [12], which is a method that leverages          Methods                  BLEU ROUGEL        CIDEr
+low-rank matrices during the weight updates, while freez-
+ing the projection layer. In case of varying errors within the  GT Sampling              0.46         0.50   0.30
+same segment, the ground truth explanations are concate-                                                     0.68
+nated during optimization.                                      Videollama [40]          0.52         0.57   0.61
+                                                                                                             0.76
+4. Experiments                                                  Video-ChatGPT [24] 0.55               0.58
+
+In this section, we introduce our benchmarking datasets and     MistSense                0.53         0.58
+provide the results of our approach against prior work on
+mistake detection. We further provide overall qualitative       Table 2. Performance comparison on the error explanation gener-
+results as well as a quantitative evaluation of the mistake     ation task for the Holo Assist [35] dataset.
+explanation generation capabilities of our approach. The
+bold scores in the table indicate the best and the underlined   of this dataset, designed for open-set online mistake detec-
+ones the second-best result.                                    tion, that only captures certain procedural mistakes. The
+                                                                Holo Assist dataset [35] is an egocentric human interaction
+Baselines: In the case of the mistake detection task, as a      dataset capturing 169 hours of collaborative physical ma-
+baseline for Epic-tent-O, we use recent online mistake de-      nipulation tasks from 350 unique performer-instructor com-
+tection methods. For Holo Assist we use the official base-      binations, where a task performer wearing a mixed-reality
+lines of [35] as well as the approaches listed on the bench-    headset follows real-time verbal guidance from an instruc-
+marking server. To the best of our knowledge, no existing       tor. As our approach relies on supervision in the form of
+methods specifically focus on detecting and explaining mis-     labeled errors, we use the entire original Epic-tent dataset
+takes; therefore, we compare our results on the error expla-    during training.
+nation task with recent Vision-Language Models (VLMs)
+with the same visual encoder and image input dimensions.           For online mistake detection on both datasets, we report
+These methods are fine-tuned by only considering segments       the precision and recall values of the correct and mistaken
+with mistakes, as they only focus on the generative task but    actions. For Epic-tent-O and Holo Assist, we report the F1-
+not on the detection task.                                      Score, where in the latter case, results are obtained from the
+                                                                official benchmark server 1. For the mistake explanation
+4.1. Datasets and Metrics                                       generation task, we report the BLEU, which is based on
+                                                                the precision of n-grams with a brevity penalty, ROUGEL,
+To evaluate the versatility of our approach, we consider        which is computed concerning the longest common subse-
+two datasets that capture varying scenarios as well as er-      quence between prediction and ground truth explanation,
+ror types. The Epic-tent dataset [13] consists of 7 hours and   and CIDEr scores, which captures similarities based on tf-
+captures the assembly of a camping tent in an outdoor envi-     idf weighted n-grams. As the error explanations for the
+ronment performed by 29 participants with head-mounted          Holo Assist test set are not publicly available, we report the
+cameras, whereas the Epic-tent-O dataset [9] is a subset        results on the validation set with annotated explanations.
+
+                                                                    1Holo Assist Mistake Detection Challenge on Codabench
+
+                               14532
+             Methods           Modality  F1-Score                 Epic-tent-O          Mistake
+                                                                                 F1 Prec Rec
+             Count-Based [3]     RGB        40.4                       Correct
+             PREGO [9]           RGB        29.2                 F1 Prec Rec     21.6 80.0 12.5
+             MSG2 [14]           RGB        45.2                                 17.2 9.5 93.3
+             DO [30]             RGB        46.5                 59.2 42.9 95.5  22.9 73.3 13.6
+             MistSense           RGB        59.8                 41.6 97.9 26.4  23.7 73.3 14.1
+             MistSense        RGB+H(P)      63.3                 67.5 52.4 95.1  29.8 55.0 20.4
+                                                                 69.3 54.4 95.2  38.3 45.4 33.1
+                                                                 89.7 84.2 96.2
+                                                                 88.2 85.6 90.9
+
+Table 3. Performance comparison on Epic-tent-O [9]. H(P) refers to the hand pose predicted by Mediapipe [23]. We evaluate our approach
+concerning different modality combinations.
+
+                 Epic-tent                                       we report the results of our approach based on the offi-
+                                                                 cial competition server, as the test set annotations are not
+Methods          BLEU ROUGEL             CIDEr                   publicly available. Based on the results displayed in Ta-
+                                                                 ble 1 we can observe that our method significantly improves
+GT Sampling      0.50         0.54        1.58                   upon the RGB-only TSformer [4] results reported by [35].
+                                          1.78                   MistSense further improves upon the GLC-based method
+Videollama [40]  0.53         0.57        2.61                   of [25] abbreviated as GazeCompl by 3.8%, without using
+                                          3.09                   the additional eye gaze modality. When utilizing the hand
+Video-ChatGPT [24] 0.43       0.61                               pose information in addition to RGB data, the resulting F1-
+                                                                 Score is further increased to 55.7. Compared to Epic-tent-
+MistSense        0.62         0.66                               O, the videos of Holo Assist frequently contain background
+                                                                 classes without particular meaningful actions which makes
+Table 4. Performance comparison on the error explanation gener-  the extraction of inter-action dependencies more challeng-
+ation task for Epic-tent [13].                                   ing. Additionally, this dataset contains procedural and exe-
+                                                                 cution error types, which indicates that our method is also
+4.2. Mistake Detection                                           applicable to such challenging conditions and can identify
+                                                                 varying mistake types.
+For both datasets, we report the results of our approach only
+based on RGB data as well as the combination of RGB and          4.3. Error Explanation
+predicted hand pose data. For the hand pose extraction, we
+use Mediapipe [23]. For evaluating the mistake detection         In Table 4 we provide the error explanation generation
+performance on Epic-tent-O, we use consistent evaluation         results for the Epic-tent [13] dataset. We provide the ex-
+with [9], where mainly procedural errors are considered.         planations for the whole test set and evaluate our approach
+While DO [30] and MSG2 [14] consider supervision in the          with respect to the aforementioned captioning metrics. As
+form of key-steps in order to access the procedural correct-     the original Epic-tent dataset does not contain text explana-
+ness of activities, our approach is supervised directly based    tions, we generate them based on the underlying action and
+on the error annotations, which is why the training set of our   the error type, which results in explanations such as ’Place
+method is extended by incorrect action sequences from the        guyline was done in the wrong order’, where further quali-
+unmodified Epic-tent dataset. From Table 3 we can observe        tative examples are shown in Section 4.5. All other refer-
+that our approach based only on the RGB features outper-         enced approaches are also finetuned with the same explana-
+forms DO [30] by 13.3% in terms of the overall F1-Score          tions. For the GT Sampling method, we randomly sample
+and by 6.1% concerning the F1-Score when only consider-          an explanation from the ground truth test set. From the re-
+ing the faulty actions. Additionally, integrating the Hand       sults, we can observe that our approach outperforms other
+Q-Former and utilizing the hand pose modality further im-        methods that solely focus on caption generation without
+proves the performance by 3.5%. This further indicates that      mistake detection components. Due to the inherent struc-
+hand-specific information can help to identify a particular      ture of the action and mistake type, the resulting explana-
+mistake within a sequence. The overall evaluation shows          tions have a similar structure, which is also partially re-
+that our model is suitable for detecting mistakes in a proce-    flected by the higher BLEU and ROUGEL scores. In partic-
+dural assembly scenario.
+
+   For the Holo Assist dataset, in line with prior work,
+
+                                                                 14533
+ular the high CIDEr, however, further indicates that the se-                           Epic-tent-O
+mantic similarity of the generated explanations is improved
+by our method compared to the other approaches.                 Methods          F1-Score Corr. F1 Mist. F1
+
+   Additionally, we evaluate the error explanation capabil-     Hand-Only        49.1  88.0         10.1
+ities of our approach on the Holo Assist [35] dataset. This     Late-Fusion
+dataset provides explanations such as ”The battery is upside    Shared Q-Former  57.8  83.1         32.6
+down” or ”The person accidentally turned on the GoPro”,         Sep Q-Former
+which give more detailed information to the user about why                       60.8  83.4         37.8
+a particular action is a mistake. The variety and structure
+of the explanations are thus more diverse as compared to                         63.3  88.2         38.3
+Epic-tent. Based on the results in Table 2 one can see that
+our approach performs on par or better than other baseline      Table 5. Ablation on different fusion strategies for the RGB and
+methods. The explanation quality regarding semantic sim-        hand pose features. Sep-Qformer denotes separate Q-Formers for
+ilarity is particularly improved as indicated by the CIDEr      each modality. Hand-Only denotes only using the Hand Q-Former
+score.                                                          without RGB information.
+
+4.4. Multimodal fusion strategies                               tween errors cannot always be perfectly retrieved. We fur-
+                                                                ther compare our model’s mistake explanations with the
+In order to evaluate, how to integrate the hand pose infor-     ground truth, observing that while the overall structure of
+mation into the mistake detection process we conducted an       the explanations is preserved, misclassifications of error
+ablation study on different feature combinations. Hand-         types and certain action components can occur.
+only denotes omitting RGB features and only passing the
+hand pose features through the Hand Q-Former for mis-              In the second row of the figure, an example of the Holo
+take detection. Late-Fusion describes the summation of          Assist dataset is displayed. The display of confidence val-
+the RGB-based Video Q-Former features and the features          ues and ground truth remains the same, however, we can
+resulting from the hand pose encoder without the Hand           also observe in this sample that Holo Assist annotations
+Q-Former, thus considering a smaller temporal segment.          generally have more mistakes, that are just 1.5 to 2 sec-
+Shared Q-Former is the setting, where the RGB and hand          onds long. This seems also particularly challenging for
+pose features are summed and passed through the same            our model as such short mistake spikes in the ground truth
+shared Video Q-Former. Sep Q-Former results in the con-         sometimes do not correspond to higher confidence values.
+figuration with a separate Video and Hand Q-Former.             We can observe, however, that our model can detect execu-
+                                                                tion mistakes such as the student grabbing the wrong piece
+   From the results in Table 5 we can observe that only         or aligning the base frame incorrectly as shown in the Holo
+considering the hand modality can achieve an F1-Score of        Assist example.
+49.1% which is approximately 10% below the RGB only
+score. When considering the late fusion, without a separate     4.6. Implementation Settings
+Hand Q-Former, the results are on par with the RGB-only
+case. Considering separate Q-Formers for each modality          For our MistSense architecture, a ViT-L is used as a video
+over a shared Q-Former further increases the F1-Score of        encoder, a Llama2-7B as the LLM, and the Video and Hand
+the combined RGB and hand pose detection performance            Q-Former are based on the same BLIP2 structure [20]. For
+by 2.5%.                                                        our evaluation the approach is trained for 12 epochs on 2
+                                                                RTX A6000 GPUs with an AdamW optimizer, a batch size
+4.5. Qualitative Results                                        of 16 for Epic-tent and a batch size of 32 for Holo Assist,
+                                                                and a cosine learning rate scheduler with an initial learn-
+In Figure 3 we display cutouts of videos from the Epic-         ing rate (lr) of 3e−5, a weight decay of 5e−3 and a linear
+tent and the Holo Assist dataset. It displays the confi-        warmup starting from a learning rate of 1e−6. The features
+dence scores regarding the detected mistake in green over       are extracted based on 2 fps for both datasets. For the Epic-
+the time axis and the corresponding binary ground truth in      tent-O dataset, we use w1 = 1, w0 = 1, and for Holo Assist,
+blue, where 1 indicates an error and 0 indicates a correct ac-  we use w1 = 4, w0 = 1. For the hand pose encoder, we
+tion. The color of the textual explanation denotes its seman-   adapt the hyperparameters of [32] and use a learning rate
+tical correctness, where red denotes semantically wrong and     of 2.5e−2 without weight decay. For training the baselines,
+green denotes semantically right explanations.                  we retain the same hyperparameters as proposed in the orig-
+                                                                inal approaches. During inference, the model requires 20.5
+   In the upper example from the Epic-tent dataset, we can      GB of VRAM, while a single run on an RTXA6000 takes
+observe that generally, our method yields confidence val-       approximately 4 seconds when considering the mistake de-
+ues that align with the ground truth. However, very short       tection as well as the explanation generation.
+mistakes and brief temporal segments of correct actions be-
+
+14534
+Figure 3. Qualitative results on a video cutout of the Epic-tent dataset, where exemplary frames are sampled from the indicated segments.
+The confidence scores indicating the mistake detection probabilities yˆ and the ground truth indicating the mistake annotations are visualized
+over time.
+
+5. Conclusion                                                   Limitations and future work As the error variety and
+                                                                scale of Epic-tent is limited, additional datasets similar to
+In this work, we propose MistSense, an approach capable         the size of Holo Assist with mistake annotations would be
+of versatile online mistake detection that can further pro-     helpful to cover a broader range of actions and frequent
+vide explanations regarding mistakes. This is enabled by        mistakes which would help to further improve the perfor-
+projecting the extracted features used for mistake detection    mance of our approach. In particular, variations regard-
+to the LLM embedding space upon recognizing an error.           ing mistake explanation annotations and a focus on reliable
+As our approach captures the spatial information of how an      and consistent mistake explanation annotations would fur-
+action is executed and the temporal dependencies between        ther strengthen the performance with respect to the provided
+actions, it recognizes execution and procedural mistakes. In    explanations.
+addition to utilizing RGB features, it further integrates hand
+pose features to improve mistake detection performance.            Future work could define approaches to deal with very
+The experimental results on the public benchmarks Epic-         short mistakes robustly, as these mistakes seem particularly
+tent-O and Holo Assist show the overall strong performance      challenging as discussed in Section 4.5. Additionally, one
+of MistSense on the mistake detection and the explanation       could investigate the use of additional modalities like eye
+generation tasks. Our approach is leading the benchmark         gaze or depth to strengthen mistake detection.
+on the official evaluation server at the time of writing.
+
+14535
+6. Acknowledgement                                                       unseen error detection in anomalous instructional videos. In
+                                                                         Proceedings of the IEEE/CVF International Conference on
+We gratefully acknowledge the funding of the Lighthouse                  Computer Vision, pages 10128–10138, 2023. 3
+Initiative Geriatronics by StMWi Bayern (Project X, grant          [11] Al Amin Hosain, Panneer Selvam Santhalingam, Parth
+no. 5140951) and LongLeif GaPa GmbH (Project Y, grant                    Pathak, Huzefa Rangwala, and Jana Kosecka. Hand pose
+no. 5140953).                                                            guided 3d pooling for word-level sign language recognition.
+                                                                         In Proceedings of the IEEE/CVF winter conference on appli-
+References                                                               cations of computer vision, pages 3429–3439, 2021. 1
+                                                                   [12] Edward J Hu, Yelong Shen, Phillip Wallis, Zeyuan Allen-
+ [1] Jean-Baptiste Alayrac, Jeff Donahue, Pauline Luc, Antoine           Zhu, Yuanzhi Li, Shean Wang, Lu Wang, Weizhu Chen, et al.
+      Miech, Iain Barr, Yana Hasson, Karel Lenc, Arthur Men-             Lora: Low-rank adaptation of large language models. ICLR,
+      sch, Katherine Millican, Malcolm Reynolds, et al. Flamingo:        1(2):3, 2022. 5
+      a visual language model for few-shot learning. Advances      [13] Youngkyoon Jang, Brian Sullivan, Casimir Ludwig, Iain
+      in neural information processing systems, 35:23716–23736,          Gilchrist, Dima Damen, and Walterio Mayol-Cuevas. Epic-
+      2022. 3                                                            tent: An egocentric video dataset for camping tent assembly.
+                                                                         In Proceedings of the IEEE/CVF International Conference
+ [2] Fabio Arena, Mario Collotta, Giovanni Pau, and Francesco            on Computer Vision Workshops, pages 0–0, 2019. 2, 3, 5, 6
+      Termine. An overview of augmented reality. Computers, 11     [14] Yunseok Jang, Sungryull Sohn, Lajanugen Logeswaran,
+      (2):28, 2022. 1                                                    Tiange Luo, Moontae Lee, and Honglak Lee. Multimodal
+                                                                         subtask graph generation from instructional videos. arXiv
+ [3] Kumar Ashutosh, Santhosh Kumar Ramakrishnan, Tri-                   preprint arXiv:2302.08672, 2023. 6
+      antafyllos Afouras, and Kristen Grauman. Video-mined task    [15] Albert Q. Jiang, Alexandre Sablayrolles, Arthur Mensch,
+      graphs for keystep recognition in instructional videos. Ad-        Chris Bamford, Devendra Singh Chaplot, Diego de las
+      vances in Neural Information Processing Systems, 36, 2024.         Casas, Florian Bressand, Gianna Lengyel, Guillaume Lam-
+      6                                                                  ple, Lucile Saulnier, Le´lio Renard Lavaud, Marie-Anne
+                                                                         Lachaux, Pierre Stock, Teven Le Scao, Thibaut Lavril,
+ [4] Gedas Bertasius, Heng Wang, and Lorenzo Torresani. Is               Thomas Wang, Timothe´e Lacroix, and William El Sayed.
+      space-time attention all you need for video understanding?         Mistral 7b, 2023. 2
+      In ICML, page 4, 2021. 2, 5, 6                               [16] Bolin Lai, Miao Liu, Fiona Ryan, and James M Rehg. In the
+                                                                         eye of transformer: Global-local correlation for egocentric
+ [5] Shaveta Dargan, Shally Bansal, Munish Kumar, Ajay Mittal,           gaze estimation. In 33rd British Machine Vision Conference
+      and Krishan Kumar. Augmented reality: A comprehensive              Proceedings, BMVC 2022, 2022. 2
+      review. Archives of Computational Methods in Engineering,    [17] Colin Lea, Michael D Flynn, Rene Vidal, Austin Reiter, and
+      30(2):1057–1080, 2023. 1                                           Gregory D Hager. Temporal convolutional networks for ac-
+                                                                         tion segmentation and detection. In proceedings of the IEEE
+ [6] Jacob Devlin, Ming-Wei Chang, Kenton Lee, and Kristina              Conference on Computer Vision and Pattern Recognition,
+      Toutanova. Bert: Pre-training of deep bidirectional trans-         pages 156–165, 2017. 3
+      formers for language understanding. In Proceedings of the    [18] Shih-Po Lee, Zijia Lu, Zekun Zhang, Minh Hoai, and Ehsan
+      2019 Conference of the North American Chapter of the As-           Elhamifar. Error detection in egocentric procedural task
+      sociation for Computational Linguistics: Human Language            videos. In Proceedings of the IEEE/CVF Conference on
+      Technologies, Volume 1 (Long and Short Papers), pages              Computer Vision and Pattern Recognition, pages 18655–
+      4171–4186, 2019. 3                                                 18666, 2024. 1, 2
+                                                                   [19] Dan Lehman, Tim J Schoonbeek, Shao-Hsuan Hung, Jacek
+ [7] Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov,              Kustra, Peter HN de With, and Fons van der Sommen. Find
+      Dirk Weissenborn, Xiaohua Zhai, Thomas Unterthiner,                the assembly mistakes: Error segmentation for industrial ap-
+      Mostafa Dehghani, Matthias Minderer, Georg Heigold, Syl-           plications. arXiv preprint arXiv:2408.12945, 2024. 2
+      vain Gelly, Jakob Uszkoreit, and Neil Houlsby. An image is   [20] Junnan Li, Dongxu Li, Silvio Savarese, and Steven Hoi.
+      worth 16x16 words: Transformers for image recognition at           Blip-2: Bootstrapping language-image pre-training with
+      scale. In International Conference on Learning Representa-         frozen image encoders and large language models. In In-
+      tions, 2021. 3                                                     ternational conference on machine learning, pages 19730–
+                                                                         19742. PMLR, 2023. 2, 3, 4, 7
+ [8] Abhimanyu Dubey, Abhinav Jauhri, Abhinav Pandey, Ab-          [21] Bin Lin, Yang Ye, Bin Zhu, Jiaxi Cui, Munan Ning, Peng
+      hishek Kadian, Ahmad Al-Dahle, Aiesha Letman, Akhil                Jin, and Li Yuan. Video-llava: Learning united visual repre-
+      Mathur, Alan Schelten, Amy Yang, Angela Fan, et al. The            sentation by alignment before projection. In Proceedings of
+      llama 3 herd of models. arXiv preprint arXiv:2407.21783,           the 2024 Conference on Empirical Methods in Natural Lan-
+      2024. 2                                                            guage Processing, pages 5971–5984, 2024. 3
+                                                                   [22] Zhikang Liu, Yiming Zhou, Yuansheng Xu, and Zilei Wang.
+ [9] Alessandro Flaborea, Guido Maria D’Amely di Melen-                  Simplenet: A simple network for image anomaly detection
+      dugno, Leonardo Plini, Luca Scofano, Edoardo De Mat-
+      teis, Antonino Furnari, Giovanni Maria Farinella, and Fabio
+      Galasso. Prego: online mistake detection in procedural ego-
+      centric videos. In Proceedings of the IEEE/CVF Conference
+      on Computer Vision and Pattern Recognition, pages 18483–
+      18492, 2024. 1, 2, 3, 5, 6
+
+[10] Reza Ghoddoosian, Isht Dwivedi, Nakul Agarwal, and Be-
+      hzad Dariush. Weakly-supervised action segmentation and
+
+14536
+      and localization. In Proceedings of the IEEE/CVF Confer-       [33] Hugo Touvron, Louis Martin, Kevin Stone, Peter Albert,
+      ence on Computer Vision and Pattern Recognition, pages               Amjad Almahairi, Yasmine Babaei, Nikolay Bashlykov,
+      20402–20411, 2023. 2                                                 Soumya Batra, Prajjwal Bhargava, Shruti Bhosale, et al.
+                                                                           Llama 2: Open foundation and fine-tuned chat models. arXiv
+[23] Camillo Lugaresi, Jiuqiang Tang, Hadon Nash, Chris Mc-                preprint arXiv:2307.09288, 2023. 2
+      Clanahan, Esha Uboweja, Michael Hays, Fan Zhang, Chuo-
+      Ling Chang, Ming Guang Yong, Juhyun Lee, et al. Medi-          [34] Xiang Wang, Shiwei Zhang, Zhiwu Qing, Yuanjie Shao,
+      apipe: A framework for building perception pipelines. arXiv          Zhengrong Zuo, Changxin Gao, and Nong Sang. Oadtr:
+      preprint arXiv:1906.08172, 2019. 5, 6                                Online action detection with transformers. In Proceedings
+                                                                           of the IEEE/CVF International Conference on Computer Vi-
+[24] Muhammad Maaz, Hanoona Rasheed, Salman Khan, and Fa-                  sion, pages 7565–7575, 2021. 1
+      had Shahbaz Khan. Video-chatgpt: Towards detailed video
+      understanding via large vision and language models. In Pro-    [35] Xin Wang, Taein Kwon, Mahdi Rad, Bowen Pan, Ishani
+      ceedings of the 62nd Annual Meeting of the Association for           Chakraborty, Sean Andrist, Dan Bohus, Ashley Feniello, Bu-
+      Computational Linguistics (ACL 2024), 2024. 2, 3, 5, 6               gra Tekin, Felipe Vieira Frujeri, Neel Joshi, and Marc Polle-
+                                                                           feys. Holoassist: an egocentric human interaction dataset for
+[25] Michele Mazzamuto, Antonino Furnari, and Giovanni Maria               interactive ai assistants in the real world. In Proceedings of
+      Farinella. Eyes wide unshut: Unsupervised mistake de-                the IEEE/CVF International Conference on Computer Vision
+      tection in egocentric procedural video by detecting unpre-           (ICCV), pages 20270–20281, 2023. 2, 3, 5, 6, 7
+      dictable gaze. arXiv preprint arXiv:2406.08379, 2024. 2, 5,
+      6                                                              [36] Yue Wang, Jinlong Peng, Jiangning Zhang, Ran Yi, Yabiao
+                                                                           Wang, and Chengjie Wang. Multimodal industrial anomaly
+[26] Constantin Patsch and Eckehard Steinbach. Self-attention              detection via hybrid fusion. In Proceedings of the IEEE/CVF
+      based action segmentation using intra-and inter-segment rep-         Conference on Computer Vision and Pattern Recognition,
+      resentations. In ICASSP 2023-2023 IEEE International                 pages 8032–8041, 2023. 2
+      Conference on Acoustics, Speech and Signal Processing
+      (ICASSP), pages 1–5. IEEE, 2023. 1                             [37] Yilin Wen, Hao Pan, Lei Yang, Jia Pan, Taku Komura, and
+                                                                           Wenping Wang. Hierarchical temporal transformer for 3d
+[27] Thinh Phan, Khoa Vo, Duy Le, Gianfranco Doretto, Donald               hand pose estimation and action recognition from egocen-
+      Adjeroh, and Ngan Le. Zeetad: Adapting pretrained vision-            tric rgb videos. In Proceedings of the IEEE/CVF conference
+      language model for zero-shot end-to-end temporal action de-          on computer vision and pattern recognition, pages 21243–
+      tection. In Proceedings of the IEEE/CVF winter conference            21253, 2023. 1
+      on applications of computer vision, pages 7046–7055, 2024.
+      1                                                              [38] Le Yang, Junwei Han, and Dingwen Zhang. Colar: Effec-
+                                                                           tive and efficient online action detection by consulting ex-
+[28] Leonardo Plini, Luca Scofano, Edoardo De Matteis, Guido               emplars. In Proceedings of the IEEE/CVF conference on
+      Maria D’Amely di Melendugno, Alessandro Flaborea, An-                computer vision and pattern recognition, pages 3160–3169,
+      drea Sanchietti, Giovanni Maria Farinella, Fabio Galasso,            2022. 1
+      and Antonino Furnari. Ti-prego: Chain of thought and in-
+      context learning for online mistake detection in procedural    [39] Zhiyuan You, Lei Cui, Yujun Shen, Kai Yang, Xin Lu,
+      egocentric videos. arXiv preprint arXiv:2411.02570, 2024.            Yu Zheng, and Xinyi Le. A unified model for multi-class
+      2, 3                                                                 anomaly detection. Advances in Neural Information Pro-
+                                                                           cessing Systems, 35:4571–4584, 2022. 2
+[29] Tim J Schoonbeek, Tim Houben, Hans Onvlee, Fons Van der
+      Sommen, et al. Industreal: A dataset for procedure step        [40] Hang Zhang, Xin Li, and Lidong Bing. Video-llama: An
+      recognition handling execution errors in egocentric videos in        instruction-tuned audio-visual language model for video un-
+      an industrial-like setting. In Proceedings of the IEEE/CVF           derstanding. In Proceedings of the 2023 Conference on Em-
+      Winter Conference on Applications of Computer Vision,                pirical Methods in Natural Language Processing: System
+      pages 4365–4374, 2024. 2, 3                                          Demonstrations, pages 543–553, 2023. 3, 5, 6
+
+[30] Luigi Seminara, Giovanni Maria Farinella, and Antonino          [41] Qi Zhao, Shijie Wang, Ce Zhang, Changcheng Fu,
+      Furnari. Differentiable task graph learning: Procedural ac-          Minh Quan Do, Nakul Agarwal, Kwonjoon Lee, and Chen
+      tivity representation and online mistake detection from ego-         Sun. Antgpt: Can large language models help long-term ac-
+      centric videos. In The Thirty-eighth Annual Conference on            tion anticipation from videos? ICLR, 2024. 3
+      Neural Information Processing Systems, 2024. 1, 2, 6
+
+[31] Fadime Sener, Dibyadip Chatterjee, Daniel Shelepov, Kun
+      He, Dipika Singhania, Robert Wang, and Angela Yao. As-
+      sembly101: A large-scale multi-view video dataset for un-
+      derstanding procedural activities. In Proceedings of the
+      IEEE/CVF Conference on Computer Vision and Pattern
+      Recognition, pages 21096–21106, 2022. 3
+
+[32] Md Salman Shamil, Dibyadip Chatterjee, Fadime Sener,
+      Shugao Ma, and Angela Yao. On the utility of 3d hand poses
+      for action recognition. In European Conference on Computer
+      Vision, pages 436–454. Springer, 2024. 1, 3, 7
+
+14537
+

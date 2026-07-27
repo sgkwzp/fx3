@@ -1,0 +1,822 @@
+This ICCV paper is the Open Access version, provided by the Computer Vision Foundation.
+                Except for this watermark, it is identical to the accepted version;
+
+          the final published version of the proceedings is available on IEEE Xplore.
+
+MOSCATO: Predicting Multiple Object State Change through Actions
+
+                         Parnian Zameni, Yuhan shen, Ehsan Elhamifar
+                                        Northeastern University
+
+                            {zameni.p, shen.yuh, e.elhamifar} @ northeastern.edu
+
+                        Abstract                                          Tortilla                    Tortilla                         Tortilla                     Tortilla
+
+We introduce MOSCATO: a new benchmark for predicting             Flat                   Has Nutella                      Has Banana                       Folded
+the evolving states of multiple objects through long pro-        Empty                  Flat                             Has Nutella                      Semi-
+cedural videos with multiple actions. While prior work                                                                   Flat                             Circular
+in object state prediction has typically focused on a sin-                                                  Spread
+gle object undergoing one or a few state changes, real-                             --                      On Tortilla                      Spread                           --
+world tasks require tracking many objects whose states                                                                                       On Tortilla
+evolve over multiple actions. Given the high cost of gath-                                   -- Nutella
+ering framewise object-state labels for many videos, we de-      -- Nutella                            Banana            Scattered            Nutella        --                   Nutella
+velop a weakly-supervised multiple object state prediction                Banana                                         On Tortilla
+framework, which only uses action labels during training.
+Specifically, we propose a novel Pseudo-Label Acquisition                                                                             Banana                        Banana
+(PLA) pipeline that integrates large language models, vi-
+sion–language models, and action segment annotations to          Actions                Spread Nutella  Put Bananas                           Fold Tortilla
+generate fine-grained, per-frame object-state pseudo-labels
+for training a Multiple Object State Prediction (MOSP) net-                                                                                                                       Time
+work. We further devise a State–Action Interaction (SAI)
+module that explicitly models the correlations between ac-       Figure 1. We study the new problem of multiple object state
+tions and object states, thereby improving MOSP. To facil-       change prediction in long videos, in which relevant objects to the
+itate comprehensive evaluation, we create the MOSCATO            actions being performed may undergo several state changes.
+benchmark by augmenting three egocentric video datasets
+with framewise object-state annotations. Experiments show        segmenting and tracking relevant objects [54, 72, 76]. Yet,
+that our multi-stage pseudo-labeling approach and SAI            fine-grained procedural video understanding has remained
+module significantly boost performance over zero-shot VLM        a challenging and an under-explored problem [15, 26, 27].
+baselines and naive extensions of existing methods, under-
+scoring the importance of holistic action–state modeling for        Specifically, in long procedural task videos, the states of
+fine-grained procedural video understanding.1                    multiple objects change as we progress in a task, see Fig.
+                                                                 1. Each action/step often changes the state of several ob-
+1. Introduction                                                  jects (e.g., spreading Nutella changes the states of both tor-
+                                                                 tilla and Nutella) and the state of an object often changes
+Long-form video understanding, particularly for procedu-         over several actions (e.g., the state of tortilla moves from
+ral tasks, has recently achieved significant attention due       empty to has Nutella to has banana to folded). Being able to
+to its application in assistive technologies and robotics        understand which objects undergo state changes as well as
+[14, 27, 28, 36, 52, 61]. The majority of existing research      when and how their states change helps in better and more
+has focused on coarse-level video understanding, such as         fine-grained temporal and spatial reasoning about videos.
+action recognition [18, 23, 39, 63, 67, 75], temporal action     It allows better understanding of the actions, progress and
+segmentation (TAS) [5, 13, 16, 31–33, 51, 53, 58, 68], and       error (e.g., if the tortilla never reaches the state has banana
+action anticipation [19, 20, 38, 50, 71], as well as detecting,  before folded, there is a missing put bananas step) and pro-
+                                                                 vides explainability about these predictions. In particular, it
+    1Code and data is publicly available at https://github.com/  enables task assistants to obtain spatial and temporal aware-
+eelhami/iccv25_moscato.                                          ness of step-relevant parts of the scene and video for know-
+                                                                 ing when and how to intervene.
+
+                                                                 SOTA Limitations. To the best of our knowledge, the
+                                                                 problem of predicting (multiple) state changes of multi-
+                                                                 ple objects in a video has not been studied and there is no
+                                                                 dataset for evaluation of this task. Prior works in object state
+                                                                 prediction have mainly focused on single-object scenarios,
+                                                                 such as detecting and localizing a single state change for
+
+11600
+only one object in a video [4, 55, 56]. While more recent      2. Related Works
+methods have considered multiple state changes [59] or one
+state change with an open-world object vocabulary [66],        Object State Prediction. Early research studied object
+they still handle a single object per video. However, real-    states primarily in images, focusing on transformations
+world procedures typically involve multiple objects that un-   and compositional relations [24]. Subsequent works ex-
+dergo state changes when performing multiple actions in a      tended to videos, learning to discover and track object
+video (see Fig. 1). Yet, it is very costly and challenging     states [2, 4, 17, 44, 48, 62]. Other approaches investi-
+to densely annotate multiple possible states of many objects   gated compositional generalization in zero-shot settings, but
+across many videos (currently there is no annotated dataset).  mainly in images or with a limited scope of attributes [29,
+                                                               34, 37, 40, 41, 45, 46, 49]. More recent video-based meth-
+   On the other hand, there is a tight relationship between    ods began classifying or localizing object state changes
+actions and states: knowing the action provides informa-       alongside actions [35, 55–57], often focusing on a single
+tion about the state changes, and knowing state changes can    object undergoing one or a few state transitions [59, 66].
+indicate the action. This suggests that for effective video    In contrast, we propose a more fine-grained multiple object
+understanding, we should learn to predict both actions and     state prediction task, tracking all relevant objects and their
+state changes while capturing and leveraging their interac-    evolving states across the entire sequence of actions.
+tions. In fact, while some studies have leveraged object cues  Datasets on Object States. Several prior datasets include
+to improve action recognition, action anticipation or tempo-   some form of object state annotations, but they often have
+ral action segmentation [69, 70, 74], the opposite direction   significant limitations. Image-based datasets [21, 49] cover
+(i.e., exploiting temporal action segmentation to improve      only a limited number of object or state categories. Video
+object state prediction), remains an open problem.             datasets focus on a single object undergoing one or a few
+                                                               transitions [55, 56, 66], or place constraints on how often
+Paper Contributions. We study the new problem of mul-          the state can change within a single video [59]. Mean-
+tiple object state prediction (MOSP) in long procedural        while, [35] and other recent efforts [43, 57] target special-
+videos and develop an efficient framework to address it        ized tasks (e.g., state-focused captioning or anticipation).
+without using annotated state changes in videos. As shown      Consequently, none of these datasets are well suited for
+in Fig. 1, our goal is to detect and track the state of every  modeling multi-object state changes throughout longer pro-
+task-relevant object (undergoing state changes) in a video.    cedural videos. Our work addresses this gap by enriching
+Motivated by task assistant and robotic applications, we fo-   existing egocentric video datasets with fine-grained state
+cus on egocentric videos [12, 22], where the first-person      annotations for all relevant objects and creating a bench-
+view naturally follows the user’s interactions with objects    mark to evaluate multiple object state prediction.
+and involves dynamic and frequent object state changes.        LLM/VLM Knowledge Utilization. Large Language
+                                                               Models and Vision Language Models have demonstrated
+   We address several major challenges. First, to learn        robust reasoning and comprehension skills across tasks such
+without using annotated object states in videos, we develop    as recognition, localization, object detection, and visual
+a Pseudo-Label Acquisition (PLA) pipeline that leverages       question answering [3, 9, 10, 60, 64, 72, 73]. Despite
+action labels, large language models (LLMs) and vision-        their strong performance, they can struggle with certain nu-
+language models (VLMs) to automatically generate object-       ances such as intricate object relations or subtle attribute
+state pseudo-labels for training videos. While PLA provides    changes [7, 42]. In our framework, we harness the general
+state descriptions of relevant objects before and after each   world knowledge of these models for pseudo-label genera-
+action, we do not have their temporal localizations to train   tion and correlation discovery, then complement them with
+a MOSP model. Therefore, we propose a point of change          post-processing and refinement steps to address their failure
+(POC) estimation by leveraging VLMs that enables localiz-      modes and produce accurate multi-object state annotations.
+ing the before-action and after-action states of objects. We
+then study a joint multiple object state prediction and tem-   3. Multiple Object State Prediction (MOSP)
+poral action segmentation (TAS) architecture in which the
+two interact, and particularly, TAS informs and improves       Problem Statement. Assume we have a sequence of T
+MOSP. To do so, we propose a State–Action Interaction          video frames V = v(1), v(2), . . . , v(T ) , where v(t) ∈
+(SAI) module that takes advantage of the intrinsic corre-      RH×W ×3 denotes the RGB frame at time t with the size
+lation between action labels and object state labels.          H × W . The goal of MOSP is to predict the sequence
+                                                               of object states Y = y(1), y(2), . . . , y(T ) , where y(t) ∈
+   To validate our method, given the lack of a dataset         {0, 1}O×S is the predicted object-state label matrix with
+with annotated state changes for multiple objects, we create   yos (t) denoting whether object o has state s at frame t. Here,
+the MOSCATO (Multiple Object State ChAnge Through              O is the total number of objects in the dataset, and S is the
+actiOns) benchmark (see Table 1), where we extend three
+existing egocentric TAS datasets with extensive per-frame
+object state annotations.
+
+11601
+Datasets                               Egocentric # Obj # St # Vid # StC/Obj # Obj/Vid Avg. Video Duration(s) GT/Pseudo
+
+ChangeIt (Training) [55]               ×  42 27 34428             1   1   276.0   Pseudo
+ChangeIt (Evaluation) [55]                                                276.0     GT
+HowToChange (Training) [66]            ×  42 27 667               1   1   41.51
+HowToChange (Evaluation) [66]                                             41.51   Pseudo
+MOST (Training)[59]                    ×  122 20 36075            1   1   336.9     GT
+MOST (Evaluation) [59]                                                    156.9
+                                       ×  134 20 5424             1   1           Pseudo
+                                                                          353.3     GT
+                                       ×  6  60 10749             >1  1   1083.5
+                                                                          150.3   Pseudo
+                                       ×  6 60 61                 >1  1           Pseudo
+                                                                          358.3   Pseudo
+MOSCATO (Training)             CMU     ✓  39 77 129               >1  >1  1781.5
+                                                                          148.1     GT
+                               EGTEA   ✓  74 79 61                >1  >1            GT
+                                                                                    GT
+                               EgoPER  ✓  77 210 163              >1  >1
+
+MOSCATO (Evaluation)           CMU     ✓  39 77 36                >1  >1
+
+                               EGTEA   ✓  74 79 25                >1  >1
+
+                               EgoPER  ✓  77 210 50               >1  >1
+
+Table 1. Comparison of MOSCATO to previous object state change video datasets. # Obj and # St denote the number of objects and states,
+respectively, in the object vocabulary. # Vid represents the number of videos. # OSC/Vid is the average number of object state changes
+per video. # StC/Obj is the number of state changes for an object in a video. # Obj/Vid denotes the number of objects that undergo state
+change in a video. GT/Pseudo determines if that subset is manually (GT) or automatically (Pseudo) labeled.
+
+total number of possible states for these objects. Therefore,     tion label of each segment, we prompt an LLM, here GPT-
+we study a closed-vocabulary setting in the paper. Given          4o [3], to 1) identify the objects likely involved in the action
+the high cost of gathering ground-truth object-state labels       and 2) describe how the appearance or state of each object
+for videos, we assume we do not have ground-truth object-         changes after the completion of the action. Since the order
+state labels for training videos. Instead for every training      of actions of a task can vary across videos (e.g., pouring
+video V , we have its action labels, z(1), z(2), . . . , z(T ) ,  water before adding a teabag or vice versa), the sequence of
+where z(t) ∈ {1, . . . , C} denotes the action class of frame t   states an object undergoes may differ across videos of the
+and C is number of action classes.                                same task. Thus, we additionally feed the previous actions
+                                                                  and object states to the LLM to provide a history context.
+Overview. Our setting can be considered as a weakly-              Stage 2: State Description Summarization. The previous
+supervised multiple object state prediction problem, since        stage produces free-form sentences describing the states of
+we do not have object-state labels during training and in-        objects. To summarize these descriptions, we prompt the
+stead use action labels. To tackle the problem, we develop        LLM to extract adjectives or short phrases that capture the
+a framework that consists of several components, as illus-        essential states. We include short phrases because some
+trated in Fig. 2. First, we use a MOSP network for mul-           states, such as “in a mug” and “vegetable covered”, can-
+tiple object state prediction. Given the lack of ground-          not be described using only adjectives. Meanwhile, we al-
+truth object-state labels, we design a Pseudo-Label Acqui-        ready obtained a list of objects from stage one. Because the
+sition (PLA) module, which leverages LLMs to obtain ob-           same object or state can appear under various names (e.g.,
+ject and state vocabulary and VLMs to assign the states to        “mug” and “cup” or “chopped” and “cut”), we then apply k-
+specific frames using a point of change estimation method,        means clustering on the text embeddings2 for both objects
+which we propose. Therefore, using the output of PLA,             and states to merge any redundant or synonymous labels
+we can supervise training of the MOSP network. To lever-          into a vocabulary of distinct object and state categories. We
+age the correlations between actions and states, we use con-      use the Elbow method and Sum of Squared Errors to guide
+ventional TAS models to predict action labels and design          the choice of k.
+a novel State-Action Interaction (SAI) module to leverage         Stage 3: Object State Refinement. Even with historical
+these correlations for improving object state predictions.        states provided, the LLM may occasionally omit valid states
+                                                                  or fail to preserve ongoing attributes. For instance, if veg-
+3.1. Pseudo-Label Acquisition (PLA)                               etables are chopped and then put on a bun, the LLM might
+                                                                  only mention “on buns” for the vegetables and miss the
+TAS datasets [6, 11, 25, 27] generally provide action seg-        “chopped” state. Given that we have collected a list of all
+ment annotations (these can also be derived from narrations       possible states for each object from the LLM’s responses
+without access to explicit annotations). We leverage these to     over all videos, we refine the states by asking the LLM to
+build framewise object-state pseudo labels for training. We       check if any other state applies to the object. Next, we ask
+propose a multi-stage pipeline (Fig. 3) that utilizes LLMs        the LLM to improve the tracking of states by asking if any
+to progressively generate and refine the object state labels.     of the object states before the action would still be applica-
+We further use vision-based reasoning to localize segments
+associated with these states.                                         2We use the text-embedding-3-large model in GPT API.
+Stage 1: Object State Description via LLM. Given the ac-
+
+                                             11602
+      Video                                                                                          States                        States
+
+                                                               Pseudo-Label          Action 1                Action 1                                          State-Action
+                                                                Acquisition          Action 2                Action 2                                          Interaction
+                                                                                     Action 3                Action 3
+
+                                                                                     After Action - State Correlations Before Action - State Correlations
+
+                       Ground Truth Action Segments                                            Learnable State-Action Correlations
+
+                                                                                                     Action Segment Predictions                            Action Conditioned
+                                                                                                                                                               Object State
+                                                          Temporal Action                                                                                       Predictions
+                                                           Segmentation
+                                                                                                                                                                       +
+
+                                                                                                     Before/After Action Segments
+
+                                                                                     State 1
+                                                          Multiple Object State 2 Object 1 ... Object State Final Object
+                                                                                                                                                                   State
+Time                                                      State Prediction State 1                                      Object 2    Predictions                Predictions
+
+                                                                                     State 2 ...
+
+                       Figure 2. Overview of our proposed framework for the task of multiple object state prediction.
+
+ble after the action.                                                                                compute the POC score γ(t) using all K objects involved
+
+Stage 4: Point-of-Change (POC) Estimation. So far, we                                                in the action as,
+
+obtained state descriptions for objects in each action seg-                                                                                   KA
+                                                                                                                                           1  ωoi (t)
+ment, however, without temporal localization, which is nec-                                                             γ(t) =                             B,                (3)
+                                                                                                                                    K i=1 ωoi (t)
+essary to train a MOSP model. Thus, at this stage, we as-
+
+sign framewise object state labels to the training videos. To                                        which measures how much closer frame t is to the after-
+                                                                                                     action states than to the before-action states for all objects
+do so, we localize the Point-of-Change (POC), hence, di-
+
+vide each action segment into segments for before-action                                                    in the action. For each action segment, we take the frame
+
+state and after-action state. In each action segment, POC                                                   where this ratio exhibits the sharpest increase as the esti-
+                                                                                                            mated POC, and assign before-action and after-action la-
+is where the state transition most likely occurs. In the pa-
+
+per, we assume that all involved objects in an action switch                                         bels to frames accordingly.
+                                                                                                     Stage 5: Object Visibility Detection. Finally, we employ a
+states at the same moment (an approximation that simplifies
+
+the process). Our experiments also show that it yields better                                        pre-trained object detection model (GLIP [72]), prompting
+
+results than attempting to track separate POCs per object.                                           it with the object vocabulary for each task. This allows us
+
+Let the set of involved objects in an action be O =                                                  to determine in which frames each object actually appears.
+
+{o1, o2, . . . , oK }. Each object oi has a before-action state                                      We then assign final pseudo-labels only to frames where the
+
+  B   (the  state  of  objects                       from      the  previous    POC  to  the  cur-   object is visibly present.
+
+Soi                                                                   A
+
+rent  one)  and    an  after-action                       state     Soi  .  We  remove  the  states          All complete prompts are included in the supplemen-
+
+common      to  both     B                           and    A  since  they  do  not  help  distin-   tary material. Through PLA, we obtain per-frame pseudo
+
+                       Soi                                Soi
+
+guish the before vs. after transition,                                                               object-state labels for the training videos, which we use to
+
+                S˜oBi = SoBi \ SoAi , S˜oAi = SoAi \ SoBi .                                    (1)   train a MOSP model, which we discuss next.
+
+Using a pre-trained CLIP [47] model, we compute the co-                                              3.2. Multiple Object State Prediction (MOSP)
+                                                                                                           Model
+sine similarity between the visual embeddings of video
+
+frames and the text embeddings of object states. For ob-                                             Using framewise object-state pseudo-labels, obtained from
+                                                                                                     PLA, we train a MOSP model (Fig. 2). Following previous
+ject oi, we then define the average similarity of frame t to                                         works [59], we adopt a TAS architecture (MSTCN++ [30])
+                                                                                                     as our MOSP model to capture long-range temporal depen-
+before-action (B) and after-action (A) states as                                                     dencies. Unlike state prediction methods for a single ob-
+                                                                                                     ject [55, 56, 66], our multi-object scenario requires classi-
+ωoi x (t) = 1                                             Sim Eimg(v(t)), Etext(s) , (2)             fying a large number of possible object and state categories
+                   |S˜oxi | ˜x                                                                       for each frame in the video. Modeling the temporal evo-
+                       s∈Soi
+
+where x ∈ {B, A}, v(t) is the RGB image at frame t, Eimg
+
+and Etext are the image and text encoders of CLIP. We then
+
+                                                                                                     11603
+Knowledge                        (1) Object State Description   (2) State Description     (3) Object State  labels and propose a State–Action Interaction (SAI) mod-
+Based                                         via LLM              Summarization             Refinement     ule to refine the outputs of the MOSP branch using ac-
+Reasoning                                                                                                   tion predictions from the TAS branch. Following pre-
+Using LLM                        User:                          User:                  User:                vious works [16, 30, 32], we use a cross-entropy loss
+                                 List all the objects involved  Summarize the state    Check for missing    and a smoothing loss to train the TAS model using the
+  Actions                        in the action.                 description given for  objects and states   groundtruth action labels, i.e., LT AS = Lcls + Lsmooth.
+                                 For each object, describe      each object.           that are still       Next, we discuss the details of using action-state correla-
+Chop vegetables Cut Bun in half  its state after the action.                           applicable from      tions in SAI for improving the MOSP.
+                                                                LLM:                   previous state.
+Time                             LLM:                           <Bun>                                       SAI Formulation. Our goal is to leverage action predic-
+                                 <Bun>                                                 LLM:                 tions from TAS to obtain object-state predictions, which we
+     Put vegetables on the bun   The bun is sliced into           - Halved             <Bun>                then use as complementary pseudo-labels for training the
+                                 halves.                          - On plate                                MOSP and as complementary object-state predictions dur-
+                                 <Plate>                        <Plate>                  - Halved           ing inference.
+                                 The plate now contains           - Has buns             - On Plate
+                                 halved buns.                                          <Plate>                 Notice that a video can be segmented based on actions or
+                                                                LLM:                     - Has buns         object states. Let A = (a1, a2, . . . , aN ) denote a sequence
+                                 LLM:                           <Vegetables>                                of N action segments in a video, where the temporal bound-
+                                 <Vegetables>                                          LLM:                 ary of the action segment ai is denoted by [tstart i , tend i ]. Us-
+                                 The vegetables are cut into      - Chopped            <Vegetables>         ing A, we can build a sequence of object state segments as
+                                 smaller pieces.                                                            U = (u0, u1, . . . , uN ). Here, each ui spans from the mid-
+                                 <Plate>                        <Plate>                  - Chopped          point of action segment ai to the midpoint of action segment
+                                 The plate now contains           - Has vegetables                          ai+1, which we denote by the interval [mi, mi+1]. We as-
+                                 chopped vegetables …                                  <Plate>              sume that object states remain constant in each ui.
+                                                                LLM:                     - Has vegetables
+                                 LLM:                           <Plate>                                        Our goal is to obtain P (ui), the likelihood of each state
+                                 <Plate>                                               LLM:                 segment ui using the TAS output, in order to further su-
+                                 The plate contains buns          - Has vegetables     <Plate>              pervise the MOSP and improve its predictions (see below).
+                                 and chopped vegetables.          - Has buns                                Therefore, we consider ui’s adjacent actions ai and ai+1.
+                                 <Vegetables>                   <Vegetables>             - Has vegetables   We use PA(ui|ai) and PB(ui|ai+1) to denote the probabil-
+                                 The vegetables are on the        - On buns              - Has buns         ities of ui being immediately after ai and before ai+1, re-
+                                 bun in the plate.                - On plate           <Vegetables>         spectively. Meanwhile, we compute PA(ai) and PB(ai+1)
+                                                                  - Chopped              - Chopped          using TAS predictions, capturing the confidence of predic-
+                                                                <Bun>                    - On plate         tions for ai and ai+1. We then approximate
+                                                                  - Halved               - On buns
+                                                                  - On plate           <Bun>
+                                                                  - Has vegetables       - Halved
+                                                                                         - On plate
+                                                                                         - Has vegetables
+
+Vision Based                     Video Frames                   (5) Object Visibility  (4) Point-of-Change
+Reasoning                                                             Detection             Estimation
+using Video
+Frames
+
+                                               Object State Pseudo-Labels
+
+Figure 3. Overview of our proposed object-state pseudo-labeling
+process: We first use LLM-based reasoning with ground-truth ac-
+tion annotations to extract object vocabulary and object states.
+Then, we use vision-based reasoning on frames, aggregating the
+information into final object-state pseudo-labels. In the Object
+State Refinement stage, red highlights object states that the LLM
+may miss in the State Description Summarization stage.
+
+lution of these object states can be viewed as a multi-label                                                       P (ui) ≈ f PA(ui|ai)PA(ai), PB(ui|ai+1)PB(ai+1) , (5)
+classification problem, where each video frame may con-
+tain multiple objects, each in potentially different states. To                                             where the learnable function f (·) is realized by a 1D convo-
+handle the class imbalance in these multi-label outputs, we                                                 lution and fuses these conditional probabilities into an esti-
+use a weighted binary cross-entropy loss,                                                                   mate of ui. We use Algorithm 1 to precompute empirical
+                                                                                                            values for PA(u|a) and PB(u|a) using training videos.
+LMOSP =                                 wpyos (t) log pos (t) + (1 − yos (t)) log(1 − pos (t)) , (4)
+                                                                                                               Once P (ui) is determined, each frame t ∈ [mi, mi+1]
+                                 t,o,s                                                                      within ui adopts this probability for its corresponding ob-
+                                                                                                            ject–state pairs. Let o, s be one such object–state combi-
+where pos (t) and yos (t) are the prediction and pseudo-label for                                           nation; we define
+object o and state s at frame t, and wp is a weight factor
+reflecting class imbalance.
+
+3.3. State-Action Interaction (SAI) Model                                                                          qos (t) = P (ui), ∀ t ∈ [mi, mi+1].  (6)
+
+Actions and object states are closely intertwined: i) only                                                  We then form the loss LSAI using the weighted binary cross
+specific actions can cause certain state changes (e.g., “hold                                               entropy similar to Eq. (4) applied to qos (t).
+cup” cannot change the state of a cup from empty to full); ii)
+actions affect only specific objects (e.g., “pour water into                                                3.4. Training and Inference
+mug” does not change the state of the cutting board); iii)
+some actions require objects to be in a specific state (e.g., a                                             During training, we learn the MOSP and TAS parameters as
+hot dog must be cut before being spread on pizza).                                                          well as SAI (f in Eq. (5)) by using the training loss
+
+   To leverage dependencies between actions and object                                                             L = LMOSP + LSAI + LT AS .           (7)
+states, we use a TAS model to predict framewise action
+
+                                                                                                            11604
+Algorithm 1 Obtaining State-Action Correlations from Pseudo-                                    and 50 (EgoPER3) videos as test sets, and manually anno-
+Labels. The pseudocode is shown for a single video. In practice,                                tate them with ground-truth object state labels. The remain-
+the same process is repeated for all videos in the training set.                                ing videos form the training sets, for which we generate
+                                                                                                pseudo-labels using our approach in Sec. 3.1.
+1: Input: object-state pseudo labels Y; action sequence A with                                  Data Annotation. For each dataset, we first collect a vo-
+   associated start, end, and middle times {tistart, tiend, mi}t=1 N .                          cabulary of objects and a list of corresponding states by our
+                                                                                                proposed PLA pipeline (see Sec. 3.1). For the test splits,
+2: Initialize counts nB(o, s, a) ← 0, nA(o, s, a) ← 0                                           we collect manual annotations using LabelBox [1]. Each
+                                                                                                annotator first goes through the object list and annotates the
+3: for action ai in A do                                                                        frames in which each object is visible. Annotators then se-
+                                                                                                lect the appropriate state for each visible object from a pre-
+4: for object o in {1, 2, · · · , O} do                                                         defined list of possible states for each object.
+                                                                                                Dataset Statistics. Table 1 compares MOSCATO to prior
+5:  for state s in {1, 2, · · · , S} do                                                         datasets. While ChangeIt [55] and HowToChange [66] fo-
+                                                                                                cus on a single state change per video, Ego4D-OSCA [35]
+                                                                                    (t)         or MOST [59] track multiple state changes, but only for a
+                                                                                                single object. MOSCATO captures state changes across all
+6: nB (o, s, ai)+ = t∈[tstart i ,mi] yos                                                        within an entire video offering a broader and more complete
+                                                                                                perspective. While ChangeIt [55] and HowToChange [66]
+                                                                                   (t)          contain more manually annotated videos, the annotations
+                                                                                                are high-level and are categorized into three categories:
+7: nA(o, s, ai)+ = t∈[mi,tend i ] yos                                                           “initial state”, “action”, and “final state”. Similarly, al-
+                                                                                                though Ego4D-OSCA [35] provides a large number of an-
+8:  end for                                                                                     notated videos, the taxonomy of state changes consists of
+                                                                                                only a few general categories (e.g., “Remove,” “Activate,”
+9: end for                                                                                      “Deform”). In contrast, MOSCATO offers a richer, more
+                                                                                                comprehensive view of how multiple objects undergo state
+10: end for    nA(o,s,a) o,s nA(o,s,a) ,  ∀o, s, a and u = (o, s)                               changes over the course of complex, real-world tasks.
+11: PA(u|a) =
+                                                                                                5. Experiments
+12: PB (u|a) = o,s nB(o,s,a) nB(o,s,a) , ∀o, s, a and u = (o, s)
+                                                                                                5.1. Experimental Settings
+13: Output: PB(u|a) and PA(u|a).
+                                                                                                Evaluation. Following MOST [59], we measure frame-
+   For inference, we obtain pos (t) from the MOSP branch and                                    level performance using F1-max and mean Average Preci-
+qos (t) from the SAI branch. The final MOSP prediction for                                      sion (mAP). F1-max is defined as the maximum F1 score
+object states is a weighted sum of the raw MOSP output                                          across different thresholds (over [0.1, 0.2, ..., 0.9]), mak-
+and the refined SAI output,                                                                     ing it comparable to uncalibrated zero-shot models. Unlike
+                                                                                                MOST, which applies separate thresholds for each state cat-
+             pos (t),Final = (1 − β) pos (t) + β qos (t), (8)                                   egory, we adopt a single threshold for all object states due
+                                                                                                to the large number of object–state pairs in our benchmark.
+where the hyperparameter β controls the influence of SAI                                        We further report three segment-level metrics, F1@0.1,
+and pos (t),F inal is the final object state probabilities predicted                            F1@0.25, and F1@0.50, mirroring standard temporal ac-
+by our method. Ablation study on the hyperparamter β is                                         tion segmentation benchmarks. We choose these metrics
+included in the supplementary materials. Empirically, mod-                                      to evaluate the temporal precision predictions of our model.
+eling action–state relationships yields significant gains in                                    For all F1 scores, we compute true positives, false positives,
+MOSP performance.                                                                               and false negatives across the entire test set before calculat-
+                                                                                                ing the final F1. For EgoPER, we train and evaluate the
+4. MOSCATO Dataset                                                                              models of each task separately and report the average per-
+                                                                                                formance. For CMU and EGTEA, we train one model per
+We introduce MOSCATO (Multiple Object State ChAnge                                              dataset. We do not use existing object state change datasets
+Through actiOns): a new dataset that captures multiple ob-                                      (e.g., ChangeIt [55], HowToChange [66], MOST [59]) be-
+ject state changes throughout a sequence of actions. As il-                                     cause they lack multi-object annotations.
+lustrated in Fig. 1, MOSCATO goes beyond merely track-
+ing one primary object of interest during actions; it also                                          3For EgoPER, we only use the 213 normal videos, which do not have
+documents other objects that may experience significant                                         mistakes, to form the training and test sets.
+changes. We argue that the states of these additional objects
+are often just as important as those of the primary object,
+providing a richer context.
+Data Collection. We build MOSCATO by leveraging three
+egocentric procedural task datasets: CMU [6], EGTEA [6],
+and EgoPER [27], each featuring various cooking tasks and
+object state changes. On these datasets, the videos differ
+in how tasks are ordered, forcing models to learn from the
+history of actions and object states rather than relying on a
+fixed sequence of actions or object states. Such variabil-
+ity ensures a more robust evaluation of the MOSP mod-
+els. CMU, EGTEA, and EgoPER contain 165, 86, and 386
+videos, respectively. We select 36 (CMU), 25 (EGTEA),
+
+                                                                                         11605
+                                             MOSP                                           TAS
+
+                                 Frame-wise         Segment-wise
+
+                           F1-Max mAP        F1@0.1 F1@0.25 F1@0.5            Edit   Acc    F1@0.1  F1@0.25  F1@0.5
+                                                                              4.92   16.49    3.29    1.40     0.72
+            CLIP [47]      27.11 0.18        0.98               0.68   0.28   15.57  11.84    8.05    6.04     2.40
+        InternVideo2 [65]                                                                       -        -       -
+                           27.05 0.20        8.77               6.78   3.76     -      -     92.43    90.54   82.58
+         Pseudo-Labels                                                        90.78  81.82   91.95    89.30   81.66
+EgoPER   Ours (w/o SAI)    38.39  -          39.77 35.55 28.73                91.24  81.48
+ CMU      Ours (w/ SAI)                                                                       1.47    1.04     0.43
+                           49.99 35.58       54.95 46.31 41.07                3.03   17.4    10.12     6.4     2.69
+            CLIP [47]                                                         13.88  34.84               -
+        InternVideo2 [65]  52.83 35.06       58.45 48.84 43.42                                  -     47.47      -
+                                                                                -      -     49.99    49.12   38.23
+         Pseudo-Labels     12.15  0.05       0.68               0.31   0.11   47.77  83.85   51.46            39.76
+         Ours (w/o SAI)    9.36   0.07       3.19               2.39   1.19   49.75  83.69
+          Ours (w/ SAI)    17.96             24.65              21.91  16.43
+                           30.55    -        43.67              38.16  26.75
+                           35.61  11.23      43.90              37.60  29.99
+                                  11.50
+
+Table 2. Multiple Object State Prediction and Temporal Action Segmentation results on MOSCATO-EgoPER and MOSCATO-CMU. SAI
+stands for State-Action Interaction module. We highlight the best and second best results.
+
+   Setup                   State Prediction                            5.2. Experiment Results
+Refinement
+            F1-Max  F1@0.1 F1@0.25           F1@0.5                    Main Results. Table 2 shows our evaluations on two sub-
+      ✗       7.49                             2.17                    sets of the MOSCATO benchmark (EgoPER and CMU).
+     ✓       17.96  13.04         4.34        16.43                    For CLIP and InternVideo2, we filter out object–state pairs
+   CLIP      12.15                             0.11                    that never appear in the dataset to avoid impossible pre-
+                    24.65 21.91                                        dictions. However, both methods still perform poorly on
+                                                                       MOSP, highlighting the difficulty of recognizing object
+                           0.68   0.31                                 states without dedicated pseudo-labeling and training. In
+                                                                       contrast, our automatically generated pseudo-labels sub-
+  Table 3. Ablation studies on pseudo-labeling stages for CMU.         stantially outperform these VLM-based baselines, under-
+                                                                       scoring the effectiveness of our PLA pipeline (which in-
+Baselines. We evaluate two categories of models: zero-                 cludes multi-stage refinement, point-of-change estimation,
+shot and trained. For the zero-shot setting, we use an                 and object visibility detection). Building on these pseudo-
+image-based VLM, CLIP (ViT-L/14) [47], and a video-                    labels, our final approach (w/ SAI) achieves consistent gains
+based VLM, InternVideo2 [65]. Specifically, we convert                 on EgoPER and CMU, improving F1-max by 14.44% on
+each object–state pair into a text prompt of the form “a/an            EgoPER and 17.65% on CMU. It also significantly im-
+{adjective} {object} in the image” or “a/an {object} {state            proves the segment-wise metrics (e.g., F1@0.5) by 14.69%
+phrase} in the image”, then compute cosine similarity be-              and 13.56%, respectively. Our method without SAI re-
+tween the frame/video embeddings and text embeddings.                  veals that SAI contributes significantly to both frame-level
+If the similarity exceeds a threshold, we predict that ob-             and segment-level performance, affirming that explicit ac-
+ject–state combination for the frame. After experiment-                tion–state modeling is critical for MSOP. In particular, SAI
+ing with multiple prompt templates, we report results from             increases F1-max by 2.84% on EgoPER and 5.06% on
+the best-performing variant. Additionally, we include a                CMU. We also see notable improvements in segment-wise
+Pseudo-Labels method, which applies the PLA pipeline to                metrics, where we achieve 2.35% and 3.24% boosts in
+the test set to generate pseudo object state labels. We note           F1@0.5 on EgoPER and CMU respectively.
+that this Pseudo-Labels method uses the ground-truth ac-
+tion labels of the testing videos while the others do not.                Although TAS is not our primary focus, from Table 2 we
+For the trained setting, we use MSTCN++ [30] as back-                  see that TAS metrics remain competitive or even improve
+bone for MOSP and TAS. Ablation studies performed on                   slightly under our unified framework. In particular, while
+the architecture of the backbone is included in the supple-            on EgoPER, Edit and F1@0.25 for TAS decrease by less
+mantary materials. We compare the performance of using                 than 0.5% when using SAI, on CMU, they increase by at
+only MOSP and MOSP+SAI to evaluate the effectiveness                   least 1.6% when using SAI.
+of our proposed SAI module.
+Implementation Details. We extract 2048-dimensional                       Table 4 shows our evaluations on the EGTEA subset of
+features from an I3D model [8] pre-trained on Kinetics [8].            the MOSCATO benchmark. EGTEA is particularly chal-
+For MSTCN++, we follow the default configurations pro-                 lenging due to its diverse tasks, actions, and environments.
+vided in the original code, but replace the softmax layer              This dataset differs notably from EgoPER and CMU: it con-
+with a sigmoid function to accommodate multi-label clas-               tains longer videos ( 30 minutes in EGTEA vs. 10 min-
+sification. The network is composed of four stages, each               utes CMU) and includes many background actions such
+containing ten dilated convolution layers. For training, we
+use the Adam optimizer with a learning rate of 1×10−5, and
+set the class weight wp to 5.0 to mitigate class imbalance.
+
+                                                     11606
+                   Frame-wise         Segment-wise
+
+                   F1-Max mAP  F1@0.1 F1@0.25 F1@0.5
+
+CLIP [47]          5.97 0.01   0.09   0.03          0.00
+InternVideo2 [65]
+Pseudo-Labels      5.66 0.01   0.83   0.66          0.29
+Ours (w/o SAI)
+Ours (w/ SAI)      11.38  -    24.24 15.15          9.09
+
+                   12.85 2.57  1.24   0.0           0.0
+
+                   8.04 2.78   10.52  6.89          6.45
+
+Table 4. Multiple Object State Prediction and Temporal Action
+Segmentation results on MOSCATO-EGTEA for the MOSP task.
+Please refer to supplementary materials for TAS results.
+
+as putting away dishes in a make a sandwich task. These        Figure 4. Qualitative comparison of InternVideo, MOSP, and
+factors make both TAS and object-state prediction more
+challenging and cause all methods to struggle. CLIP and        ground-truth annotations for a video from the test set of EgoPER
+InternVideo2 yield low scores, suggesting that merely re-
+lying on VLMs is insufficient. By contrast, our Pseudo-        for the object “Tortilla” from the task “Making Quesadilla”.
+Labels perform significantly better, especially on segment-
+wise metrics. Interestingly, Ours (w/o SAI) achieves the       MOSP segments better align with ground truth.
+highest frame-wise F1-Max but underperforms segment-
+wise, whereas Ours (w/ SAI) improves mAP and outper-                                                   Before States and Action Correlations
+forms in segment-wise F1, underscoring the value of ex-
+plicit action–state modeling. Notably, the Pseudo-Labels         Actions     Fold tortilla
+still lead in segment-wise metrics, likely because they have              Spread Nutella
+access to ground-truth action labels, whereas our methods                                   tortilla/  tortilla/ tortilla/ tortilla/ tortilla/ banana banana banana
+use predicted ones.                                                          onto tortilla   sliced    folded nutella- topped with flat slices/ slices/ on slices/
+Qualitative Results. Fig. 4 compares our proposed method                      Slice using   tortilla/  spread bananas          sliced tortilla spread
+to the InternVideo2 baseline and manual annotations for                                     sliced     Object and State Pairs
+a video from the test set. Due to space limitations, we                            knife               After States and Action Correlations
+have included only object state predictions from one ob-                     Put banana
+ject. For almost all objects depicted, InternVideo2 predic-      Actions
+tions do not capture any changes in the objects’ states and                     slices on
+predict many false positive predictions both frame-wise and                       tortilla             tortilla/ tortilla/ tortilla/ tortilla/ banana banana banana
+segment-wise. This indicates the lack of ability to reason
+temporally over video. Also, video features from Intern-                     Fold tortilla
+Video2 are incapable of distinguishing objects in various                 Spread Nutella
+states. However, our method is sensitive to the states of the
+objects. We observe that as actions unfold, our model can                   onto tortilla
+keep track of the states of objects.                                         Slice using
+
+   In Fig. 5, we show the State-Action Correlations                                knife
+(PB(u|a) and PA(u|a)) calculated in our SAI branch. We                       Put banana
+observe these correlations are consistent with our expecta-
+tions of object-state and action interactions. For example,                    slices on
+we see the correlation between action “Put banana slices                         tortilla
+on tortilla” and “Tortilla/Topped with bananas” increases
+in After-Action State-Action Correlations.                                                             folded nutella- topped with flat slices/ slices/ on slices/
+Ablation Studies on PLA. Table 3 examines the contribu-                                                spread bananas        sliced tortilla spread
+tion of components in our PLA pipeline. Specifically, we                                               Object and State Pairs
+omit the Stage 3 (object state refinement) to measure its
+individual impact. We observe that adding the refinement         Figure 5. An example for State-Action Correlations computed in
+stage improves segment-wise F1@0.5 by 14.26% and F1-             Alg. 1. The figure illustrates the changes in correlations as an
+Max by 10.47%, confirming that refinement substantially          object transition from before-action to after-action. For clarity in
+improves the quality of pseudo labels, highlighting the im-      presentation, we only show a few samples of the object-state pairs.
+portance of refinement to correct omissions. Additionally,
+in previous work [66], CLIP was used for assigning pseudo-       labeling approach. We observe that while CLIP might be
+labels to frames. We also compare with CLIP as a pseudo-         effective for short video segments and one object, it cannot
+                                                                 effectively track multiple object states.
+
+                                                                 6. Conclusions
+
+                                                                 We investigated multiple object state prediction in a weakly-
+                                                                 supervised setting. Unlike prior works that focus on a single
+                                                                 object, our approach captures multi-object state transitions.
+                                                                 We developed a framework that trains a state prediction
+                                                                 model using object-state pseudo-labels obtained by a novel
+                                                                 approach that leverages LLMs and VLMs. Our framework
+                                                                 also leverages correlations between actions and states us-
+                                                                 ing a novel state-action interaction module for improved
+                                                                 learning and inference. We introduced the new evaluation
+                                                                 benchmark of MOSCATO and, by experiments, show that
+                                                                 our proposed framework improves over SOTA baselines.
+
+                                                          11607
+Acknowledgement                                                     [12] Dima Damen, Hazel Doughty, Giovanni Maria Farinella,
+                                                                          Antonino Furnari, Jian Ma, Evangelos Kazakos, Davide
+This work was funded, in part, by ARPA-H                                  Moltisanti, Jonathan Munro, Toby Perrett, Will Price, and
+(1AY2AX000062), DARPA PTG (HR00112220001),                                Michael Wray. Rescaling egocentric vision: Collection,
+NSF (IIS-2115110), ONR (N000142512287) and ARO                            pipeline and challenges for epic-kitchens-100. International
+(W911NF2110276). The views and conclusions contained                      Journal of Computer Vision (IJCV), 130:33–55, 2022. 2
+in this document are those of the authors and should not
+be interpreted as representing the official policies, either        [13] Guodong Ding, Hans Golong, and Angela Yao. Coher-
+expressed or implied, of the US Government.                               ent temporal synthesis for incremental action segmentation.
+                                                                          IEEE Conference on Computer Vision and Pattern Recogni-
+References                                                                tion, 2024. 1
+
+ [1] Labelbox, Online, 2025. [Online]. https://labelbox.            [14] Fatih Dogangun, Serdar Bahar, Yigit Yildirim, Bora Toprak
+      com. 6                                                              Temir, Emre Ugur, and Mustafa Doga Dogan. Rampa:
+                                                                          Robotic augmented reality for machine programming by
+ [2] Nachwa Aboubakr, James L Crowley, and Re´mi Ron-                     demonstration. IEEE Robotics and Automation Letters, page
+      fard. Recognizing manipulation actions from state-                  1–8, 2025. 1
+      transformations. arXiv preprint arXiv:1906.05147, 2019. 2
+                                                                    [15] G. Donahue and E. Elhamifar. Learning to predict activity
+ [3] Josh Achiam, Steven Adler, Sandhini Agarwal, Lama Ah-                progress by self-supervised video alignment. IEEE Confer-
+      mad, Ilge Akkaya, Florencia Leoni Aleman, Diogo Almeida,            ence on Computer Vision and Pattern Recognition, 2024. 1
+      Janko Altenschmidt, Sam Altman, Shyamal Anadkat, et al.
+      Gpt-4 technical report. arXiv preprint arXiv:2303.08774,      [16] Yazan Abu Farha and Jurgen Gall. Ms-tcn: Multi-stage tem-
+      2023. 2, 3                                                          poral convolutional network for action segmentation. In Pro-
+                                                                          ceedings of the IEEE/CVF conference on computer vision
+ [4] Jean-Baptiste Alayrac, Josef Sivic, Ivan Laptev, and Simon           and pattern recognition, pages 3575–3584, 2019. 1, 5
+      Lacoste-Julien. Joint discovery of object states and manip-
+      ulation actions. In International Conference on Computer      [17] Alireza Fathi and James M Rehg. Modeling actions through
+      Vision (ICCV), 2017. 2                                              state changes. In Proceedings of the IEEE Conference
+                                                                          on Computer Vision and Pattern Recognition, pages 2579–
+ [5] Emad Bahrami, Gianpiero Francesca, and Juergen Gall. How             2586, 2013. 2
+      much temporal long-term context is needed for action seg-
+      mentation? In International Conference on Computer Vision     [18] Lin Geng Foo, Tianjiao Li, Hossein Rahmani, and Jun Liu.
+      (ICCV), 2023. 1                                                     Action detection via an image diffusion process. In Proceed-
+                                                                          ings of the IEEE/CVF Conference on Computer Vision and
+ [6] Siddhant Bansal, Chetan Arora, and C.V. Jawahar. My view             Pattern Recognition, pages 18351–18361, 2024. 1
+      is the best view: Procedure learning from egocentric videos.
+      In European Conference on Computer Vision (ECCV), 2022.       [19] H. Gammulle, S. Denman, S. Sridharan, and C. Fookes. Pre-
+      3, 6                                                                dicting the future: A jointly learnt model for action antici-
+                                                                          pation. IEEE International Conference on Computer Vision,
+ [7] Declan Campbell, Sunayana Rane, Tyler Giallanza,                     2019. 1
+      Nicolo` De Sabbata, Kia Ghods, Amogh Joshi, Alexander Ku,
+      Steven M. Frankland, Thomas L. Griffiths, Jonathan D. Co-     [20] Dayoung Gong, Suha Kwak, and Minsu Cho. Actfusion: a
+      hen, and Taylor W. Webb. Understanding the limits of vision         unified diffusion model for action segmentation and antici-
+      language models through the lens of the binding problem,            pation. Advances in Neural Information Processing Systems,
+      2024. 2                                                             37:89913–89942, 2024. 1
+
+ [8] J. Carreira and A. Zisserman. Quo vadis, action recognition?   [21] Filippos Gouidis, Theodore Patkos, Antonis Argyros, and
+      a new model and the kinetics dataset. In IEEE Conference            Dimitris Plexousakis. Detecting object states vs detecting
+      on Computer Vision and Pattern Recognition, 2017. 7                 objects: A new dataset and a quantitative experimental study,
+                                                                          2022. 2
+ [9] Hanning Chen, Wenjun Huang, Yang Ni, Sanggeon Yun,
+      Yezi Liu, Fei Wen, Alvaro Velasquez, Hugo Latapie, and        [22] Kristen Grauman, Andrew Westbury, Eugene Byrne,
+      Mohsen Imani. Taskclip: Extend large vision-language                Zachary Chavis, Antonino Furnari, Rohit Girdhar, Jackson
+      model for task oriented object detection, 2024. 2                   Hamburger, Hao Jiang, Miao Liu, Xingyu Liu, Miguel Mar-
+                                                                          tin, Tushar Nagarajan, Ilija Radosavovic, Santhosh K. Ra-
+[10] Jun Chen, Han Guo, Kai Yi, Boyang Li, and Mohamed El-                makrishnan, Fiona Ryan, Jayant Sharma, Michael Wray,
+      hoseiny. Visualgpt: Data-efficient adaptation of pretrained         Mengmeng Xu, Eric Z. Xu, Chen Zhao, Siddhant Bansal,
+      language models for image captioning. In Proceedings of             Dhruv Batra, Vincent Cartillier, Sean Crane, Tien Do, Morrie
+      the IEEE/CVF Conference on Computer Vision and Pattern              Doulaty, Akshay Erapalli, Christoph Feichtenhofer, Adriano
+      Recognition, pages 18030–18040, 2022. 2                             Fragomeni, Qichen Fu, Christian Fuegen, Abrham Gebre-
+                                                                          selasie, Cristina Gonza´lez, James M. Hillis, Xuhua Huang,
+[11] Dima Damen, Hazel Doughty, Giovanni Maria Farinella,                 Yifei Huang, Wenqi Jia, Weslie Khoo, Ja´chym Kola´r, Satwik
+      Sanja Fidler, Antonino Furnari, Evangelos Kazakos, Davide           Kottur, Anurag Kumar, Federico Landini, Chao Li, Yang-
+      Moltisanti, Jonathan Munro, Toby Perrett, Will Price, and           hao Li, Zhenqiang Li, Karttikeya Mangalam, Raghava Mod-
+      Michael Wray. The epic-kitchens dataset: Collection, chal-          hugu, Jonathan Munro, Tullie Murrell, Takumi Nishiyasu,
+      lenges and baselines. IEEE Transactions on Pattern Analysis         Will Price, Paola Ruiz Puentes, Merey Ramazanova, Leda
+      and Machine Intelligence, 2020. 3
+
+11608
+      Sari, Kiran K. Somasundaram, Audrey Southerland, Yusuke              on computer vision and pattern recognition, pages 5222–
+      Sugano, Ruijie Tao, Minh Vo, Yuchen Wang, Xindi Wu,                  5230, 2021. 2
+      Takuma Yagi, Yunyi Zhu, Pablo Arbela´ez, David J. Crandall,    [35] Victoria Manousaki, Konstantinos Bacharidis, Filippos
+      Dima Damen, Giovanni Maria Farinella, Bernard Ghanem,                Gouidis, Konstantinos Papoutsakis, Dimitris Plexousakis,
+      Vamsi Krishna Ithapu, C. V. Jawahar, Hanbyul Joo, Kris               and Antonis Argyros. Anticipating object state changes,
+      Kitani, Haizhou Li, Richard A. Newcombe, Aude Oliva,                 2024. 2, 6
+      Hyun Soo Park, James M. Rehg, Yoichi Sato, Jianbo Shi,         [36] Robert McCarthy, Daniel CH Tan, Dominik Schmidt, Fer-
+      Mike Zheng Shou, Antonio Torralba, Lorenzo Torresani,                nando Acero, Nathan Herr, Yilun Du, Thomas G Thuruthel,
+      Mingfei Yan, and Jitendra Malik. Ego4d: Around the world             and Zhibin Li. Towards generalist robot learning from inter-
+      in 3,000 hours of egocentric video. 2022 IEEE/CVF Confer-            net video: A survey. arXiv preprint arXiv:2404.19664, 2024.
+      ence on Computer Vision and Pattern Recognition (CVPR),              1
+      pages 18973–18990, 2021. 2                                     [37] I. Misra, A. Gupta, and M. Hebert. From red wine to red
+                                                                           tomato: Composition with context. IEEE Conference on
+[23] Dan Guo, Kun Li, Bin Hu, Yan Zhang, and Meng Wang.                    Computer Vision and Pattern Recognition, 2017. 2
+      Benchmarking micro-action recognition: Dataset, methods,       [38] Himangi Mittal, Nakul Agarwal, Shao-Yuan Lo, and Kwon-
+      and applications. IEEE Transactions on Circuits and Systems          joon Lee. Can’t make an omelette without breaking
+      for Video Technology, 34(7):6238–6252, 2024. 1                       some eggs: Plausible action anticipation using large video-
+                                                                           language models. In Proceedings of the IEEE/CVF Con-
+[24] Phillip Isola, Joseph J. Lim, and Edward H. Adelson. Dis-             ference on Computer Vision and Pattern Recognition, pages
+      covering states and transformations in image collections. In         18580–18590, 2024. 1
+      CVPR, 2015. 2                                                  [39] J. Munro and D. Damen. Multi-modal domain adaptation for
+                                                                           fine-grained action recognition. IEEE Conference on Com-
+[25] Hilde Kuehne, Ali Arslan, and Thomas Serre. The language              puter Vision and Pattern Recognition, 2020. 1
+      of actions: Recovering the syntax and semantics of goal-       [40] Muhammad Ferjad Naeem, Yongqin Xian, Federico
+      directed human activities. IEEE Conference on Computer               Tombari, and Zeynep Akata. Learning graph embeddings
+      Vision and Pattern Recognition, 2014. 3                              for compositional zero-shot learning. In Proceedings of
+                                                                           the IEEE/CVF Conference on Computer Vision and Pattern
+[26] S. Lee and E. Elhamifar. Error recognition in procedural              Recognition, pages 953–962, 2021. 2
+      videos using generalized task graph. International Confer-     [41] Tushar Nagarajan and Kristen Grauman. Attributes as oper-
+      ence on Computer Vision, 2025. 1                                     ators. ECCV, 2018. 2
+                                                                     [42] Kaleb Newman, Shijie Wang, Yuan Zang, David Heffren,
+[27] S. Lee, Z. Lu, Z. Zhang, M. Hoai, and E. Elhamifar. Error             and Chen Sun. Do pre-trained vision-language models en-
+      detection in egocentric procedural task videos. IEEE Con-            code object states?, 2024. 2
+      ference on Computer Vision and Pattern Recognition, 2024.      [43] Nguyen Nguyen, Jing Bi, Ali Vosoughi, Yapeng Tian,
+      1, 3, 6                                                              Pooyan Fazli, and Chenliang Xu. Oscar: Object state cap-
+                                                                           tioning and state change representation. In North Ameri-
+[28] Chenyi Li, Guande Wu, Gromit Yeuk-Yin Chan, Dishita G                 can Chapter of the Association for Computational Linguis-
+      Turakhia, Sonia Castelo Quispe, Dong Li, Leslie Welch,               tics (NAACL), 2024. 2
+      Claudio Silva, and Jing Qian. Satori: Towards proactive ar     [44] Yulei Niu, Wenliang Guo, Long Chen, Xudong Lin, and
+      assistant with belief-desire-intention user modeling, 2025. 1        Shih-Fu Chang. Schema: State changes matter for pro-
+                                                                           cedure planning in instructional videos. arXiv preprint
+[29] M. Li, L. Chen, Y. Duarr, Z. Hu, J. Feng, J. Zhou, and J.             arXiv:2403.01599, 2024. 2
+      Lu. Bridge-prompt: Towards ordinal action understanding        [45] Khoi Pham, Kushal Kafle, Zhe Lin, Zhihong Ding, Scott Co-
+      in instructional videos. In 2022 IEEE/CVF Conference on              hen, Quan Tran, and Abhinav Shrivastava. Learning to pre-
+      Computer Vision and Pattern Recognition (CVPR), 2022. 2              dict visual attributes in the wild. In 2021 IEEE/CVF Confer-
+                                                                           ence on Computer Vision and Pattern Recognition (CVPR),
+[30] Shi-Jie Li, Yazan AbuFarha, Yun Liu, Ming-Ming Cheng,                 pages 13013–13023, 2021. 2
+      and Juergen Gall. Ms-tcn++: Multi-stage temporal convolu-      [46] Senthil Purushwalkam, Maximilian Nickel, Abhinav Gupta,
+      tional network for action segmentation. IEEE Transactions            and Marc’Aurelio Ranzato. Task-driven modular networks
+      on Pattern Analysis and Machine Intelligence, pages 1–1,             for zero-shot compositional learning. In Proceedings of the
+      2020. 4, 5, 7                                                        IEEE/CVF International Conference on Computer Vision,
+                                                                           pages 3593–3602, 2019. 2
+[31] Z. Lu and E. Elhamifar. Set-supervised action learning in       [47] Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya
+      procedural task videos via pairwise order consistency. IEEE          Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry,
+      Conference on Computer Vision and Pattern Recognition,               Amanda Askell, Pamela Mishkin, Jack Clark, Gretchen
+      2022. 1                                                              Krueger, and Ilya Sutskever. Learning transferable visual
+                                                                           models from natural language supervision. International
+[32] Z. Lu and E. Elhamifar. Fact: Frame-action cross-attention            Conference on Machine learning, 2021. 4, 7, 8
+      temporal modeling for efficient action segmentation. IEEE
+      Conference on Computer Vision and Pattern Recognition,
+      2024. 5
+
+[33] Z. Lu and E. Elhamifar. Multi-modal few-shot temporal ac-
+      tion segmentation. International Conference on Computer
+      Vision, 2025. 1
+
+[34] Massimiliano Mancini, Muhammad Ferjad Naeem, Yongqin
+      Xian, and Zeynep Akata. Open world compositional zero-
+      shot learning. In Proceedings of the IEEE/CVF conference
+
+11609
+[48] Nirat Saini, Bo He, Gaurav Shrivastava, Sai Saketh Ramb-              robotics: Multimodal task planning from human demonstra-
+      hatla, and Abhinav Shrivastava. Recognizing actions using            tion. IEEE Robotics and Automation Letters, 2024. 1
+      object states. In ICLR2022 Workshop on the Elements of         [62] J. Wang, Y. Yang, J. Mao, Z. Huang, C. Huang, and W. Xu.
+      Reasoning: Objects, Structure and Causality, 2022. 2                 Cnn-rnn: A unified framework for multi-label image clas-
+                                                                           sification. 2016 IEEE Conference on Computer Vision and
+[49] Nirat Saini, Hanyu Wang, Archana Swaminathan, Vinoj                   Pattern Recognition (CVPR), 2016. 2
+      Jayasundara, Bo He, Kamal Gupta, and Abhinav Shrivas-          [63] Jiahao Wang, Guo Chen, Yifei Huang, Limin Wang, and
+      tava. Chop & learn: Recognizing and generating object-state          Tong Lu. Memory-and-anticipation transformer for online
+      compositions. In Proceedings of the IEEE/CVF Interna-                action understanding. In Proceedings of the IEEE/CVF In-
+      tional Conference on Computer Vision, pages 20247–20258,             ternational Conference on Computer Vision, pages 13824–
+      2023. 2                                                              13835, 2023. 1
+                                                                     [64] Yi Wang, Kunchang Li, Xinhao Li, Jiashuo Yu, Yinan He,
+[50] Fadime Sener and Angela Yao. Zero-shot anticipation for in-           Chenting Wang, Guo Chen, Baoqi Pei, Rongkun Zheng, Ji-
+      structional activities. International Conference on Computer         lan Xu, Zun Wang, et al. Internvideo2: Scaling video foun-
+      Vision, 2019. 1                                                      dation models for multimodal video understanding. arXiv
+                                                                           preprint arXiv:2403.15377, 2024. 2
+[51] Y. Shen and E. Elhamifar. Semi-weakly-supervised learn-         [65] Yi Wang, Kunchang Li, Xinhao Li, Jiashuo Yu, Yinan He,
+      ing of complex actions from instructional task videos. IEEE          Guo Chen, Baoqi Pei, Rongkun Zheng, Zun Wang, Yansong
+      Conference on Computer Vision and Pattern Recognition,               Shi, Tianxiang Jiang, Songze Li, Jilan Xu, Hongjie Zhang,
+      2022. 1                                                              Yifei Huang, Yu Qiao, Yali Wang, and Limin Wang. Intern-
+                                                                           video2: Scaling foundation models for multimodal video un-
+[52] Y. Shen and E. Elhamifar. Progress-aware online action seg-           derstanding. In Computer Vision – ECCV 2024, pages 396–
+      mentation for egocentric procedural task videos. IEEE Con-           416, Cham, 2025. Springer Nature Switzerland. 7, 8
+      ference on Computer Vision and Pattern Recognition, 2024.      [66] Zihui Xue, Kumar Ashutosh, and Kristen Grauman. Learn-
+      1                                                                    ing object state changes in videos: An open-world perspec-
+                                                                           tive. In Proceedings of the IEEE/CVF Conference on Com-
+[53] Y. Shen and E. Elhamifar. Understanding multi-task activi-            puter Vision and Pattern Recognition, pages 18493–18503,
+      ties from single-task videos. IEEE Conference on Computer            2024. 2, 3, 4, 6, 8
+      Vision and Pattern Recognition, 2025. 1                        [67] W. Yang, T. Zhang, X. Yu, T. Qi, Y. Zhang, and F. Wu. Un-
+                                                                           certainty guided collaborative training for weakly supervised
+[54] Y. Shen, H. Wang, X. Yang, M. Feiszli, E. Elhamifar, L. Tor-          temporal action detection. IEEE Conference on Computer
+      resani, and E. Mavroudi. Learning to segment referred ob-            Vision and Pattern Recognition, 2021. 1
+      jects from narrated egocentric videos. IEEE Conference on      [68] Fangqiu Yi, Hongyu Wen, and Tingting Jiang. Asformer:
+      Computer Vision and Pattern Recognition, 2024. 1                     Transformer for action segmentation. In The British Machine
+                                                                           Vision Conference (BMVC), 2021. 1
+[55] Toma´sˇ Soucˇek, Jean-Baptiste Alayrac, Antoine Miech, Ivan     [69] Chuhan Zhang, Ankush Gupta, and Andrew Zisserman.
+      Laptev, and Josef Sivic. Look for the change: Learning ob-           Helping hands: An object-aware ego-centric video recogni-
+      ject states and state-modifying actions from untrimmed web           tion model. In Proceedings of the IEEE/CVF International
+      videos. In Proceedings of the IEEE Conference on Computer            Conference on Computer Vision, pages 13901–13912, 2023.
+      Vision and Pattern Recognition (CVPR), 2022. 2, 3, 4, 6              2
+                                                                     [70] Ce Zhang, Changcheng Fu, Shijie Wang, Nakul Agarwal,
+[56] Toma´sˇ Soucˇek, Jean-Baptiste Alayrac, Antoine Miech, Ivan           Kwonjoon Lee, Chiho Choi, and Chen Sun. Object-centric
+      Laptev, and Josef Sivic. Multi-task learning of object states        video representation for long-term action anticipation. In
+      and state-modifying actions from web videos. IEEE Trans-             Proceedings of the IEEE/CVF Winter Conference on Appli-
+      actions on Pattern Analysis and Machine Intelligence, 2024.          cations of Computer Vision, pages 6751–6761, 2024. 2
+      2, 4                                                           [71] Ce Zhang, Changcheng Fu, Shijie Wang, Nakul Agarwal,
+                                                                           Kwonjoon Lee, Chiho Choi, and Chen Sun. Object-centric
+[57] Toma´sˇ Soucˇek, Dima Damen, Michael Wray, Ivan Laptev,               video representation for long-term action anticipation. In
+      and Josef Sivic. Genhowto: Learning to generate actions and          Proceedings of the IEEE/CVF Winter Conference on Appli-
+      state transformations from instructional videos. IEEE Con-           cations of Computer Vision, pages 6751–6761, 2024. 1
+      ference on Computer Vision and Pattern Recognition, 2024.      [72] Junbin Zhang, Pei-Hsuan Tsai, and Meng-Hsun Tsai. Se-
+      2                                                                    mantic2graph: Graph-based multi-modal feature fusion for
+                                                                           action segmentation in videos, 2022. 1, 2, 4
+[58] Yuhao Su and Ehsan Elhamifar. Two-stage active learning         [73] Yue Zhao, Ishan Misra, Philipp Kra¨henbu¨hl, and Rohit
+      for efficient temporal action segmentation. pages 161–183,           Girdhar. Learning video representations from large lan-
+      2024. 1                                                              guage models. In Proceedings of the IEEE/CVF Conference
+                                                                           on Computer Vision and Pattern Recognition, pages 6586–
+[59] Masatoshi Tateno, Takuma Yagi, Ryosuke Furuta, and Yoichi             6597, 2023. 2
+      Sato. Learning multiple object states from actions via large
+      language models. In IEEE/CVF Winter Conference on Ap-
+      plications of Computer Vision (WACV), 2025. 2, 3, 4, 6
+
+[60] Hugo Touvron, Louis Martin, Kevin Stone, Peter Albert,
+      Amjad Almahairi, Yasmine Babaei, Nikolay Bashlykov,
+      Soumya Batra, Prajjwal Bhargava, Shruti Bhosale, et al.
+      Llama 2: Open foundation and fine-tuned chat models. arXiv
+      preprint arXiv:2307.09288, 2023. 2
+
+[61] Naoki Wake, Atsushi Kanehira, Kazuhiro Sasabuchi, Jun
+      Takamatsu, and Katsushi Ikeuchi. Gpt-4v (ision) for
+
+11610
+[74] Xingyi Zhou, Anurag Arnab, Chen Sun, and Cordelia
+      Schmid. How can objects help action recognition? In Pro-
+      ceedings of the IEEE/CVF Conference on Computer Vision
+      and Pattern Recognition, pages 2353–2362, 2023. 2
+
+[75] Yuxuan Zhou, Xudong Yan, Zhi-Qi Cheng, Yan Yan, Qi Dai,
+      and Xian-Sheng Hua. Blockgcn: Redefine topology aware-
+      ness for skeleton-based action recognition. In Proceedings of
+      the IEEE/CVF Conference on Computer Vision and Pattern
+      Recognition, pages 2049–2058, 2024. 1
+
+[76] Xizhou Zhu, Weijie Su, Lewei Lu, Bin Li, Xiaogang
+      Wang, and Jifeng Dai. Deformable detr: Deformable trans-
+      formers for end-to-end object detection. arXiv preprint
+      arXiv:2010.04159, 2020. 1
+
+                                                                               11611
+

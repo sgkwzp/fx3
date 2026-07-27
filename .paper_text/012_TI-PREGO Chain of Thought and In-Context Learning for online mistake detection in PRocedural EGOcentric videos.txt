@@ -1,0 +1,1024 @@
+           Computer Vision and Image Understanding 264 (2026) 104613
+                      Contents lists available at ScienceDirect
+
+Computer Vision and Image Understanding
+
+              journal homepage: www.elsevier.com/locate/cviu
+
+TI-PREGO: Chain of Thought and In-Context Learning for online mistake
+
+detection in PRocedural EGOcentric videos
+
+Leonardo Plini a,d,1, Luca Scofano a,∗,1, Edoardo De Matteis a,1,
+Guido Maria D’Amely di Melendugno a, Alessandro Flaborea a,b, Andrea Sanchietti a,
+Giovanni Maria Farinella c,2, Fabio Galasso a,2, Antonino Furnari c,2
+
+a Sapienza University of Rome, Italy
+b ItalAI 3, Italy
+c University of Catania, Italy
+d National Institute of Nuclear Physics - LNF, Italy
+
+ARTICLE INFO                                     A B S T R A C T
+
+Communicated by Shiliang Zhang                   Identifying procedural errors online from egocentric videos is a critical yet challenging task across various
+                                                 domains, including manufacturing, healthcare and skill-based training. The nature of such mistakes is
+Dataset link: https://sites.google.com/view/epi  inherently open-set, as unforeseen or novel errors may occur, necessitating robust detection systems that do
+c-tent, https://assembly-101.github.io/          not rely on prior examples of failure. Currently, no existing technique can reliably detect open-set procedural
+                                                 mistakes in an online setting. We propose a dual-branch architecture to address this problem in an online
+Keywords:                                        fashion: the recognition branch takes input frames from egocentric video, predicts the current action and
+Egocentric vision                                aggregates frame-level results into action tokens while the anticipation branch leverages the solid pattern-
+Procedural mistake detection                     matching capabilities of Large Language Models (LLMs) to predict action tokens based on previously predicted
+Video understanding                              ones. Mistakes are detected as mismatches between the currently recognized action and the action predicted
+Large language models                            by the anticipation module.
+Chain of Thought
+In-context learning                                   Extensive experiments on two novel procedural datasets demonstrate the challenges and opportunities of
+                                                 leveraging a dual-branch architecture for mistake detection, showcasing the effectiveness of our proposed
+                                                 approach.
+
+1. Introduction                                                             turning it on) and provide real-time feedback. This immediate feedback
+                                                                            allows for timely corrections, fostering faster skill development, skill
+    Detecting procedural errors in videos has recently gained significant   acquisition and safer learning environments in high-stakes areas like
+attention as it holds the potential to enhance safety and efficiency in     surgery and industrial workflow.
+several fields. Humans engage in procedural activities everyday in dif-
+ferent contexts, such us daily activities (e.g., cooking a meal), hobbies       Advanced mistake detection models will become essential to en-
+(e.g., fixing a bike), and professional settings (e.g., operating complex   sure precision, safety, and efficiency in procedural applications. This
+machineries). Monitoring procedural activities is crucial to guarantee      demand has recently resulted in an increasing number of datasets (Jang
+the desired results and operate safely, especially in high stakes contexts  et al., 2019; Sener et al., 2022; Wang et al., 2023; Ghoddoosian et al.,
+such as industrial workflows. Wearable devices, looking at the scene        2023; Ding et al., 2023; Tang et al., 2019; Ben-Shabat et al., 2021;
+from the user’s point of view, and endowed with the capability of           Schoonbeek et al., 2024; Zhukov et al., 2019; Elhamifar and Naing,
+providing feedback through augmented reality, can be used to assess         2019; Miech et al., 2019; Ragusa et al., 2024) and methodologies
+procedural mistakes (e.g., forgetting to add water to the kettle before     designed to advance procedure learning (Lu and Elhamifar, 2022;
+                                                                            Ghoddoosian et al., 2023; Wang et al., 2021a; Zhong et al., 2023; Jang
+
+  ∗ Corresponding author.
+      E-mail addresses: leonardo.plini@uniroma1.it (L. Plini), scofano@diag.uniroma1.it (L. Scofano), dematteis@di.uniroma1.it (E. De Matteis),
+
+damely@di.uniroma1.it (G.M.D. di Melendugno), flaborea@di.uniroma1.it (A. Flaborea), sanchietti.1883210@studenti.uniroma1.it (A. Sanchietti),
+giovanni.farinella@unict.it (G.M. Farinella), galasso@di.uniroma1.it (F. Galasso), antonino.furnari@unict.it (A. Furnari).
+
+   1 These authors contributed equally to this work.
+   2 Co-senior role.
+   3 italailabs.com.
+
+https://doi.org/10.1016/j.cviu.2025.104613
+Received 4 July 2025; Received in revised form 31 October 2025; Accepted 12 December 2025
+Available online 29 December 2025
+1077-3142/© 2025 Published by Elsevier Inc.
+L. Plini, L. Scofano, E. De Matteis et al.                                     Computer Vision and Image Understanding 264 (2026) 104613
+
+Fig. 1. Procedural Mistake Detection involves identifying errors within a procedural video. Each procedure is composed of different steps that should be executed
+with a certain order. The aim is to develop a method capable of analyzing a video and determining whether each frame contains a mistake, e.g., a step that is
+not executed in the correct order. Addressing this task is particularly useful when applied to wearable devices, as they allow for direct feedback to the person
+performing the task. In the Figure, TI-PREGO, depicted by a gear icon, takes as input the video sequence from time 0 to 𝑡 − 1, classifying the current frame 𝑡 as
+either correct (green) or a mistake (red). This process continues frame by frame until a mistake is detected. (For interpretation of the references to color in this
+figure legend, the reader is referred to the web version of this article.)
+
+et al., 2019; Tang et al., 2019; Seminara et al., 2024) and error detec-       as they are allowed to leverage only past and present information for
+tion models (Wang et al., 2023; Ding et al., 2023; Schoonbeek et al.,          producing their decisions. In contrast, previous methods (Ghoddoosian
+2024). However, existing mistake detection approaches vary widely.             et al., 2023; Ding et al., 2023; Wang et al., 2023; Lee et al., 2024) adopt
+Some methods emphasize action detection, identifying specific errors           an offline framework, where the analysis is performed using complete
+like missing steps, out-of-sequence actions (Narasimhan et al., 2023) or       pre-recorded procedures. This allows to employ bidirectional models
+incorrect ordering (Seminara et al., 2024), while other models bypass          that leverage both past and future context, achieving high accuracy in
+action detection altogether and monitor changes to the assembled               retrospective error identification for post-hoc analysis like performance
+object to ensure procedural accuracy (Chen et al., 2020; Candido de            grading, but making them unsuitable for live intervention. Thus, we
+Oliveira et al., 2023). This variability in proposed approaches and            argue that the processing approach must shift toward proactive error
+their intended objectives highlights the need for more comprehensive           anticipation, where the model predicts the next correct step of the
+evaluation frameworks and standardized benchmarks to assess and                sequence to timely flag deviations. Besides these two pivotal abilities,
+compare the effectiveness of different mistake detection strategies and        the PMD system should leverage an egocentric perspective in proce-
+for more olistic models, able to detect any deviation from the correct         dural videos, enhancing the model’s applicability by mirroring natural
+workflow.                                                                      human perception, and allowing for seamless real-world deployment
+                                                                               on wearable devices.
+    An ideal Procedural Mistake Detection (PMD) model should demon-
+strate two critical capabilities: robustness to diverse mistake types and          To conform to these requirements, we propose a dual-branch ap-
+the ability to provide online, timely feedback. Regarding robustness,          proach for detecting mistakes in procedural videos sequentially com-
+a reliable PMD system should be capable of identifying any mistake             bining step recognition and anticipation and identifying mistakes as
+that may occur within a structured procedure, regardless of its type.          mismatches in predicted and observed actions. The first branch, the
+To uphold this principle, in this paper we propose framing mistake             step recognition module, processes the input video online and classi-
+detection as a One-Class Classification (OCC) problem, where the model         fies the current action being performed. The second branch, the step
+is trained to learn the correct sequences of steps within a procedure          anticipation module, predicts the next step to perform based on the
+and is then able to recognize any deviation from the correct workflow.         steps recognized by the step recognition module. We implement the an-
+Within the OCC framework, during training, the PMD model is only               ticipator branch as a Large Language Model (LLM), leveraging several
+exposed to ‘‘normal’’ procedures (Flaborea et al., 2023; Zaheer et al.,        prompting schemes to interrogate it and retrieve the next action to be
+2022) to learn the correct workflows, i.e. the sequences of performed          performed. The model will then flag a step as mistaken when there is
+steps that allow to correctly complete the task. Conversely, during            a divergence between recognized and anticipated actions, highlighting
+inference, the learned model should detect any deviation from the              inconsistencies between the action executed by the operator and the
+learnt workflow, deeming that step as an error. Further, it is worth           expected steps.
+noting that the OCC framework requires only binary labels (Correct vs.
+Mistake), which are easier to collect with respect to fine-grained labels,         Our contributions include (1) a novel benchmark for online mistake
+such as the error type, when labeling videos of procedural datasets.           detection, encompassing two dataset (Assembly101-O and Epic Tent-
+Second, the model should provide online4 feedback quickly enough to            O), (2) exploring and benchmarking multiple LLMs for the task of step
+allow users to correct mistakes promptly, minimizing the reinforcement         anticipation aiming to select the most robust candidate for our anticipa-
+of incorrect actions and reducing the risk of hazardous situations. It is      tor module, (3) experimenting with various prompting techniques, in-
+worth noting that the requirement for immediate feedback defines the           cluding Automatic Chain of Thought (Auto-CoT), which enhances over-
+online setting and imposes a strict causal constraint on the PMD models        all performance, reporting state-of-the-art results on Assemblty101-O
+                                                                               and Epic Tent-O, (4) investigating different prediction aggregation
+   4 We distinguish an online setup, which allows slight processing delays     techniques to improve mistake detection robustness and continuity.
+while enabling effective feedback, from a real-time setup, which requires      Extensive experimentation demonstrates the challenges and opportu-
+immediate responses.                                                           nities in dual-branch architectures and LLM-based step anticipation for
+                                                                               open-set mistake detection.
+
+                                                                            2
+L. Plini, L. Scofano, E. De Matteis et al.                                     Computer Vision and Image Understanding 264 (2026) 104613
+
+    This paper extends our previous conference work, PREGO (Flaborea           contrastive learning to detect previously unseen errors. Our prior work,
+et al., 2024), by refining key components and methods to improve               PREGO (Flaborea et al., 2024), uses RGB frames alongside symbolic
+procedural mistake detection (see Fig. 1). Unlike our original study,          reasoning to assess procedural correctness online, operating under an
+which primarily reported classical Precision and Recall metrics, in this       OCC framework and trained solely on error-free sequences (Flaborea
+work, we adopt Balanced Precision (Wang et al., 2021b) to mitigate             et al., 2023; Zaheer et al., 2022). Finally, Seminara et al. (2024) adopt
+the extreme class imbalance inherent in egocentric mistake detection.          a distinct approach, learning task graphs via Maximum Likelihood
+Balanced Precision scales the False Positives by the ratio of positive-to-     estimation of key-step sequences.
+negative samples, ensuring that the penalty for mislabeling a correct
+step is placed on the same scale as the reward for correctly iden-                 In contrast to prior approaches that rely on offline processing, pre-
+tifying a mistake. Specifically, we lead a comprehensive evaluation            segmented videos, or textual-only cues, our method uniquely fuses
+of several LLMs as step anticipators, increasing the state-of-the-art          real-time visual analysis with symbolic reasoning within an OCC frame-
+results on Assembly101-O and Epic Tent-O (Flaborea et al., 2024). We           work. By learning solely from error-free sequences, our approach can
+compare a broad range of LLMs such as Llama-2 (Touvron et al., 2023),          detect known and unforeseen mistakes without being constrained to
+Llama-3 (Dubey et al., 2024), Gemma (Mesnard et al., 2024), and                predefined error types. As indicated in Table 1, we are the first to pro-
+Mistral (Jiang et al., 2023), fine-tune them using Low-Rank Adaptation         pose a fully online OCC protocol, allowing detection to be performed
+(LoRA), and experiment with prompting methods including Zero-Shot,             frame-by-frame without requiring prior action segmentation. This de-
+Few-Shot, and Auto-CoT (Zhang et al., 2022).                                   sign enables a more robust, context-aware, and prompt detection of
+                                                                               errors, addressing the key limitations observed in existing literature.
+    Further, we revisit the recognizer branch’s frame-by-frame predic-
+tion mechanism, aiming to mitigate inconsistencies and reduce noise            2.2. Datasets of procedural egocentric videos
+in its predictions. To deal with this, we extend beyond fixed-length
+window aggregation to explore alternative strategies that reduce noise             Previous investigations proposed datasets and benchmarks to sup-
+and improve prediction accuracy.                                               port research in procedural mistake detection. IndustReal (Schoonbeek
+                                                                               et al., 2024) focuses on a single toy, resulting in the learning of
+2. Related works                                                               only one procedure without annotations for procedural mistakes. As-
+                                                                               sembly101 (Sener et al., 2022) is a large-scale video dataset that
+    This section reviews the foundations of current approaches related         provides frame-level mistake annotations. It features videos of actors
+to online detection of procedural mistakes,. We first survey existing          assembling toys, with synchronized Ego-Exo views and annotated hand
+models and compare them across key design dimensions (Section 2.1).            positions. IndustReal (Schoonbeek et al., 2024) focuses on a single toy,
+We then analyze the most relevant procedural video datasets (Sec-              resulting in the learning of only one procedure without annotations
+tion 2.2), examine step recognition (Section 2.3) and anticipation (Sec-       for procedural mistakes. Epic-tent (Jang et al., 2019) is a dataset that
+tion 2.4) methods. Finally, we discuss how recent advances in large            covers a different domain of unscripted actions that capture actors
+language models enable symbolic reasoning (Section 2.5). Together,             assembling a tent outdoors. The participants exhibit varying levels of
+these components define the landscape for building effective online,           expertise and naturally make mistakes, which have been annotated.
+open-set mistake detectors.                                                    ATA (Ghoddoosian et al., 2023) is a procedural dataset created for
+                                                                               offline mistake detection in assembling activities. However, it provides
+2.1. Procedural mistake detection                                              only video-level mistake annotations, limiting its usefulness for frame-
+                                                                               based applications. HoloAssist (Wang et al., 2023) provides egocentric
+    Procedural learning has seen notable progress due to the develop-          videos of individuals performing multiple manipulation tasks following
+ment of diverse datasets (Tang et al., 2019; Elhamifar and Naing, 2019;        expert instructions. CaptainCook4D (Peddi et al., 2023) is tailored for
+Zhukov et al., 2019; Miech et al., 2019; Ragusa et al., 2024), which           evaluating procedural activities, specifically focusing on the culinary
+offer valuable insights into both structured (Ben-Shabat et al., 2021;         domain. Notably, (Lee et al., 2024) introduced a novel egocentric
+Wang et al., 2023; Ragusa et al., 2021) and unstructured tasks (Jang           procedural error dataset consisting of videos depicting various errors
+et al., 2019; Damen et al., 2018). These datasets span a wide range            within the cooking domain.
+of applications—from industrial assembly (Ragusa et al., 2021; Sener
+et al., 2022; Schoonbeek et al., 2024; Ragusa et al., 2024) to everyday            In this study, we propose a new benchmark building upon the
+cooking activities (Damen et al., 2018; Kuehne et al., 2014; Stein and         datasets from (Sener et al., 2022; Jang et al., 2019) as they provide
+McKenna, 2013)—yet the lack of a standardized benchmark for mistake            insights into procedural errors in two distinct settings: a controlled
+detection has led to limited evaluation and a fragmented literature.           industrial environment and outdoor environments.
+
+    In Table 1, we compare relevant models for procedural mistake de-          2.3. Step recognition
+tection across multiple dimensions: whether they operate in an open-set
+or one-class condition, whether they support online or offline detection,          Step recognition is the process of identifying discrete actions within
+the data modalities they leverage (e.g., RGB frames, hand poses, eye           a structured procedural sequence.
+gaze, keystep logic), the task they address, and the datasets used.
+Notably, models marked with an asterisk (*) follow our protocol in-                Lu and Elhamifar (2022) introduce an action segmentation model
+troduced in Flaborea et al. (2024), standardizing an online, open-set          that employs an attention-based architecture coupled with a Pairwise
+detection scenario for consistent evaluation.                                  Ordering Consistency (POC) loss function. Moreover, they develop a
+                                                                               weakly-supervised method that requires only the set of actions in a
+    Existing methods illustrate a variety of approaches. For instance,         procedure as input, eliminating the need for labor-intensive frame-
+Ding et al. (2023) employ knowledge graphs with textual transcripts,           level annotations. In Shah et al. (2023), a novel loss for self-supervised
+neglecting visual cues. Ghoddoosian et al. (2023) focus on action              learning is combined with a clustering algorithm to detect key steps
+recognition, treating error detection as a semantic evaluation of seg-         in procedural videos without using any labels. Zhong et al. (2023)
+mentation results. Other works, such as Assembly101 (Sener et al.,             tackles the task by utilizing online instructional videos to learn actions
+2022) and HoloAssist (Wang et al., 2023), apply error detection base-          and sequences without manual annotations, combining step recognition
+lines offline, relying on pre-segmented videos and annotated labels. By        with a deep probabilistic model to account for step order and timing
+contrast, Schoonbeek et al. (2024) emphasizes Procedure Step Recogni-          variability.
+tion, focusing on correct step completion rather than partial activities,
+while EgoPER (Lee et al., 2024) integrates action segmentation with                An et al. (2023) introduced MiniROAD, the state-of-the-art online
+                                                                               step recognizer, which leverages an RNN architecture and adjusts loss
+
+                                                                            3
+L. Plini, L. Scofano, E. De Matteis et al.                                                Computer Vision and Image Understanding 264 (2026) 104613
+
+Table 1
+Comparison of relevant models in procedural mistake detection. In the modalities column, RGB refers to RGB images, H stands for hand poses, E represents eye
+gaze and K indicates keystep labels. Our approach is the first to adopt an egocentric, one-class and online method for detecting procedural mistakes. (*) denotes
+that these models are based on our protocol defined in Flaborea et al. (2024).
+
+Model                 Egocentric (Ego)      One-Class (OCC)  Online           Modalities  Task                        Datasets
+
+Ding et al. (2023) -                                                          K           Mistake Detection           Assembly101 (Sener
+
+ArXiv ’23                                                                                                             et al., 2022)
+
+Wang et al. (2023) -  ✓                                                       RGB+H +E    Mistake Detection           HoloAssist (Wang
+
+ICCV ’23                                                                                                              et al., 2023)
+
+Ghoddoosian et al.                                                            RGB         Unknown Sequence Detection  ATA (Ghoddoosian
+
+(2023) - ICCV ’23                                                                                                     et al., 2023), CSV
+
+                                                                                                                      (Qian et al., 2022)
+
+Schoonbeek et al.     ✓                                      ✓                Multi       Procedure Step Recognition  IndustReal
+
+(2024) - WACV ’24                                                                                                     (Schoonbeek et al.,
+
+                                                                                                                      2024)
+
+Lee et al. (2024) -   ✓                     ✓                                 RGB         Mistake Detection           EgoPER (Lee et al.,
+
+CVPR ’24                                                                                                              2024), HoloAssist
+
+                                                                                                                      (Wang et al., 2023),
+
+                                                                                                                      ATA (Ghoddoosian
+
+                                                                                                                      et al., 2023)
+
+Seminara et al.       ✓                     ✓                ✓                RGB         Mistake Detection           Assembly101-O,
+
+(2024) - NeurIPS’24                                                                                                   Epic-tent-O
+
+*
+
+PREGO - CVPR ’24      ✓                     ✓                ✓                RGB         Mistake Detection           Assembly101-O,
+
+* (Flaborea et al.,                                                                                                   Epic-tent-O
+
+2024)
+
+TI-PREGO *            ✓                     ✓                ✓                RGB         Mistake Detection           Assembly101-O,
+
+                                                                                                                      Epic-tent-O
+
+importance during training to perform online action recognition. The          2.5. Reasoning tasks with large language models
+approach proposed in Shen and Elhamifar (2024) also highlights the
+importance of holistically understanding actions rather than treating             Large Language Models (LLMs), trained on vast datasets and
+each frame in isolation. In contrast to previous methods that rely on         equipped with numerous parameters, exhibit advanced capabilities
+frame-by-frame detection—such as MiniROAD (An et al., 2023), which            beyond those of earlier language models (Wei et al., 2022a). They
+focuses on step recognition—our approach addresses the limitations            have demonstrated exceptional performance in both natural language
+of isolated frame-level analysis. While prior work has established a          processing tasks (Touvron et al., 2023) and non-language tasks (Brooks
+strong foundation in procedural step recognition, it often falls short        et al., 2023; Wei et al., 2022a; Gupta and Kembhavi, 2023). The
+in capturing the broader temporal context that is critical in real-world      next-token prediction mechanism of LLMs closely parallels our action
+scenarios. To overcome this, we propose and evaluate several aggrega-         anticipation framework, as both aim to predict future outcomes based
+tion techniques that enhance the coherence of action recognition across       on accumulated data.
+sequences, thereby enabling more robust and context-aware mistake
+detection.                                                                        Previous research has shown that LLMs can generate semantically
+                                                                              meaningful patterns (Mirchandani et al., 2023; Zhao et al., 2023),
+2.4. Step anticipation                                                        while other work (Wei et al., 2023) has explored their in-context
+                                                                              learning abilities with semantically unrelated labels, where there is
+    Step anticipation is the process of predicting the next action in a       no direct relationship between a token and its meaning. More recent
+procedural sequence before it occurs.                                         work (Pallagani et al., 2022; Gupta and Kembhavi, 2023; Liang et al.,
+                                                                              2022; Feng et al., 2023; Mirchandani et al., 2023; Kim et al., 2024; Ahn
+    Abdelsalam et al. (2023) generates multiple possible natural lan-         et al., 2022) has further investigated the ability of LLMs to function as
+guage outcomes, leveraging pretraining on a text corpus to deal with          In-Context Learners (ICLs), meaning they can solve novel and unseen
+the variability in future actions. Mascaró et al. (2023) employs a            tasks relying only on a structured and informative prompt, without
+two-level hierarchical approach, integrating both high-level human in-        requiring additional fine-tuning. When provided with a query prompt
+tentions and low-level action sequences, improving action anticipation        that includes a context of input–output examples, LLMs can understand
+in the long term. The pipeline consists of two models: the first one          the problem and generate appropriate solutions within this framework.
+extracts intentions and classifies actions while the second one gener-        LLMs as ICLs have been applied to a wide range of tasks, including
+ates future actions, conditioning human intentions to narrow down             planning (Pallagani et al., 2022; Ahn et al., 2022), programming (Gupta
+the uncertainty set of future actions. The framework presented in Qi          and Kembhavi, 2023; Liang et al., 2022), logical problem-solving (Feng
+et al. (2023) addresses future activity anticipation in egocentric videos     et al., 2023) and symbolic reasoning (Mirchandani et al., 2023). In
+by employing a contrastive loss to emphasize novel information and            addition to ICL, other paradigms, such as Chain-of-Thought (CoT) (Wei
+a dynamic reweighting mechanism that prioritizes informative past             et al., 2022b) and Automatic Chain-of-Thought (ACoT) (Zhang et al.,
+content. This approach improves video representation, leading to more         2022), have been employed to enable LLMs to reason through their
+accurate predictions of future activities.                                    responses step-by-step, improving their ability to plan and articulate
+                                                                              their thought process explicitly.
+    Similar to AntGPT (Zhao et al., 2023), we leverage video frames to
+anticipate future actions using an LLM enhanced with Automatic Chain              Palm (Kim et al., 2024) is the most similar to our anticipation mod-
+of Thought. However, while previous approaches, such as AntGPT, re-           ule, as it employs a Socratic method (Zeng et al., 2022) that uses video
+quire predefined segmentation of a long video into ordered, annotated         features to predict subsequent actions with an LLM. Socratic Models
+short segments with corresponding action labels, our online setting           are a framework that utilizes structured dialogue between pre-existing
+processes each frame independently without prior segmentation.                foundation models, each leveraging its unique capabilities based on its
+                                                                              training data distribution. However, while PALM (Chowdhery et al.,
+                                                                              2023) integrates an Action Recognition Model and a Vision-Language
+
+                                                                           4
+L. Plini, L. Scofano, E. De Matteis et al.                                                                Computer Vision and Image Understanding 264 (2026) 104613
+
+Fig. 2. Our proposed model is based on two main components. The recognition module (orange) processes the input video in an online fashion and predicts actions
+observed at each timestep represented as a square. This prediction is combined with previous ones to minimize the noise generated by per-frame predictions. The
+last element of the aggregated output corresponds to the current step predicted by the recognition module, while the sequence without duplicates is provided to
+the anticipation module. The anticipation module (blue) reasons symbolically via a Large Language Model, utilizing automatic Chain of Thought (ACoT) reasoning
+to predict the future action based on past action history and a brief context such as instances of other step sequences. Mistakes are identified when the current
+action detected by the step recognition method differs from the one forecasted by the step anticipation module. (For interpretation of the references to color in
+this figure legend, the reader is referred to the web version of this article.)
+
+Model to generate text prompts for long-term action anticipation, we               3.2. Step recognition
+diverge by using a dual-branch architecture: one branch tasked to
+recognize the current action and the other leveraging an LLM for                       The step recognition module, denoted 𝜌, takes a window 𝑊 =
+action anticipation focusing on next step prediction. This schema offer
+a natural pipeline for error detection by comparing the predictions                {𝑓𝜏−𝑤, … , 𝑓𝜏 } with a fixed length 𝑤 of frames from 𝑣 to the current
+generated by the two branches                                                      frame 𝜏 as input and is tasked with recognizing the last step performed
+                                                                                   𝑠𝜏𝜌. We leverage MiniROAD (An et al., 2023) as 𝜌, which currently
+    In our mistake detection pipeline, we integrate In-Context Learning            represents the state-of-the-art and is also computationally efficient in
+and Automatic Chain of Thought, utilizing an LLM as part of our action
+anticipation branch. ACoT enables the model to automatically generate              terms of GFlops and parameter count.
+intermediate reasoning steps, breaking the problem-solving process into
+smaller, logical steps. The approach helps the LLM to externalize its                  In this setup, the model predicts step 𝑠𝜏 by analyzing the frames
+reasoning, enhancing its effectiveness in managing complex, sequential             𝑓𝜏−𝑤, … , 𝑓𝜏 .
+tasks.
+                                                                                   𝜌(𝑓𝜏−𝑤∶𝜏 ) = 𝑠𝜌𝜏       (1)
+3. Methodology
+                                                                                       During training, the loss for 𝜌 is calculated using a cross-entropy
+    The proposed system leverages a dual-branch framework that inte-               loss, comparing the actual step 𝑠𝜏 with the predicted one 𝑠𝜏𝜌 as detailed
+grates the recognition of procedural steps with anticipation modeling,
+as shown in Fig. 2. In the following sections, we elaborate on the                 in An et al. (2023).
+problem formalization (Section 3.1), present the branches for Step
+Recognition (Section 3.2) and Step Anticipation (Section 3.3) and                  Step aggregation Despite being a state-of-the-art model, MiniROAD (An
+finally illustrate the Mistake Detection procedure (Section 3.4).                  et al., 2023) performs suboptimally on procedural datasets, primarily
+                                                                                   due to two key factors: the shift in action distribution between the
+3.1. Preliminaries                                                                 training and testing phases, and the inherent class imbalance within the
+                                                                                   dataset. The distribution shift occurs because the actions seen during
+    Let us consider a finite collection of 𝑁 procedures {𝑝𝑖}𝑁𝑖=1, where            training often differ from those encountered during testing, leading to
+each procedure encodes a sequence of steps as 𝑝𝑖 = {𝑠𝑘}𝑘=1 𝐾𝑖 that                 poorer generalization. Additionally, Assembly101 contains a significant
+represents the transcript of 𝑝𝑖. Here, 𝐾𝑖 varies depending on the specific         imbalance in class frequencies (see Fig. 3 for Assembly101-O’s split),
+procedure, and each step 𝑠𝑘 belongs to the set of all possible steps              where common actions dominate the dataset while less frequent yet
+in the dataset. Furthermore, each procedure is represented by a set of             crucial procedural actions are underrepresented.
+videos {𝑣𝑖}𝑁𝑖=1, which consist of frames 𝑣𝑖 = {𝑓𝜏 }𝜏=1 𝑀𝑖 , with 𝑀𝑖 indicating
+the total number of frames in video 𝑖. Given a specific frame 𝑓𝜏 from                  While MiniROAD (An et al., 2023) produces per-frame predic-
+video 𝑣𝑖, we: (1) classify the step 𝑠𝜏 corresponding to the frame 𝑓𝜏               tions, the anticipator expects a sequence of distinct actions as input. A
+(i.e., step recognition) and (2) predict the step 𝑠𝜏 that occurring at time        standard approach for transforming per-frame predictions into action
+𝜏, relying solely on the previously recognized steps up to time 𝜏 − 1              sequences involves aggregating identical neighboring predictions into
+(i.e., step anticipation).                                                         a single action segment. However, MiniROAD’s performance issues
+                                                                                   introduce significant noise into the input sequence for the anticipator
+    Step recognition is handled by a module 𝜌, which takes the encoded             module, mainly due to inconsistencies in per-frame predictions, such
+frames of 𝑣𝑖 up to the 𝜏-th frame as input and outputs the recognized              as oscillating between similar actions, which leads to unstable action
+step 𝑠𝜏𝜌 (Section 3.2). Subsequently, all recognized steps 𝑠1𝜌, … , 𝑠𝜏−1 𝜌 ,       predictions and degrades results in subsequent stages.
+once aggregated, are fed into the module 𝜉, which handles the antici-
+pation task by predicting the next step in the procedure, referred to as               To address this, we propose three frame aggregation strategies
+𝑠𝜏𝜉 (Section 3.3).                                                                 that efficiently converts per-frame predictions into coherent action
+                                                                                   sequences, aiming to reduce noise and stabilize predictions. This results
+    Finally, we compare 𝑠𝜏𝜌 with 𝑠𝜏𝜉 and deem the step as mistaken if              in a cleaner input for the anticipator module, dubbed 𝐴𝐺 in Fig. 2.
+there is a misalignment between the outputs from the two branches
+(Section 3.4). For clarity, the rest of this section will focus on a single        Non-overlapping mode aggregation (NOMA) The first aggregation strat-
+procedure 𝑝 associated with a video 𝑣.                                             egy we propose (Fig. 4) consists of a two-step process. In the first step,
+                                                                                   we calculate the mode for each non-overlapping sliding window of
+                                                                                   frames of a given length 𝐿. Since the windows are non-overlapping,
+                                                                                   this approach introduces a slight delay in processing, which is a trade-
+                                                                                   off for improved prediction stability. The mode, representing the most
+
+                                                                                5
+L. Plini, L. Scofano, E. De Matteis et al.                                    Computer Vision and Image Understanding 264 (2026) 104613
+
+                                            Fig. 3. Distribution of the 20 most frequent classes in Assembly101-O.
+
+Fig. 4. The three aggregation strategies operate differently: NOMA employs a non-overlapping window and replaces the entire window content with its mode. In
+contrast, both OMA and OCMA use overlapping windows with a sliding step of 1. However, OMA replaces the last frame of the window with its mode, whereas
+OCMA replaces the central frame.
+
+frequent action label within that window, replaces all predictions in         3.3. Step anticipation
+that window, ensuring consistency across the frames and removing
+the noise of smaller portions wrongly predicted. In the second step,              We employ an LLM as our 𝜉 module for next-step prediction, using
+we apply the elimination of successive duplicates to remove consec-           as input transcripts from procedural video. Our step anticipation oper-
+utive repeated action labels, which prevents redundant predictions.           ates without domain specific training or fine-tuning, leveraging only the
+This cleaned output serves as the input to the anticipation module,           reasoning from Automatic Chain of Thought (ACoT) (Zhang et al., 2022)
+ultimately aiming to produce a more stable and accurate sequence of           (see Fig. 2) and few-shot prompting method. These prompts consist
+action predictions.                                                           of three components: the system prompt, the ACoT prompt, which
+                                                                              enables reasoning, and the contextual transcripts 𝐶 together with the
+Overlapping mode aggregation (OMA) The second aggregation strategy            current aggregated sequence 𝐴𝐺. 𝐶 is derived from similar transcripts
+we propose (Fig. 4) employs a sliding window approach with a stride           (i.e., different videos for the object we are considering) to provide the
+of 1 frame, allowing for overlapping portions of frames. In this method,      LLM with information about typical step sequences and their order
+we evaluate the mode within the overlapping window that includes              (see following examples). Sequence 𝑆𝜏𝜌, includes the current sequence
+the last frame and the previous 𝐿 − 1 frames. The prediction of the           of actions up to the current frame 𝑓𝜏−1, as they have been detected
+last frame is then substituted with this mode, which captures the most        by our module 𝜌, i.e., 𝑆𝜏𝜌 = [𝑠1𝜌, … , 𝑠𝜏−1 𝜌 ], where 𝑠𝑖𝜌 represents the action
+frequent action label in that localized area. This method is designed         detected by the module 𝜌 at frame 𝑖. 𝑆𝜏𝜌 then undergoes our aggregation
+with the intent to reduce delay, as it processes frames more dynamically      strategy, which results in 𝐴𝐺.
+compared to non-overlapping windows.
+                                                                                  The prompting occurs in two stages. First, we employ an ACoT
+Overlapping centered mode aggregation (OCMA) The third aggregation            mechanism of 𝜉 as a first step. This ACoT process uses context 𝐶, aggre-
+strategy (Fig. 4) uses a stride of 1 frame, similar to the previous           gation sequence 𝐴𝐺, and an additional prompt to explicitly stimulate
+approach. To address the potential issue of the mode being incorrectly        reasoning (See AcoT Prompt in the following scheme). Then, we use the
+positioned within the window, we opt for substituting the prediction          output of the intermediate step along with 𝐶 and 𝐴𝐺 to predict the next
+of the central frame rather than the final frame, with some corrections       most probable action. By breaking down the task into smaller logical
+for the initial and final frames in the video. This adjustment ensures        steps, the LLM can leverage the contextual transcript 𝐶 and the current
+that the most frequent action label is applied to a frame that is more        action sequence 𝐴𝐺 to generate intermediate reasoning steps, bridging
+representative of the overall context, thus enhancing the accuracy of         the gap between observed and future actions 𝑠𝜏𝜉 .
+the prediction.
+                                                                                  System Prompt:
+    NOMA uses nonoverlapping windows, while the other two employ                  Below is an instruction that describes the task, paired with an
+overlapping windows. These two overlapping methods differ based on                input. Write a response that appropriately completes the request.
+which frame is selected for imputing the aggregation result: the last
+frame (Overlapping Mode Aggregation, OMA) or the central frame                    ACoT Prompt:
+(Overlapping Central Mode Aggregation, OCMA) (See Fig. 4). All ap-
+proaches are designed to reduce noise and eliminate redundant con-
+secutive predictions, ensuring that the resulting sequence aligns closely
+with the actual procedure measured by the Levenshtein Similarity.
+
+    In Section 5.2, we assess, compare and discuss in details the impact
+of each aggregation strategy and find NOMA to be the most effective,
+which we therefore select for our proposal.
+
+                                                                           6
+L. Plini, L. Scofano, E. De Matteis et al.                                    Computer Vision and Image Understanding 264 (2026) 104613
+
+    Let us analyze each action in detail:                                     Assembly101 for online and open-set mistake detection ( proposed) We
+                                                                              introduce a novel split of the dataset (Sener et al., 2022) tailored explic-
+         1. For the action ‘‘attach the cabin’’, consider the immediate       itly for online, open-set mistake detection. Assembly101-O introduces
+             effect and long-term consequences.                               two main modifications to Sener et al. (2022) as we show in Fig. 5: a
+                                                                              new train/test split and revised procedure lengths.
+         2. Repeat this analysis for each action in the sequence.
+         3. Identify patterns and causal relationships between the                The new split assigns all correct procedures to the training set while
+                                                                              reserving videos with mistakes for testing. This adjustment enables
+             actions.                                                         models to learn sequences characteristic of correct procedures in a
+                                                                              one-class classification (OCC) framework, avoiding bias from specific
+    Now, let us proceed with the analysis step-by-step:                       mistake types during training.
+
+    Contextual Prompt:                                                            The second adjustment limits each procedure’s evaluation to the
+    Toy: ‘‘bulldozer’’                                                        point where a mistake caused by an incorrect step that distrupts the
+    Input Sequence:                                                           workflow: evaluating beyond the point of procedural compromise cre-
+    attach-cabin, attach-body, attach-track, attach-blade                     ates discrepancies between the training and test set procedures, hinder-
+    Next Symbol:                                                              ing effective step recognition and anticipation.
+    attach-figurine
+                                                                              4.1.2. Epic-tent-O
+    Current sequence:                                                             Epic-tent is a dataset of egocentric videos capturing the outdoor
+    attach-door
+                                                                              assembly of a camping tent. It was collected by 24 participants who
+3.4. Mistake detection                                                        wore two head-mounted cameras (a GoPro and a SMI eye tracker)
+                                                                              while performing the task, resulting in 5.4 h of recorded video. The
+    Finally, we analyze the output of the two modules to identify             dataset includes annotations for action labels, task errors, participant
+procedural errors. Specifically, we classify steps as correct when the        self-rated uncertainty and gaze positions, capturing the variability and
+outputs of both modules match, while we label cases as errors when            complexity of the task as participants interacted with non-rigid objects
+the outputs differ. That is:                                                  such as the tent, guylines, instructions and tent bag, and displayed
+{𝜌 𝜉                                                                          varying proficiency and confidence levels.
+
+   𝜌 𝜉 𝑠𝜏 ≠ 𝑠𝜏 MISTAKE (2)                                                    Epic-tent for online and open-set mistake detection ( proposed) We propose
+   𝑠𝜏 = 𝑠𝜏 CORRECT                                                            a novel split for the Epic-tent dataset (Jang et al., 2019) tailored for
+                                                                              open-set mistake detection. The dataset includes annotations for nine
+4. Experiments                                                                distinct mistake types, though only four of these categories —‘‘order’’,
+                                                                              ‘‘omit ’’, ‘‘correction’’ and ‘‘repeat ’’ — are considered procedural mis-
+    This section describes the benchmark datasets, adopted evaluation         takes, as they represent deviations that compromise the task’s proce-
+metrics and the main experimental results. We introduce Assembly101-          dural integrity. Other categories such as ‘‘slow’’, ‘‘search’’, ‘‘misuse’’,
+O and Epic-tent-O as adaptations of the original datasets (Sener et al.,      ‘‘motor’’ and ‘‘failure’’ are not procedural errors, as they do not disrupt
+2022; Jang et al., 2019), detailing the selected labeling criteria for        the task’s progression.
+online benchmarking, a novel configuration of training and test splits
+to accommodate open-set procedural mistakes. We define our proposed               Unlike Assembly101 (Sener et al., 2022), Epic-tent is designed
+online metrics in Section 4.2. Finally, we introduce the main experi-         explicitly for supervised error detection with each recorded procedure
+mental results in Section 4.3, whereas further insights that motivate our     containing at least one mistake, making it incompatible with the split
+design choices are provided through the ablation studies in Section 5.        procedure proposed for Assembly101-O. However, Epic-tent provides
+                                                                              confidence scores from each participant, reflecting their self-assessed
+4.1. Datasets                                                                 uncertainty during task execution. Therefore, we define a custom split
+                                                                              strategy where videos from higher-confidence participants form the
+    To align with real-world applications, this work focuses on Egocen-       training set. In contrast, participants showing more significant uncer-
+tric videos.                                                                  tainty, and thus potentially prone to more errors, make up the test set.
+                                                                              In practice, the videos that form the test set have a median confidence
+4.1.1. Assembly101-O                                                          score under 0.6, while the others form the train set. Only 22 videos
+    Assembly101 (Sener et al., 2022) is a large-scale video dataset           have the confidence score annotations, while the remaining 7 do not
+                                                                              and are assigned to the test set. This partition results in 14 training
+containing 362 videos of assembly and disassembly tasks involving             videos and 15 test videos.
+101 types of toy vehicles, recorded from eight multiple static and four
+egocentric cameras. It includes extensive annotations at various levels           This strategy is particularly promising for real-world applications
+of granularity, with over 100K coarse action segments and 1M fine-            where accurately labeling erroneous frames may be challenging or
+grained action segments and 18M 3D hand poses. The dataset supports           training a mistake detector can start soon after recording without
+diverse challenges, including action anticipation and segmentation,           requiring full annotation completion.
+mistake detection and 3D pose-based action recognition.
+                                                                                  Videos in the test set are trimmed to the frame containing the first
+                                                                              procedural mistake as in Assembly101-O, while videos representing
+                                                                              correct procedures remain unaltered.
+
+                                                                              4.2. Evaluation definition
+
+                                                                                  To assess the performance of our procedural mistake detection
+                                                                              model, we consider True Positives (TP) as the count of errors correctly
+                                                                              identified, and True Negatives (TN) as the count of correctly performed
+                                                                              steps that are not flagged as errors. Since, in ego-centric mistake
+                                                                              detection, the positive class (actual mistakes) is typically much smaller
+                                                                              than the negative class (correct steps), a straightforward application
+
+                                                                           7
+L. Plini, L. Scofano, E. De Matteis et al.                                       Computer Vision and Image Understanding 264 (2026) 104613
+
+Fig. 5. The modification occurs in two steps: starting from Assembly101 (a), first, a new train/test split assigns all correct procedures to the training set, reserving
+videos with mistakes for testing (b). Second, the lengths of procedures containing mistakes are adjusted by trimming them to the first mistake, preventing the
+creation of corrupted sequences (c). This setup enables models to learn correct sequences within a one-class classification (OCC) framework, treating any deviation
+as a mistake and ensuring a balanced test set for effective mistake detection.
+
+of classical Precision will tend to underestimate the impact of False            Oadtr for mistake detection The work in Wang et al. (2021a) presents
+Positives (FP). In particular, even a small FP rate can yield a large            a framework for online action detection called OadTR, which uses
+absolute number of FP simply because there are so many more negative             a Vision Transformer to capture video clips’ temporal structure and
+(non-error) samples than positive (error) samples.                               context. The framework consists of an encoder–decoder architecture:
+                                                                                 the encoder processes historical observations to output a task token
+    To mitigate this imbalance, we utilize Balanced Precision (Wang              that represents the current action, while the decoder refines this task
+et al., 2021b), denoted Prec𝑏, by scaling the contribution of each False         token by incorporating information from anticipated future clips. In the
+Positive by the ratio of positive-to-negative samples. Concretely, if 𝑁+         context of procedural error detection, we consider a mistake to have
+is the total number of positive (error) samples and 𝑁− is the total              occurred if the output from the encoder does not match the output from
+number of negative (correct) samples, we define:                                 the decoder, indicating a divergence between observed and expected
+                                                                                 actions.
+         TP
+Prec𝑏 =  () .                               (3)                                  BERT-based mistake detection We also leverage the capabilities of BERT
+         TP + 𝑁+ FP                                                              (Devlin et al., 2019), using its specific [CLS] token to predict whether
+                  𝑁−                                                             an action sequence is correct or erroneous. More specifically, we fine-
+                                                                                 tune BERT with a next-token-prediction task, training the model to
+Thus, FP is down-weighted by the factor 𝑁+ , ensuring that the penalty           determine whether step B logically follows step A within a given
+                                                                                 procedure. In our setting, each step is represented as a set of two words,
+                                                                          𝑁−     such as attach wheel, which describes coarse-level actions. During eval-
+                                                                                 uation, BERT is presented with pairs of actions and predicts whether
+for mistakenly labeling a correct step as an error is placed on the              the sequence of those actions is correct. The rationale of BERT lies
+same scale as the reward for correctly identifying a mistake. When               in its pre-training on a vast corpus of text, which helps it understand
+𝑁+ ≪ 𝑁−, this adjustment prevents a handful of FPs from dominating               contextual relationships between procedural steps.
+the denominator and driving classical Precision toward zero.
+                                                                                 Learned task graph representations We also evaluate an approach based
+    We retain Recall (also known as Sensitivity for the positive class) in       on explicit task graph representations (Seminara et al., 2024). Pro-
+its standard form, since Recall inherently measures the proportion of            cedural activities consist of sequences of key steps that work toward
+actual mistakes that the model retrieves:                                        specific goals, making task graphs a valuable, human-understandable
+                                                                                 representation for capturing the partial ordering of these steps. Unlike
+Recall = TP . (4)                                                                traditional methods that rely on hand-crafted procedures to extract
+             TP + FN                                                             task graphs from videos, this approach uses maximum likelihood op-
+                                                                                 timization of edge weights to directly learn task graphs, allowing
+Because Recall does not depend on the cardinality of the negative class,         gradient-based learning that can integrate seamlessly with neural net-
+it is not directly skewed by the negative-class majority and therefore           works. While effective, this baseline is not directly comparable to our
+needs no further adjustment.                                                     method, as it requires access to the entire dataset during training to
+                                                                                 extract the task graph, whereas our approach relies only on few-shot
+    Finally, we define a Balanced F1 Score, denoted F1 score𝑏, which is          inference for anticipating actions. We refer to the ‘‘Direct Optimiza-
+the harmonic mean of Prec𝑏 and Recall:                                           tion’’ method trained with the ‘‘Task-Graph Maximul Likelihood’’ loss
+                                                                                 proposed in Seminara et al. (2024) as TGML-DO.
+F1 score𝑏 = 2 Prec𝑏 × Recall . (5)
+                    Prec𝑏 + Recall                                               4.3.2. Results
+                                                                                     Table 2 presents the main results in terms of Precision𝑏, Recall, and
+    These balanced metrics specifically assess the model’s ability to
+distinguish correct from incorrect steps, without being influenced by            F1 score𝑏.
+heavily skewed settings. By adjusting the impact of false positives based            In the upper section of the table, we report results obtained using
+on the imbalance between positive and negative classes, Prec𝑏 and
+F1 score𝑏 provide a fairer assessment of mistake detection when the              an oracle step-recognizer, which serves as an upper bound. Here, the
+negative class vastly outnumbers the positive class.                             recognition module perfectly aligns with the ground truth, ensuring
+                                                                                 that errors stem solely from the anticipation module. The One-step
+4.3. Experiments                                                                 memory method performs poorly as it relies only on the preceding
+                                                                                 action. Even if BERT adopts a more abstract reasoning strategy, it
+4.3.1. Compared methods                                                          suffers from a conservative bias that leads to very low recall, ulti-
+    To estimate the effectiveness of our model, we evaluate its perfor-          mately resulting in a significantly lower F1 score𝑏. PREGO, on the other
+                                                                                 hand, incorporates symbolic reasoning to capture richer contextual
+mance by comparing it against several baseline models based on the               information, with TI-PREGO𝐿𝑙𝑎𝑚𝑎 achieving the highest performance
+metrics presented in Section 4.2:
+
+One-step memory The One-step memory baseline stems from a transition
+matrix that considers only the correct procedures. Specifically, given
+the set of actions  in the training set with || = 𝐶, we define
+a transition matrix 𝑀 ∈ R𝐶×𝐶 , which records, in position (𝑙, 𝑚),
+the number of occurrences where action 𝑚 follows action 𝑙. During
+evaluation, an action in the test split that does not correspond to a
+transition recorded in this training set matrix is labeled as a mistake.
+This baseline provides a simple method for recognizing deviations from
+standard procedural transitions.
+
+                                                                              8
+L. Plini, L. Scofano, E. De Matteis et al.                                                                 Computer Vision and Image Understanding 264 (2026) 104613
+
+Table 2
+A comparative assessment between ours and the chosen baseline methods is conducted to detect procedural mistakes using the Assembly101-O and
+Epic-tent-O datasets.
+
+                                                                                                    Assembly101-O        Epic-tent-O
+
+                                            Step Recog.                 Step Antic.                 Precisionb Recall F1 scoreb Precisionb Recall F1 scoreb
+
+One-step memory                             Oracle                      GPT-3.5                     43.87  30.7    36.2  42.1         26.6 32.6
+BERT (Devlin et al., 2019)                  Oracle                      DeepSeek-R1                 93.2   20.0    32.9  71.6         5.6 10.4
+PREGO (Flaborea et al., 2024)               Oracle                      Llama 3.1                   51.4   87.5    64.7  25.6         90.6 39.9
+PREGO (Flaborea et al., 2024)               Oracle                      Llama 3.1                   51.7   98.3    67.8  23.8         100 38.4
+PREGO (Flaborea et al., 2024)               Oracle                                                  56.8   89.6    69.5  28.0         92.0 42.9
+TI-PREGO                                    Oracle                                                  60.4   97.8    74.7  40.7         100 57.8
+
+TGML-DO (Seminara et al., 2024)             Oracle                                                  77.82  90.4 83.64    91.24        27.3 42.03
+TGML-DO (Seminara et al., 2024)             MiniRoad (An et al., 2023)                              53.77  37.3 44.05    96.55        14.1 24.60
+
+OadTR for MD (Wang et al., 2021a)           OadTR (Wang et al., 2021a)  OadTR (Wang et al., 2021a)  50.9   18.1    26.7  40.4         21.7  28.3
+PREGO (Flaborea et al., 2024)               MiniRoad (An et al., 2023)  GPT-3.5                     50.2   75.8    61.4  19.5         73.3  29.4
+PREGO (Flaborea et al., 2024)               MiniRoad (An et al., 2023)  DeepSeek-R1                 51.2   96.5    65.7  20.3         93.3  33.6
+PREGO (Flaborea et al., 2024)               MiniRoad (An et al., 2023)  Llama 3.1                   51.3   96.8    67.1  20.6         93.3  33.7
+TI-PREGO                                    MiniRoad (An et al., 2023)  Llama 3.1                   51.5   97.2    67.4  21.2         93.3  34.6
+
+across most metrics. To ensure a fair comparison, we also evaluated the              in assembly tasks. We introduce our Aggregation Strategy 5.2, detailing
+baseline PREGO model with Llama 3.1. As shown in Table 2, TI-PREGO                   three methods to convert noisy per-frame predictions into coherent
+(74.7% F1 score𝑏) outperforms the PREGO baseline (67.5% F1 score𝑏)                   action sequences. We discuss the design of each strategy and their
+on Assembly101-O, confirming that our methodological improvements                    trade-offs, such as delay versus stability, and assess their effectiveness
+are the primary driver of the performance gain.                                      using the Levenshtein similarity metric.
+
+    The TGML-DO method (Seminara et al., 2024), which learns task                    5.1. Large language models as step anticipators
+graph representations through gradient-based optimization, also demon-
+strates strong performance. However, unlike our anticipator, which                       This section comprehensively analyzes how an action anticipation
+operates in a few-shot inference setting, TGML-DO checks whether the                 based on large language models (LLMs) operates using various tech-
+observed action is correct by referencing domain-specific procedural                 niques and methodologies. We begin by evaluating the performance of
+knowledge mined from the entire dataset during training. This dis-                   several LLMs using in-context learning with few-shot examples (Sec-
+tinction likely contributes to the superior generalization of our model,             tion 5.1.1), which allows us to determine which model performs best
+particularly when using predicted steps instead of oracle labels in                  in this setting. Once the most effective LLM is identified, we inves-
+the Assembly101-O dataset. Our method proves to be more robust to                    tigate different prompting strategies, starting from a system prompt’s
+procedural variations and better suited for handling previously unseen               impact, including zero-shot, few-shot, and Automatic-Chain-of-Though
+cases.                                                                               prompting (Section 5.1.2). Furthermore, we explore the potential im-
+                                                                                     provements by fine-tuning each prompting method to enhance the
+    In the lower section of the table, we evaluate models using state-               model’s performance (Section 5.1.3). Lastly, we perform a speed anal-
+of-the-art step recognizers instead of an oracle. The OadTR model,                   ysis, comparing different prompting methods (Section 5.1.4).
+designed for offline mistake detection, shows limited performance due
+to its reliance on fixed video segmentation, resulting in a low F1 score𝑏                All experiments use ground truth labels of the Assembly101-O
+of 26.7% on Assembly101-O and 28.3% on Epic-tent-O. By contrast,                     dataset as the output of the predictor’s branches. This approach ensures
+combining MiniRoad with large language models for step anticipa-                     that our performance analysis remains objective and untainted by
+tion leads to consistent gains. When paired with GPT-3.5, PREGO                      errors from the step recognition branch, allowing for a more accurate
+achieves a 34,7% absolute improvement in F1 score𝑏 over OadTR on                     evaluation of the step anticipator’s capabilities.
+Assembly101-O. The use of DeepSeek-R1 yields similar gains. The best
+performance is obtained by TI-PREGO combined with Llama 3.1, which                   5.1.1. Model selection
+achieves an F1 score𝑏 of 74.7% on Assembly101-O and 57.8% on Epic-                       In this analysis, we evaluate the performance of various large lan-
+tent-O, outperforming all other configurations. This direct comparison,
+using the same Llama 3.1 model, confirms our method’s advantage:                     guage models (LLMs), as shown in Table 3, using a few-shot context.
+TI-PREGO (67.4% F1 score𝑏) outperforms the PREGO baseline (67.1%                     The results reveal a clear performance hierarchy among the tested
+F1 score𝑏) on Assembly101-O, with a similar trend on Epic-tent-O                     models. In particular, LLAMA 3.1 8B, an open-source model less com-
+(34.6% vs. 33.7%). This highlights the robustness of Llama 3.1 in mod-               putationally expensive during inference, demonstrates robust perfor-
+eling procedural structure and anticipating upcoming steps, particularly             mance (see Table 2). LLAMA 3.1 8B achieved the highest Precision𝑏 at
+in open-set, real-world mistake detection scenarios.                                 56.70% and the best F1 score𝑏 of 69.4%, significantly outperforming
+                                                                                     its counterparts.
+    A more detailed discussion on the effectiveness of LLMs for step
+anticipation is provided in Section 5.1.                                                 The superior performance of LLAMA 3.1 8B could be attributed
+                                                                                     to several factors, including potential advancements in its training
+5. Ablation                                                                          methodology, the quality and diversity of its training data, and pos-
+                                                                                     sible optimizations for general task comprehension. A pattern observed
+    In the following subsections, we investigate the application of large-           across all models is the substantial disparity between Precision𝑏 and
+language models as step anticipators 5.1. This subsection covers our                 Recall scores. The consistently high Recall scores indicate that these
+model selection process, a detailed analysis of different prompting                  models identify relevant assembly steps effectively, but the correspond-
+methods like Zero-Shot, Few-Shot, and Automatic-Chain-of-Thought                     ing drop in Precision𝑏 suggests they also introduce a non-negligible
+(ACoT), and the effects of fine-tuning and speed analysis. Together,                 number of spurious steps, underscoring the need for strategies, such
+these experiments illustrate the strengths and challenges of using LLMs              as refined prompt engineering.
+for action anticipation and highlight the trade-offs between accuracy,
+reasoning complexity and computational efficiency.
+
+    We also present a comprehensive evaluation of the performance of
+our system and the various strategies used to improve action prediction
+
+                                                                            9
+L. Plini, L. Scofano, E. De Matteis et al.                                   Computer Vision and Image Understanding 264 (2026) 104613
+
+Table 3
+Results of different LLMs on Assembly101-O.
+
+Model                                        Precisionb                      Recall  F1b
+
+Mistral 7B       instruct                    53.4                            88.9    68.1
+Gemma 9B                                     51.5                            85.6    65.5
+Phi 3 medium 4k                              54.0                            88.7    68.4
+LLAMA 2 7B                                   54.0                            94.0    68.6
+LLAMA 3 7B                                   53.8                            87.3    67.3
+DeepSeek-R1                                  51.5                            97.8    67.5
+LLAMA 3.1 8B                                 56.7                            91.3    69.4
+
+5.1.2. Prompt analysis                                                       Prompting methods. When comparing ZS, FS, and ACoT prompting
+System prompt. The results in Table 4 highlight the positive impact          methods, ACoT outperforms the rest of the prompting techniques (Table
+of combining Automatic-Chain-of-Though (ACoT) reasoning with Few-            5), particularly when using the pre-trained model (Base), across both
+Shot (FS) examples on the performance of LLAMA 3.1 8B across differ-         textual and numerical tasks. In the ACoT approach, automatic ACoT
+ent modalities in the Assembly101-O dataset. In all prompting scenar-        reasoning is employed, where the LLM is queried twice: first, to gen-
+ios, the system prompt is written as:                                        erate an internal reasoning step for the answer, and then to use this
+                                                                             reasoning, combined with a few examples, as in FS, to derive the final
+    System: I am going to provide an input sequence that represents          answer. The first query is:
+    a sequence of actions. Your task is to predict the next action of
+    the last sequence based on the patterns observed in the provided             Let us analyze each action in detail:
+    input. Limit yourself to only answer with the predicted sequence,
+    and follow the same format given as input.                                        1. For the action ‘‘attach the cabin’’ consider the immediate
+                                                                                          effect and long-term consequences.
+    This prompt consistently offers essential context about the task,
+improving the model’s performance, particularly in precision.                         2. Repeat this analysis for each action in the sequence.
+                                                                                      3. Identify patterns and causal relationships between the
+    In Zero-Shot (ZS) settings, the instruction prompt is presented as:
+                                                                                          actions.
+    System: Below is an instruction that describes the task, paired
+    with an input. Write a response that appropriately completes the             Now, let us proceed with the analysis step-by-step:
+    request.
+                                                                                 This two-step process allows the model to provide an explanation
+    Few-Shot prompting enhances this by adding examples of input             for its decision and leverage the reasoning and examples to produce a
+sequences and corresponding responses to guide the model.                    more accurate and robust output. In terms of the F1 score, the ACoT
+                                                                             base (74.7%) outperforms the ZS base (61.30%) by 19.7% and the FS
+    We explore two different input representations: a textual and a          base (69.50%) by 7.2%.
+numerical one. In the first, we represent an action by its name and
+                                                                                 These differences can be attributed to how these methods prompt
+natural language, e.g., attach-wheel; in the second one, we use the          the model. ZS and FS methods direct the model to generate answers
+                                                                             straight from the input without guiding it through intermediate reason-
+index associated with the action triplet.                                    ing. Although this may suffice for more straightforward tasks, it often
+                                                                             falls short when dealing with more complex tasks that require deeper
+    Textual Representation:                                                  understanding.
+    Toy: ‘‘bulldozer’’
+    Input Sequence:                                                              ACoT, in contrast, excels in these scenarios because it prompts
+    attach-cabin, attach-body, attach-track, attach-blade                    the model to break down the task into a series of logical intermedi-
+    Next Symbol:                                                             ate steps before concluding (Fig. 6). This approach mirrors the ‘‘self-
+    attach-figurine                                                          explanation’’ cognitive strategy, where breaking down and explaining
+                                                                             each step improves problem-solving skills. This explains why ACoT
+    Numerical Representation:                                                significantly outperforms ZS and FS, especially in tasks that demand
+    Toy: ‘‘bulldozer’’                                                       nuanced understanding and intermediate reasoning.
+    Input Sequence:
+    5678, 91011, 1213, 1415                                                  5.1.3. Finetuning analysis
+    Next Symbol:                                                                 We analyze the performance of LLAMA 3.1 8B when fine-tuned on
+    1617
+                                                                             Assembly101-O (Table 5). Contrary to the common expectation that
+    In the textual modality, where actions are represented by their          fine-tuning enhances performance by adapting the model to the task’s
+                                                                             specific characteristics and distribution, this is not consistently ob-
+names (e.g., attach-wheel), adding the system prompt increases               served. In both the ZS and FS methods, fine-tuning offers no significant
+                                                                             improvement across metrics, with some cases showing similar or even
+Precision𝑏 from 54.9% to 56.7% (+1.8%), and Recall also rises from           lower Precision𝑏 and Recall values. Notably, in the ACoT method, fine-
+86.5% to 89.6% (+3.1%), yielding an F1 score𝑏 gain from 67.1% to             tuning consistently results in a decrease in performance, particularly in
+69.4% (+2.3%).                                                               terms of Precision𝑏, suggesting that fine-tuning may not always provide
+                                                                             the anticipated benefits.
+    In the numerical modality, where actions are encoded by their
+index, including the system prompt boosts Precision𝑏 from 52.4% to               This phenomenon can be explained by considering the dataset’s
+54.5% (+2.1%) and Recall shifts from 94.6% down to 90.3% (–4.3%),            nature and ACoT prompting’s capabilities. Fine-tuning typically helps
+with a modest F1 score𝑏 decrease from 65.7% to 67.9% (+2.2%). The            when there is sufficient data to prevent overfitting, allowing the model
+improvements obtained while using the textual representation can be          to generalize better. However, when the dataset is small, as in this sce-
+attributed to the system prompt and few-shot examples, which provide         nario, fine-tuning may cause the model to overfit the specific examples
+explicit context and structural guidance, enabling the model to better
+understand the task and produce more accurate, relevant predictions.
+
+                                                                         10
+L. Plini, L. Scofano, E. De Matteis et al.                                                           Computer Vision and Image Understanding 264 (2026) 104613
+
+Table 4
+Results of LLAMA 3.1 8B on Assembly101-O adding a system prompt (with corrected precision and recall values).
+
+System Prompt                                          Modality              Precisionb              Recall        F1 scoreb
+                                                                                                                   69.4
+                                                       Textual               56.7                    89.6          67.9
+✓ Numerical 54.5 90.3
+                                                                                                                   67.1
+X Textual 54.9 86.5                                                                                                65.7
+                                                       Numerical             52.4                    94.6
+
+Fig. 6. Visualization of aCoT. First, the aCoT prompt is provided (1) to the LLM to enable (2) the generation of the CoT. The obtained reasoning is then fed to
+the model again together with the In-Context prompt (3, 4) to retrieve (5) the educated answer from the model.
+
+Table 5
+Results of LLAMA 3.1 8B on Assembly-101-O with different prompt methods, modalities, and inference modes.
+
+Prompt                                      Modality              Mode                   Precisionb        Recall  F1 scoreb
+
+                                            Textual               Base                   47.1              87.9    61.3
+                                                                                                                   63.8
+ZS Textual Finetuned 48.4 93.4                                                                                     64.4
+                                            Numerical             Base                   49.1              93.4    63.2
+
+                                            Numerical             Finetuned              48.4              91.2    69.5
+                                                                                                                   68.0
+                                            Textual               Base                   56.8              89.6    67.9
+                                                                                                                   67.6
+FS Textual Finetuned 53.1 94.5
+                                            Numerical             Base                   54.5              90.1    74.7
+                                                                                                                   68.6
+                                            Numerical             Finetuned              55.4              86.9    62.8
+                                                                                                                   59.9
+ACoT                                        Textual               Base                   60.4              97.8
+                                            Textual               Finetuned              56.3              87.9
+                                            Numerical             Base                   50.5              83.0
+                                            Numerical             Finetuned              51.0              72.5
+
+seen during fine-tuning, capturing noise rather than functional general                  Table 6
+patterns.                                                                                Speed test with LLama 3.1 on Assembly-101-O.
+
+    For ACoT, the base model’s ability to handle complex reasoning                       Model                                         Speed (sample/s)
+through its intermediate steps seems sufficiently robust, and it does not
+benefit from the additional adjustments that fine-tuning provides. Fine-                 ZS                                            0.208
+tuning might disturb these established reasoning pathways, leading to                    FS                                            0.216
+a decline in performance. This suggests that ACoT is inherently well-                    ACoT                                          0.315
+suited to tasks requiring deep reasoning, making it less dependent on
+the benefits of fine-tuning, especially in scenarios with limited data.              These differences in speed can be attributed to the inherent com-
+                                                                                 plexity of each method. ZS and FS prompt the model to generate
+5.1.4. Speed analysis                                                            answers directly, with FS introducing a minimal overhead due to the
+    Table 6 presents a speed test comparison of different prompting              additional context provided by the few examples. On the other hand,
+                                                                                 ACoT requires the model to engage in more complex, step-by-step
+methods — ZS, FS, ACoT — using LLAMA 3.1 on the Assembly101-                     reasoning, which naturally demands more computational resources and
+O dataset. The results indicate that ZS is the fastest method, with an           time. While ACoT’s performance benefits are clear, these come at the
+average processing speed of 0.208 s per sample. FS is slightly slower at         cost of slower processing, which could be a consideration in time-
+0.216 s per sample, representing a marginal 3.8% rise in processing              sensitive applications. Thus, the choice of prompting method should
+time compared to ZS. ACoT, while offering superior accuracy and                  balance the trade-off between speed and output quality based on the
+reasoning ability, is the slowest, taking 0.315 s per sample, which is           task’s specific requirements.
+a 51.4% increase in speed compared to ZS.
+
+                                                                             11
+L. Plini, L. Scofano, E. De Matteis et al.                                                               Computer Vision and Image Understanding 264 (2026) 104613
+
+                     Table 7                                              Anticipator speed (samples/s)  Total speed (steps/s)
+                     Speed test on baseline LLM methods.
+                                                                          1.436                          8.096
+                          Model                                           0.612                          7.272
+                          PREGO (Flaborea et al., 2024) – GPT-3.5         0.216                          6.876
+                          PREGO (Flaborea et al., 2024) – DeepSeek-R1     0.315                          6.975
+                          PREGO (Flaborea et al., 2024) – LLaMA 3.1
+                          TI-PREGO – LLaMA 3.1
+
+Fig. 7. Predictions bars: (a) Ground truth predictions, (b) Predictions using the recognizer,(c) NOMA: Non-Overlapping Mode Aggregation, (d) OMA: Overlapping
+Mode Aggregation, (e) OCMA: Overlapping Centered Mode Aggregation.
+
+    For completeness, we also report the speed analysis of the language       branch, we used in-context learning and Automatic-Chain-of-Thought
+models used in Table 2. The aggregation window is set to 𝑊 = 200              to demonstrate their ability to predict future steps based on prior
+frames at 30 fps, corresponding to an effective delay of approximately        actions. Our experiments comprehensively analyzed various prompting
+200∕30 ≈ 6.67 s. For all LLMs (See Table 7), inference latency is neg-        schemes and frame aggregation strategies to optimize performance
+ligible by comparison. Thus, when decisions are made after temporal           in online action recognition, highlighting the importance of effective
+aggregation, the dominant latency stems from the windowing process            prompt formulation for LLM-based anticipators.
+required to stabilize per-frame recognition, rather than from the LLM
+inference itself.                                                                 Our results emphasized the challenges of per-frame evaluation in
+                                                                              real-time action recognition systems and showed how symbolic reason-
+5.2. Aggregation strategy                                                     ing, combined with predictive models, enhanced procedural mistake
+                                                                              detection.
+    In this section, we quantitatively evaluate the impact of each pro-
+posed aggregation strategy (cf. Section 3.2). As can be seen in Fig.              Through extensive experimentation, we demonstrated the effective-
+7, all the three aggregation schemes result in a cleaner input for the        ness of our dual-branch architecture, achieving new state-of-the-art
+anticipator module.                                                           performance for online mistake detection. This underscored the po-
+                                                                              tential of integrating action recognition and anticipation in a unified
+    We assess the impact of the proposed aggregation strategies using         framework for detecting procedural errors as they unfolded online. Fu-
+the Levenshtein Similarity between the predicted and ground truth             ture work could explore further refinements in symbolic representation
+action sequence, which derives from the Levenshtein distance. With this       and expand the range of procedural tasks and environments in which
+choice, the similarity between two action sequences (i.e. procedures) A       our framework can be applied.
+and B is defined as:
+Levenshtein Similarity(𝐴, 𝐵) = 1 − 𝑑𝐿𝑒𝑣(𝐴, 𝐵) (6)                             Limitations Our dual-branch architecture for online procedural mistake
+                                                                              detection demonstrates promising results. In this section, we acknowl-
+                                               max(𝑙𝑒𝑛(𝐴), 𝑙𝑒𝑛(𝐵))            edge some of its limitations.
+
+where: 𝑑𝐿𝑒𝑣(𝐴, 𝐵) is the Levenshtein distance between A and B, which              Real-time processing constraints can present challenges, particu-
+is the minimum number of single-action insertions, deletions or substi-       larly when incorporating Large Language Models (LLMs), which may
+tutions required to transform procedure A into procedure B, and 𝑙𝑒𝑛(𝐴)        introduce latency during inference. To clarify the timing budget, our
+and 𝑙𝑒𝑛(𝐵) represent the length of procedure A and B, respectively. Note      aggregation window of 𝑊 = 200 frames at 30 fps induces an effective
+that the term 𝑚𝑎𝑥(𝑙𝑒𝑛(𝐴), 𝑙𝑒𝑛(𝐵)) normalizes the score by the length of       delay of approximately 6.7s, while the LLM anticipator adds on average
+the longer procedure, ensuring that the ratio is between 0 and 1.             ∼ 0.3,s per query. Hence, the dominant latency arises from the aggre-
+                                                                              gation needed to stabilize per-frame recognition rather than from the
+    Fig. 8 compares the aggregated sequences with the respective              LLM inference itself. Our focus is maintaining accuracy in an online
+ground truth using the Levenstain similarity. This highlights how the         setting, rather than optimizing for real-time performance. Nonetheless,
+NOMA approach is the most effective in maximizing similarity among            as recognition quality improves, smaller windows may suffice, reduc-
+the proposed ones. Considering that datasets like Assembly101 are             ing aggregation-induced delay and making real-time optimization a
+recorded at 30 fps and the average action lasts about 570 frames (Fig.        promising direction for future work.
+9), we selected 200 frames as a sensible trade-off between achieving
+high similarity and minimizing the computational burden.                          While symbolic reasoning simplifies certain aspects of action pre-
+                                                                              diction, it may not fully capture the complex semantic relationships
+6. Conclusion                                                                 between actions. In fact, LLMs, when used as in-context learners, can
+                                                                              better capture such dependencies through contextual understanding
+    This paper explored the challenging task of detecting procedural          and broad world knowledge. However, their reasoning process is not
+errors in egocentric videos online, focusing on a dual-branch archi-          explicitly based on logic rules and relies on patterns learned from data,
+tecture that combined action recognition and anticipation. By lever-          which may limit their ability to model fine-grained or domain-specific
+aging Large Language Models (LLMs) within the action anticipation
+
+                                                                          12
+L. Plini, L. Scofano, E. De Matteis et al.                                      Computer Vision and Image Understanding 264 (2026) 104613
+
+Fig. 8. Levenshtein similarity for the proposed aggregation strategies. The maximum similarity is achieved by the first strategy when using a window size of 200
+frames.
+
+                                            Fig. 9. Histogram and statistics of the durations of the action in Assembly101-O.
+
+action dependencies. Future research could explore hybrid approaches            the authors carefully reviewed and edited the content as necessary and
+that integrate symbolic reasoning with richer representations.                  take full responsibility for the final version of the published article.
+
+    Our robustness treatment is pragmatic: aggregation reduces short-           Declaration of competing interest
+horizon fluctuations so that downstream anticipation operates on a
+steadier signal. Ambiguous cases, like brief transitions or rapidly alter-          The authors declare that they have no known competing finan-
+nating labels, are mitigated but not eliminated by this design. We use          cial interests or personal relationships that could have appeared to
+ACoT’s intermediate explanations as qualitative aids to inspect typical         influence the work reported in this paper.
+successes and failures. These examples improve transparency but do not
+constitute a formal faithfulness guarantee. A systematic taxonomy of            Acknowledgments
+ambiguity and formal uncertainty quantification are valuable directions
+for future work and lie beyond the scope of this manuscript.                        This work was carried out while Leonardo Plini was enrolled in the
+                                                                                Italian National Doctorate on Artificial Intelligence run by Sapienza
+CRediT authorship contribution statement                                        University of Rome. We thank DsTech S.r.l. and the PNRR MUR
+                                                                                project PE0000013 Future Artificial Intelligence Research (FAIR) (CUP:
+    Leonardo Plini: Writing – review & editing, Writing – original draft,       B53C22003980006 and CUP: E63C22001940006) for partially funding
+Visualization, Software, Methodology, Investigation, Formal analysis,           the Sapienza University of Rome and University of Catania.
+Data curation, Conceptualization. Luca Scofano: Writing – review &
+editing, Writing – original draft, Software, Methodology, Investigation,        Data availability
+Data curation, Conceptualization. Edoardo De Matteis: Writing – orig-
+inal draft, Validation, Software, Methodology, Data curation, Concep-               The datasets generated or analyzed during the current study are
+tualization. Guido Maria D’Amely di Melendugno: Writing – review                available in (1) https://sites.google.com/view/epic-tent and (2) https:
+& editing, Writing – original draft, Software, Data curation, Concep-           //assembly-101.github.io/.
+tualization. Alessandro Flaborea: Data curation, Conceptualization.
+Andrea Sanchietti: Software. Giovanni Maria Farinella: Writing –                References
+review & editing, Writing – original draft, Supervision. Fabio Galasso:
+Writing – review & editing, Writing – original draft, Supervision, Con-         Abdelsalam, M.A., Rangrej, S.B., Hadji, I., Dvornik, N., Derpanis, K.G., Fazly, A.,
+ceptualization. Antonino Furnari: Writing – review & editing, Writing                2023. GePSAn: Generative procedure step anticipation in cooking videos. In:
+– original draft, Supervision, Investigation.                                        Proceedings of the IEEE/CVF International Conference on Computer Vision. ICCV,
+                                                                                     pp. 2988–2997.
+Declaration of Generative AI and AI-assisted technologies in the
+writing process
+
+    During the preparation of this work, the authors used Large Lan-
+guage Models to assist in formulating the text. After using these tools,
+
+                                                                            13
+L. Plini, L. Scofano, E. De Matteis et al.                                                          Computer Vision and Image Understanding 264 (2026) 104613
+
+Ahn, M., Brohan, A., Brown, N., Chebotar, Y., Cortes, O., David, B., Finn, C.,                      Mesnard, G.T.T., Hardin, C., Dadashi, R., Bhupatiraju, S., Pathak, S., Sifre, L., Riv-
+     Gopalakrishnan, K., Hausman, K., Herzog, A., Ho, D., Hsu, J., Ibarz, J., Ichter, B.,                ière, M., Kale, M., Love, J.C., Tafti, P.D., Hussenot, L., Chowdhery, A., Roberts, A.,
+     Irpan, A., Jang, E., Ruano, R.M.J., Jeffrey, K., Jesmonth, S., Joshi, N.J., Julian, R.C.,           Barua, A., Botev, A., Castro-Ros, A., Slone, A., H’eliou, A., Tacchetti, A., Bu-
+     Kalashnikov, D., Kuang, Y., Lee, K.-H., Levine, S., Lu, Y., Luu, L., Parada, C.,                    lanova, A., Paterson, A., Tsai, B., Shahriari, B., Lan, C.L., Choquette-Choo, C.A.,
+     Pastor, P., Quiambao, J., Rao, K., Rettinghouse, J., Reyes, D.M., Sermanet, P.,                     ment Crepy, C., Cer, D., Ippolito, D., Reid, D., Buchatskaya, E., Ni, E., Noland, E.,
+     Sievers, N., Tan, C., Toshev, A., Vanhoucke, V., Xia, F., Xiao, T., Xu, P., Xu, S.,                 Yan, G., Tucker, G., Muraru, G.-C., Rozhdestvenskiy, G., Michalewski, H., Ten-
+     Yan, M., 2022. Do as I can, not as I say: Grounding language in robotic affordances.                ney, I., Grishchenko, I., Austin, J., Keeling, J., Labanowski, J., Lespiau, J.-B.,
+     In: Conference on Robot Learning.                                                                   Stanway, J., Brennan, J., Chen, J., Ferret, J., Chiu, J., Mao-Jones, J., ine
+                                                                                                         Lee, K., Yu, K., Millican, K., Sjoesund, L.L., Lee, L., Dixon, L., Reid, M.,
+An, J., Kang, H., Han, S.H., Yang, M.-H., Kim, S.J., 2023. MiniROAD: Minimal RNN                         Mikuła, M., Wirth, M., Sharman, M., Chinaev, N., Thain, N., Bachem, O., Chang, O.,
+     framework for online action detection. In: 2023 IEEE/CVF International Conference                   Wahltinez, O., Bailey, P., Michel, P., Yotov, P., Sessa, P.G., Chaabouni, R.,
+     on Computer Vision. ICCV, pp. 10307–10316.                                                          Comanescu, R., Jana, R., Anil, R., McIlroy, R., Liu, R., Mullins, R., Smith, S.L.,
+                                                                                                         Borgeaud, S., Girgin, S., Douglas, S., Pandya, S., Shakeri, S., De, S., Kli-
+Ben-Shabat, Y., Yu, X., Saleh, F., Campbell, D., Rodriguez-Opazo, C., Li, H., Gould, S.,                 menko, T., Hennigan, T., Feinberg, V., Stokowiec, W., hui Chen, Y., Ahmed, Z.,
+     2021. The ikea asm dataset: Understanding people assembling furniture through                       Gong, Z., Warkentin, T., Peran, L., Giang, M., Farabet, C., Vinyals, O., Dean, J.,
+     actions, objects and pose. In: Proceedings of the IEEE/CVF Winter Conference on                     Kavukcuoglu, K., Hassabis, D., Ghahramani, Z., Eck, D., Barral, J., Pereira, F.,
+     Applications of Computer Vision. pp. 847–859.                                                       Collins, E., Joulin, A., Fiedel, N., Senter, E., Andreev, A., Kenealy, K., 2024. Gemma:
+                                                                                                         Open models based on gemini research and technology. ArXiv abs/2403.08295.
+Brooks, T., Holynski, A., Efros, A.A., 2023. Instructpix2pix: Learning to follow image
+     editing instructions. In: Proceedings of the IEEE/CVF Conference on Computer                   Miech, A., Zhukov, D., Alayrac, J.-B., Tapaswi, M., Laptev, I., Sivic, J., 2019.
+     Vision and Pattern Recognition. pp. 18392–18402.                                                    HowTo100M: Learning a text-video embedding by watching hundred million
+                                                                                                         narrated video clips. In: ICCV.
+Candido de Oliveira, D., Nassu, B.T., Wehrmeister, M.A., 2023. Image-based detection
+     of modifications in assembled pcbs with deep convolutional autoencoders. Sensors               Mirchandani, S., Xia, F., Florence, P., Ichter, B., Driess, D., Arenas, M.G., Rao, K.,
+     23 (3), 1353.                                                                                       Sadigh, D., Zeng, A., 2023. Large language models as general pattern machines.
+                                                                                                         In: Proceedings of the 7th Conference on Robot Learning. CoRL.
+Chen, C., Zhang, C., Wang, T., Li, D., Guo, Y., Zhao, Z., Hong, J., 2020. Monitoring of
+     assembly process using deep learning technology. Sensors 20 (15), 4208.                        Narasimhan, M., Yu, L., Bell, S., Zhang, N., Darrell, T., 2023. Learning and verification
+                                                                                                         of task structure in instructional videos. arXiv preprint arXiv:2303.13519.
+Chowdhery, A., Narang, S., Devlin, J., Bosma, M., Mishra, G., Roberts, A., Barham, P.,
+     Chung, H.W., Sutton, C., Gehrmann, S., et al., 2023. Palm: Scaling language                    Pallagani, V., Muppasani, B., Murugesan, K., Rossi, F., Horesh, L., Srivastava, B.,
+     modeling with pathways. J. Mach. Learn. Res. 24 (240), 1–113.                                       Fabiano, F., Loreggia, A., 2022. Plansformer: Generating symbolic plans using
+                                                                                                         transformers. ArXiv abs/2212.08681.
+Damen, D., Doughty, H., Farinella, G.M., Fidler, S., Furnari, A., Kazakos, E., Molti-
+     santi, D., Munro, J., Perrett, T., Price, W., Wray, M., 2018. Scaling egocentric               Peddi, R., Arya, S., Challa, B., Pallapothula, L., Vyas, A., Wang, J., Zhang, Q.,
+     vision: The EPIC-KITCHENS dataset. In: European Conference on Computer Vision.                      Komaragiri, V., Ragan, E., Ruozzi, N., Xiang, Y., Gogate, V., 2023. CaptainCook4D:
+     ECCV.                                                                                               A dataset for understanding errors in procedural activities. arXiv:2312.14556.
+
+Devlin, J., Chang, M.-W., Lee, K., Toutanova, K., 2019. BERT: Pre-training of deep                  Qi, Z., Wang, S., Su, C., Su, L., Huang, Q., Tian, Q., 2023. Self-regulated learning for
+     bidirectional transformers for language understanding. In: North American Chapter                   egocentric video activity anticipation. IEEE Trans. Pattern Anal. Mach. Intell. 45
+     of the Association for Computational Linguistics.                                                   (6), 6715–6730. http://dx.doi.org/10.1109/TPAMI.2021.3059923.
+
+Ding, G., Sener, F., Ma, S., Yao, A., 2023. Every mistake counts in assembly. arXiv                 Qian, Y., Luo, W., Lian, D., Tang, X., Zhao, P., Gao, S., 2022. SVIP: Sequence
+     preprint arXiv:2307.16453.                                                                          VerIfication for procedures in videos. In: IEEE Conf. Comput. Vis. Pattern Recog.
+                                                                                                         pp. 19890–19902.
+Dubey, A., Jauhri, A., Pandey, A., Kadian, A., Al-Dahle, A., Letman, A., Mathur, A.,
+     Schelten, A., Yang, A., Fan, A., et al., 2024. The llama 3 herd of models. arXiv               Ragusa, F., Furnari, A., Livatino, S., Farinella, G.M., 2021. The MECCANO dataset:
+     preprint arXiv:2407.21783.                                                                          Understanding human-object interactions from egocentric videos in an industrial-
+                                                                                                         like domain. In: Proceedings of the IEEE/CVF Winter Conference on Applications
+Elhamifar, E., Naing, Z., 2019. Unsupervised procedure learning via joint dynamic                        of Computer Vision. WACV, pp. 1569–1578.
+     summarization. In: International Conference on Computer Vision. ICCV.
+                                                                                                    Ragusa, F., Leonardi, R., Mazzamuto, M., Bonanno, C., Scavo, R., Furnari, A.,
+Feng, J., Xu, R., Hao, J., Sharma, H., Shen, Y., Zhao, D., Chen, W., 2023. Language                      Farinella, G.M., 2024. ENIGMA-51: Towards a fine-grained understanding of
+     models can be logical solvers. ArXiv abs/2311.06158.                                                human-object interactions in industrial scenarios. In: Proceedings of the IEEE/CVF
+                                                                                                         Winter Conference on Applications of Computer Vision. WACV.
+Flaborea, A., Collorone, L., di Melendugno, G.M.D., D’Arrigo, S., Prenkaj, B., Galasso, F.,
+     2023. Multimodal motion conditioned diffusion model for skeleton-based video                   Schoonbeek, T.J., Houben, T., Onvlee, H., van der Sommen, F., et al., 2024. IndustReal:
+     anomaly detection. In: Proceedings of the IEEE/CVF International Conference on                      A dataset for procedure step recognition handling execution errors in egocentric
+     Computer Vision. ICCV, pp. 10318–10329.                                                             videos in an industrial-like setting. In: Proceedings of the IEEE/CVF Winter
+                                                                                                         Conference on Applications of Computer Vision. pp. 4365–4374.
+Flaborea, A., di Melendugno, G.M.D., Plini, L., Scofano, L., De Matteis, E., Furnari, A.,
+     Farinella, G.M., Galasso, F., 2024. PREGO: Online mistake detection in procedural              Seminara, L., Farinella, G.M., Furnari, A., 2024. Differentiable task graph learning:
+     egocentric videos. In: Proceedings of the IEEE/CVF Conference on Computer Vision                    Procedural activity representation and online mistake detection from egocentric
+     and Pattern Recognition. CVPR, pp. 18483–18492.                                                     videos. In: The Thirty-Eighth Annual Conference on Neural Information Processing
+                                                                                                         Systems.
+Ghoddoosian, R., Dwivedi, I., Agarwal, N., Dariush, B., 2023. Weakly-supervised action
+     segmentation and unseen error detection in anomalous instructional videos. In:                 Sener, F., Chatterjee, D., Shelepov, D., He, K., Singhania, D., Wang, R., Yao, A., 2022.
+     Proceedings of the IEEE/CVF International Conference on Computer Vision. ICCV,                      Assembly101: A large-scale multi-view video dataset for understanding procedural
+     pp. 10128–10138.                                                                                    activities. In: IEEE Conf. Comput. Vis. Pattern Recog.
+
+Gupta, T., Kembhavi, A., 2023. Visual programming: Compositional visual reasoning                   Shah, A., Lundell, B., Sawhney, H., Chellappa, R., 2023. STEPs: Self-supervised key step
+     without training. In: Proceedings of the IEEE/CVF Conference on Computer Vision                     extraction and localization from unlabeled procedural videos. In: Proceedings of the
+     and Pattern Recognition. pp. 14953–14962.                                                           IEEE/CVF International Conference on Computer Vision. ICCV, pp. 10375–10387.
+
+Jang, Y., Sullivan, B., Ludwig, C., Gilchrist, I., Damen, D., Mayol-Cuevas, W., 2019.               Shen, Y., Elhamifar, E., 2024. Progress-aware online action segmentation for egocentric
+     EPIC-tent: An egocentric video dataset for camping tent assembly. In: Int. Conf.                    procedural task videos. In: Proceedings of the IEEE/CVF Conference on Computer
+     Comput. Vis.                                                                                        Vision and Pattern Recognition. pp. 18186–18197.
+
+Jiang, A.Q., Sablayrolles, A., Mensch, A., Bamford, C., Chaplot, D.S., Casas, D.d.l.,               Stein, S., McKenna, S.J., 2013. Combining embedded accelerometers with computer
+     Bressand, F., Lengyel, G., Lample, G., Saulnier, L., et al., 2023. Mistral 7B. arXiv                vision for recognizing food preparation activities. In: Proceedings of the 2013 ACM
+     preprint arXiv:2310.06825.                                                                          International Joint Conference on Pervasive and Ubiquitous Computing. UbiComp
+                                                                                                         ’13, Association for Computing Machinery.
+Kim, S., Huang, D., Xian, Y., Hilliges, O., Gool, L.V., Wang, X., 2024. PALM: Predicting
+     actions through language models. In: European Conference on Computer Vision.                   Tang, Y., Ding, D., Rao, Y., Zheng, Y., Zhang, D., Zhao, L., Lu, J., Zhou, J., 2019.
+     ECCV.                                                                                               COIN: A large-scale dataset for comprehensive instructional video analysis. In:
+                                                                                                         2019 IEEE/CVF Conference on Computer Vision and Pattern Recognition. CVPR,
+Kuehne, H., Arslan, A.B., Serre, T., 2014. The language of actions: Recovering the syntax                pp. 1207–1216.
+     and semantics of goal-directed human activities. In: Proceedings of Computer Vision
+     and Pattern Recognition Conference. CVPR.                                                      Touvron, H., Martin, L., Stone, K., Albert, P., Almahairi, A., Babaei, Y., Bashlykov, N.,
+                                                                                                         Batra, S., Bhargava, P., Bhosale, S., et al., 2023. Llama 2: Open foundation and
+Lee, S.-P., Lu, Z., Zhang, Z., Hoai, M., Elhamifar, E., 2024. Error detection in egocentric              fine-tuned chat models. arXiv preprint arXiv:2307.09288.
+     procedural task videos. In: Proceedings of the IEEE/CVF Conference on Computer
+     Vision and Pattern Recognition. pp. 18655–18666.                                               Wang, X., Kwon, T., Rad, M., Pan, B., Chakraborty, I., Andrist, S., Bohus, D.,
+                                                                                                         Feniello, A., Tekin, B., Frujeri, F.V., Joshi, N., Pollefeys, M., 2023. HoloAssist: an
+Liang, J., Huang, W., Xia, F., Xu, P., Hausman, K., Ichter, B., Florence, P.R., Zeng, A.,                egocentric human interaction dataset for interactive AI assistants in the real world.
+     2022. Code as policies: Language model programs for embodied control. In: 2023                      In: Int. Conf. Comput. Vis. pp. 20270–20281.
+     IEEE International Conference on Robotics and Automation. ICRA, pp. 9493–9500.
+                                                                                                    Wang, X., Zhang, S., Qing, Z., Shao, Y., Zuo, Z., Gao, C., Sang, N., 2021a. Oadtr: Online
+Lu, Z., Elhamifar, E., 2022. Set-supervised action learning in procedural task videos                    action detection with transformers. In: Int. Conf. Comput. Vis. pp. 7565–7575.
+     via pairwise order consistency. In: IEEE Conf. Comput. Vis. Pattern Recog. pp.
+     19903–19913.
+
+Mascaró, E.V., Ahn, H., Lee, D., 2023. Intention-conditioned long-term human egocen-
+     tric action anticipation. In: Proceedings of the IEEE/CVF Winter Conference on
+     Applications of Computer Vision. pp. 6048–6057.
+
+                                                                                                14
+L. Plini, L. Scofano, E. De Matteis et al.                                                                                        Computer Vision and Image Understanding 264 (2026) 104613
+
+Wang, X., Zhang, S., Qing, Z., Shao, Y., Zuo, Z., Gao, C., Sang, N., 2021b. OadTR: Online      Zeng, A., Wong, A.S., Welker, S., Choromanski, K., Tombari, F., Purohit, A., Ryoo, M.S.,
+     action detection with transformers. In: 2021 IEEE/CVF International Conference on              Sindhwani, V., Lee, J., Vanhoucke, V., Florence, P.R., 2022. Socratic models:
+     Computer Vision. ICCV, pp. 7545–7555.                                                          Composing zero-shot multimodal reasoning with language. ArXiv abs/2204.00598.
+
+Wei, J., Tay, Y., Bommasani, R., Raffel, C., Zoph, B., Borgeaud, S., Yogatama, D.,             Zhang, Z., Zhang, A., Li, M., Smola, A.J., 2022. Automatic chain of thought prompting
+     Bosma, M., Zhou, D., Metzler, D., hsin Chi, E.H., Hashimoto, T., Vinyals, O.,                  in large language models. ArXiv abs/2210.03493.
+     Liang, P., Dean, J., Fedus, W., 2022a. Emergent abilities of large language models.
+     Trans. Mach. Learn. Res. 2022.                                                            Zhao, Q., Zhang, C., Wang, S., Fu, C., Agarwal, N., Lee, K., Sun, C., 2023. AntGPT:
+                                                                                                    Can large language models help long-term action anticipation from videos? ArXiv
+Wei, J., Wang, X., Schuurmans, D., Bosma, M., hsin Chi, E.H., Xia, F., Le, Q., Zhou, D.,            abs/2307.16368.
+     2022b. Chain of thought prompting elicits reasoning in large language models.
+     ArXiv abs/2201.11903.                                                                     Zhong, Y., Yu, L., Bai, Y., Li, S., Yan, X., Li, Y., 2023. Learning procedure-aware video
+                                                                                                    representation from instructional videos and their narrations. In: 2023 IEEE/CVF
+Wei, J.W., Wei, J., Tay, Y., Tran, D., Webson, A., Lu, Y., Chen, X., Liu, H., Huang, D.,            Conference on Computer Vision and Pattern Recognition. CVPR, IEEE Computer
+     Zhou, D., Ma, T., 2023. Larger language models do in-context learning differently.             Society.
+     ArXiv abs/2303.03846.
+                                                                                               Zhukov, D., Alayrac, J.-B., Cinbis, R.G., Fouhey, D., Laptev, I., Sivic, J., 2019. Cross-task
+Zaheer, M.Z., Mahmood, A., Khan, M.H., Segu, M., Yu, F., Lee, S.-I., 2022. Generative               weakly supervised learning from instructional videos. In: CVPR.
+     cooperative learning for unsupervised video anomaly detection. In: Proceedings
+     of the IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp.
+     14744–14754.
+
+                                                                                           15
+

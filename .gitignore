@@ -1,0 +1,17 @@
+# Archive exceeds GitHub's 100 MB per-file limit.
+/fx3.rar
+
+# Local environments and generated Python artifacts.
+.env
+.env.*
+!.env.example
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+
+# Common editor and operating-system metadata.
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

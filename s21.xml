@@ -1,0 +1,226 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<feed xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/" xmlns:arxiv="http://arxiv.org/schemas/atom" xmlns="http://www.w3.org/2005/Atom">
+  <id>https://arxiv.org/api/2iYZeE8lnv29di/QmfIegfg0kj8</id>
+  <title>arXiv Query: search_query=abs:"reversibility" AND abs:"reinforcement learning" AND abs:"irreversible"&amp;id_list=&amp;start=0&amp;max_results=30</title>
+  <updated>2026-07-26T12:25:27Z</updated>
+  <link href="https://arxiv.org/api/query?search_query=abs:%22reversibility%22+AND+(abs:%22reinforcement+learning%22+AND+abs:%22irreversible%22)&amp;start=0&amp;max_results=30&amp;id_list=" type="application/atom+xml"/>
+  <opensearch:itemsPerPage>30</opensearch:itemsPerPage>
+  <opensearch:totalResults>8</opensearch:totalResults>
+  <opensearch:startIndex>0</opensearch:startIndex>
+  <entry>
+    <id>http://arxiv.org/abs/2106.04480v3</id>
+    <title>There Is No Turning Back: A Self-Supervised Approach for Reversibility-Aware Reinforcement Learning</title>
+    <updated>2021-10-29T11:40:07Z</updated>
+    <link href="https://arxiv.org/abs/2106.04480v3" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2106.04480v3" rel="related" type="application/pdf" title="pdf"/>
+    <summary>We propose to learn to distinguish reversible from irreversible actions for better informed decision-making in Reinforcement Learning (RL). From theoretical considerations, we show that approximate reversibility can be learned through a simple surrogate task: ranking randomly sampled trajectory events in chronological order. Intuitively, pairs of events that are always observed in the same order are likely to be separated by an irreversible sequence of actions. Conveniently, learning the temporal order of events can be done in a fully self-supervised way, which we use to estimate the reversibility of actions from experience, without any priors. We propose two different strategies that incorporate reversibility in RL agents, one strategy for exploration (RAE) and one strategy for control (RAC). We demonstrate the potential of reversibility-aware agents in several environments, including the challenging Sokoban game. In synthetic tasks, we show that we can learn control policies that never fail and reduce to zero the side-effects of interactions, even without access to the reward function.</summary>
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.AI" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2021-06-08T16:07:10Z</published>
+    <arxiv:primary_category term="cs.LG"/>
+    <author>
+      <name>Nathan Grinsztajn</name>
+    </author>
+    <author>
+      <name>Johan Ferret</name>
+    </author>
+    <author>
+      <name>Olivier Pietquin</name>
+    </author>
+    <author>
+      <name>Philippe Preux</name>
+    </author>
+    <author>
+      <name>Matthieu Geist</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2510.14503v1</id>
+    <title>Learning to Undo: Rollback-Augmented Reinforcement Learning with Reversibility Signals</title>
+    <updated>2025-10-16T09:48:54Z</updated>
+    <link href="https://arxiv.org/abs/2510.14503v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2510.14503v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>This paper proposes a reversible learning framework to improve the robustness and efficiency of value based Reinforcement Learning agents, addressing vulnerability to value overestimation and instability in partially irreversible environments. The framework has two complementary core mechanisms: an empirically derived transition reversibility measure called Phi of s and a, and a selective state rollback operation. We introduce an online per state action estimator called Phi that quantifies the likelihood of returning to a prior state within a fixed horizon K. This measure is used to adjust the penalty term during temporal difference updates dynamically, integrating reversibility awareness directly into the value function. The system also includes a selective rollback operator. When an action yields an expected return markedly lower than its instantaneous estimated value and violates a predefined threshold, the agent is penalized and returns to the preceding state rather than progressing. This interrupts sub optimal high risk trajectories and avoids catastrophic steps. By combining reversibility aware evaluation with targeted rollback, the method improves safety, performance, and stability. In the CliffWalking v0 domain, the framework reduced catastrophic falls by over 99.8 percent and yielded a 55 percent increase in mean episode return. In the Taxi v3 domain, it suppressed illegal actions by greater than or equal to 99.9 percent and achieved a 65.7 percent improvement in cumulative reward, while also sharply reducing reward variance in both environments. Ablation studies confirm that the rollback mechanism is the critical component underlying these safety and performance gains, marking a robust step toward safe and reliable sequential decision making.</summary>
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2025-10-16T09:48:54Z</published>
+    <arxiv:comment>Submitted PLOS ONE</arxiv:comment>
+    <arxiv:primary_category term="cs.LG"/>
+    <author>
+      <name>Andrejs Sorstkins</name>
+    </author>
+    <author>
+      <name>Omer Tariq</name>
+    </author>
+    <author>
+      <name>Muhammad Bilal</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2506.03340v2</id>
+    <title>Seeing the Arrow of Time in Large Multimodal Models</title>
+    <updated>2025-10-23T19:19:08Z</updated>
+    <link href="https://arxiv.org/abs/2506.03340v2" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2506.03340v2" rel="related" type="application/pdf" title="pdf"/>
+    <summary>The Arrow of Time (AoT)-time's irreversible flow shaping physical events-is fundamental to video comprehension, yet remains a significant challenge for modern large multimodal models (LMMs). Current LMMs struggle to perceive and utilize temporal directionality in video when responding to language queries, obstructing deeper temporal understanding. We tackle this deficiency by first providing a critical analysis of existing benchmarks and models. We then introduce ArrowRL, a reinforcement learning (RL)-based training strategy with an innovative reverse reward that instills AoT awareness by encouraging divergent video interpretations between forward and reversed visual frames. For rigorous evaluation, we additionally develop AoTBench, a new multi-faceted benchmark probing temporally challenging questions. Experiments show ArrowRL greatly advances temporal perception: it not only achieves substantial improvements on our challenging AoTBench but also demonstrably boosts performance on standard video question answering (VQA) benchmarks (with peak accuracy gains reaching over 20% and 10% respectively). This validates ArrowRL's effectiveness and highlights the critical need for dedicated AoT understanding in LMMs.</summary>
+    <category term="cs.CV" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2025-06-03T19:32:07Z</published>
+    <arxiv:comment>Accepted by NeurIPS 2025, Project website: https://vision.cs.utexas.edu/projects/SeeAoT</arxiv:comment>
+    <arxiv:primary_category term="cs.CV"/>
+    <author>
+      <name>Zihui Xue</name>
+    </author>
+    <author>
+      <name>Mi Luo</name>
+    </author>
+    <author>
+      <name>Kristen Grauman</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2603.02934v1</id>
+    <title>On the Structural Limitations of Weight-Based Neural Adaptation and the Role of Reversible Behavioral Learning</title>
+    <updated>2026-03-03T12:44:12Z</updated>
+    <link href="https://arxiv.org/abs/2603.02934v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2603.02934v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Neural models are usually adapted through changes in parameters shared among model components via fine-tuning, alignment-based training, and reinforcement learning. These changes have been found effective in short-term optimization. However, they result in long-term alterations in the model's base behavior. In this study, we introduce the concept of structural irreversibility as a characteristic of shared-parameter model adaptation. This concept refers to the intertwining of task-specific objectives with the representational identity of the model. We show that when parameters are directly mutated, the resulting model behaves divergently from the original model. This divergence cannot be reversed deterministically without an explicit parameter snapshot. We introduce reversible behavioral learning, in which model behaviors are structurally dissociated from identity parameters and can be deterministically unloaded through an explicit unload process. We also introduce the Recoverability Factor as a normalized measure of behavioral recoverability and provide additional diagnostics based on model divergence. Experiments show that reversible model adaptation achieves rollback within numerical precision, whereas shared-parameter mutation exhibits persistent post-reset divergence.</summary>
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.AI" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2026-03-03T12:44:12Z</published>
+    <arxiv:comment>19 pages, 5 figures. Preprint version</arxiv:comment>
+    <arxiv:primary_category term="cs.LG"/>
+    <author>
+      <name>Pardhu Sri Rushi Varma Konduru</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2407.21359v2</id>
+    <title>ProSpec RL: Plan Ahead, then Execute</title>
+    <updated>2026-06-28T08:08:15Z</updated>
+    <link href="https://arxiv.org/abs/2407.21359v2" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2407.21359v2" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Imagining potential outcomes of actions before execution helps agents make more informed decisions, a prospective thinking ability fundamental to human cognition. However, mainstream model-free Reinforcement Learning (RL) methods lack the ability to proactively envision future scenarios, plan, and guide strategies. These methods typically rely on trial and error to adjust policy functions, aiming to maximize cumulative rewards or long-term value, even if such high-reward decisions place the environment in extremely dangerous states. To address this, we propose the Prospective (ProSpec) RL method, which makes higher-value, lower-risk optimal decisions by imagining future n-stream trajectories. Specifically, ProSpec employs a dynamic model to predict future states (termed "imagined states") based on the current state and a series of sampled actions. Furthermore, we integrate the concept of Model Predictive Control and introduce a cycle consistency constraint that allows the agent to evaluate and select the optimal actions from these trajectories. Moreover, ProSpec employs cycle consistency to mitigate two fundamental issues in RL: augmenting state reversibility to avoid irreversible events (low risk) and augmenting actions to generate numerous virtual trajectories, thereby improving data efficiency. We validated the effectiveness of our method on the DMControl benchmarks, where our approach achieved significant performance improvements. Code will be open-sourced upon acceptance.</summary>
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.AI" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.IR" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2024-07-31T06:04:55Z</published>
+    <arxiv:comment>Withdrawn by the authors due to substantial errors in the analysis that affect the main conclusions of the paper</arxiv:comment>
+    <arxiv:primary_category term="cs.LG"/>
+    <author>
+      <name>Liangliang Liu</name>
+    </author>
+    <author>
+      <name>Yi Guan</name>
+    </author>
+    <author>
+      <name>BoRan Wang</name>
+    </author>
+    <author>
+      <name>Rujia Shen</name>
+    </author>
+    <author>
+      <name>Yi Lin</name>
+    </author>
+    <author>
+      <name>Chaoran Kong</name>
+    </author>
+    <author>
+      <name>Lian Yan</name>
+    </author>
+    <author>
+      <name>Jingchi Jiang</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2607.06880v1</id>
+    <title>SA-DRL: Security-Aware Deep Reinforcement Learning for Ransomware Detection with Asymmetric Reward Design</title>
+    <updated>2026-07-08T00:43:20Z</updated>
+    <link href="https://arxiv.org/abs/2607.06880v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2607.06880v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Ransomware detection is a security-critical task in which false negatives and false positives have unequal operational consequences. Conventional machine learning detectors often use symmetric objectives that penalize missed ransomware detections and benign false alarms equally, although a false negative can cause irreversible encryption, operational disruption, and high recovery cost, whereas a false positive is usually reversible. This study proposes a Security-Aware Deep Reinforcement Learning (SA-DRL) framework that embeds false-negative and false-positive cost asymmetry into the reinforcement learning reward signal to prioritize missed-detection reduction. The framework also introduces a Security-Optimal Model Selection (SOMS) criterion and an adaptive episode-level sample-ordering mechanism. Four deep reinforcement learning agents, DQN, DDQN, PPO, and A2C, were evaluated using a symmetric baseline reward (R1) and a security-aware asymmetric reward (R2). Experiments used four discount factors, five-fold cross-validation, and three random seeds, resulting in 480 training runs on a balanced ransomware detection dataset. The SOMS criterion selects models by prioritizing false-negative rate, followed by F1-score and training time. Results show that asymmetric reward shaping improves security-oriented detection performance. The SOMS-selected configuration, DDQN with R2 and gamma = 0.1, achieved a false-negative rate of 0.0080, an F1-score of 0.9915, and an AUC of 0.998, reducing missed detections by 67.6% compared with the best supervised baseline. Across all configurations, R2 reduced the mean false-negative rate by 43% relative to R1. These findings show that reward-function design is important for security-sensitive ransomware detection.</summary>
+    <category term="cs.CR" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2026-07-08T00:43:20Z</published>
+    <arxiv:primary_category term="cs.CR"/>
+    <author>
+      <name>Jannatul Ferdous</name>
+    </author>
+    <author>
+      <name>Rafiqul Islam</name>
+    </author>
+    <author>
+      <name>Md Zahidul Islam</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2601.21192v1</id>
+    <title>Do Reasoning Models Enhance Embedding Models?</title>
+    <updated>2026-01-29T02:48:34Z</updated>
+    <link href="https://arxiv.org/abs/2601.21192v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2601.21192v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>State-of-the-art embedding models are increasingly derived from decoder-only Large Language Model (LLM) backbones adapted via contrastive learning. Given the emergence of reasoning models trained via Reinforcement Learning with Verifiable Rewards (RLVR), a natural question arises: do enhanced reasoning translate to superior semantic representations when these models serve as embedding initializations? Contrary to expectation, our evaluation on MTEB and BRIGHT reveals a **null effect**: embedding models initialized from RLVR-tuned backbones yield no consistent performance advantage over their base counterparts when subjected to identical training recipes. To unpack this paradox, we introduce **H**ierarchical **R**epresentation **S**imilarity **A**nalysis (HRSA), a framework that decomposes similarity across representation, geometry, and function levels. HRSA reveals that while RLVR induces irreversible latent manifold's local geometry reorganization and reversible coordinate basis drift, it preserves the global manifold geometry and linear readout. Consequently, subsequent contrastive learning drives strong alignment between base- and reasoning-initialized models, a phenomenon we term **Manifold Realignment**. Empirically, our findings suggest that unlike Supervised Fine-Tuning (SFT), RLVR optimizes trajectories within an existing semantic landscape rather than fundamentally restructuring the landscape itself.</summary>
+    <category term="cs.AI" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2026-01-29T02:48:34Z</published>
+    <arxiv:comment>10 main pages, 18 appendix pages, 13 figures, 11 tables, 4 prompts</arxiv:comment>
+    <arxiv:primary_category term="cs.AI"/>
+    <author>
+      <name>Wun Yu Chan</name>
+    </author>
+    <author>
+      <name>Shaojin Chen</name>
+    </author>
+    <author>
+      <name>Huihao Jing</name>
+    </author>
+    <author>
+      <name>Kwun Hang Lau</name>
+    </author>
+    <author>
+      <name>Elton Chun-Chai Li</name>
+    </author>
+    <author>
+      <name>Zihao Wang</name>
+    </author>
+    <author>
+      <name>Haoran Li</name>
+    </author>
+    <author>
+      <name>Yangqiu Song</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2505.18763v4</id>
+    <title>GenPO: Generative Diffusion Models Meet On-Policy Reinforcement Learning</title>
+    <updated>2026-01-22T17:10:05Z</updated>
+    <link href="https://arxiv.org/abs/2505.18763v4" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2505.18763v4" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Recent advances in reinforcement learning (RL) have demonstrated the powerful exploration capabilities and multimodality of generative diffusion-based policies. While substantial progress has been made in offline RL and off-policy RL settings, integrating diffusion policies into on-policy frameworks like PPO remains underexplored. This gap is particularly significant given the widespread use of large-scale parallel GPU-accelerated simulators, such as IsaacLab, which are optimized for on-policy RL algorithms and enable rapid training of complex robotic tasks. A key challenge lies in computing state-action log-likelihoods under diffusion policies, which is straightforward for Gaussian policies but intractable for flow-based models due to irreversible forward-reverse processes and discretization errors (e.g., Euler-Maruyama approximations). To bridge this gap, we propose GenPO, a generative policy optimization framework that leverages exact diffusion inversion to construct invertible action mappings. GenPO introduces a novel doubled dummy action mechanism that enables invertibility via alternating updates, resolving log-likelihood computation barriers. Furthermore, we also use the action log-likelihood for unbiased entropy and KL divergence estimation, enabling KL-adaptive learning rates and entropy regularization in on-policy updates. Extensive experiments on eight IsaacLab benchmarks, including legged locomotion (Ant, Humanoid, Anymal-D, Unitree H1, Go2), dexterous manipulation (Shadow Hand), aerial control (Quadcopter), and robotic arm tasks (Franka), demonstrate GenPO's superiority over existing RL baselines. Notably, GenPO is the first method to successfully integrate diffusion policies into on-policy RL, unlocking their potential for large-scale parallelized training and real-world robotic deployment.</summary>
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2025-05-24T15:57:07Z</published>
+    <arxiv:comment>Accepted by NeurIPS2025</arxiv:comment>
+    <arxiv:primary_category term="cs.LG"/>
+    <author>
+      <name>Shutong Ding</name>
+    </author>
+    <author>
+      <name>Ke Hu</name>
+    </author>
+    <author>
+      <name>Shan Zhong</name>
+    </author>
+    <author>
+      <name>Haoyang Luo</name>
+    </author>
+    <author>
+      <name>Weinan Zhang</name>
+    </author>
+    <author>
+      <name>Jingya Wang</name>
+    </author>
+    <author>
+      <name>Jun Wang</name>
+    </author>
+    <author>
+      <name>Ye Shi</name>
+    </author>
+  </entry>
+</feed>

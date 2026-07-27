@@ -1,0 +1,55 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<feed xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/" xmlns:arxiv="http://arxiv.org/schemas/atom" xmlns="http://www.w3.org/2005/Atom">
+  <id>https://arxiv.org/api/WhXlSV7S85tPMU6dpEbteGBWxN4</id>
+  <title>arXiv Query: search_query=abs:"time-to-event" AND abs:"censored" AND abs:"video"&amp;id_list=&amp;start=0&amp;max_results=30</title>
+  <updated>2026-07-26T12:28:46Z</updated>
+  <link href="https://arxiv.org/api/query?search_query=abs:%22time-to-event%22+AND+(abs:%22censored%22+AND+abs:%22video%22)&amp;start=0&amp;max_results=30&amp;id_list=" type="application/atom+xml"/>
+  <opensearch:itemsPerPage>30</opensearch:itemsPerPage>
+  <opensearch:totalResults>1</opensearch:totalResults>
+  <opensearch:startIndex>0</opensearch:startIndex>
+  <entry>
+    <id>http://arxiv.org/abs/2103.02583v1</id>
+    <title>Simulating time to event prediction with spatiotemporal echocardiography deep learning</title>
+    <updated>2021-03-03T18:28:33Z</updated>
+    <link href="https://arxiv.org/abs/2103.02583v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2103.02583v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Integrating methods for time-to-event prediction with diagnostic imaging modalities is of considerable interest, as accurate estimates of survival requires accounting for censoring of individuals within the observation period. New methods for time-to-event prediction have been developed by extending the cox-proportional hazards model with neural networks. In this paper, to explore the feasibility of these methods when applied to deep learning with echocardiography videos, we utilize the Stanford EchoNet-Dynamic dataset with over 10,000 echocardiograms, and generate simulated survival datasets based on the expert annotated ejection fraction readings. By training on just the simulated survival outcomes, we show that spatiotemporal convolutional neural networks yield accurate survival estimates.</summary>
+    <category term="cs.CV" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2021-03-03T18:28:33Z</published>
+    <arxiv:comment>9 pages, 5 figures</arxiv:comment>
+    <arxiv:primary_category term="cs.CV"/>
+    <author>
+      <name>Rohan Shad</name>
+    </author>
+    <author>
+      <name>Nicolas Quach</name>
+    </author>
+    <author>
+      <name>Robyn Fong</name>
+    </author>
+    <author>
+      <name>Patpilai Kasinpila</name>
+    </author>
+    <author>
+      <name>Cayley Bowles</name>
+    </author>
+    <author>
+      <name>Kate M. Callon</name>
+    </author>
+    <author>
+      <name>Michelle C. Li</name>
+    </author>
+    <author>
+      <name>Jeffrey Teuteberg</name>
+    </author>
+    <author>
+      <name>John P. Cunningham</name>
+    </author>
+    <author>
+      <name>Curtis P. Langlotz</name>
+    </author>
+    <author>
+      <name>William Hiesinger</name>
+    </author>
+  </entry>
+</feed>

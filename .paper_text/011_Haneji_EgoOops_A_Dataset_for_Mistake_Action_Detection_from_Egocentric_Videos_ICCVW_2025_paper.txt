@@ -1,0 +1,753 @@
+                    This ICCV Workshop paper is the Open Access version, provided by the Computer Vision Foundation.
+                                            Except for this watermark, it is identical to the accepted version;
+
+                                     the final published version of the proceedings is available on IEEE Xplore.
+
+                     EgoOops: A Dataset for Mistake Action Detection
+                   from Egocentric Videos referring to Procedural Texts
+
+         Yuto Haneji1, Taichi Nishimura2, Hirotaka Kameko1, Keisuke Shirai1, Tomoya Yoshida1,
+         Keiya Kajimura1, Koki Yamamoto1, Taiyu Cui1, Tomohiro Nishimoto1, Shinsuke Mori1
+
+                               1Kyoto University, 2Sony Interactive Entertainment
+
+                              haneji.yuto.s66@kyoto-u.jp, Taichi.A.Nishimura@sony.com,
+                       shirai.keisuke.5y@kyoto-u.ac.jp, {kameko,forest}@i.kyoto-u.ac.jp
+
+                                                                                                                                Video
+
+Ego-cam
+
+Procedure         Leave the end of the liner for gluing.  Fold along the incisions of the fold.    Adhere the liner with glue.      Annotations
+            time              Unintended action                              Correct               Working in the wrong way     Steps Mistakes
+                                                                               N/A               Use tape but should use glue
+                         Cut off the end of the liner
+
+Figure 1. An example task (cardboard) from our EgoOops dataset. EgoOops includes 50 egocentric videos across ﬁve procedural domains
+and corresponding procedural texts. It contains three types of annotations: video-text alignment, mistake labels, and descriptions explaining
+the errors in each segment.
+
+                  Abstract                                            page/.
+
+Mistake action detection is crucial for developing intelli-           1. Introduction
+gent archives that detect workers’ errors and provide feed-
+back. Existing studies have focused on visually apparent              Procedural activities are common in daily life and expert
+mistakes in free-style activities, resulting in video-only ap-        ﬁelds, such as assembly, experimentation, and cooking.
+proaches to mistake detection. However, in text-following             People often carry them out by following procedural texts
+activities, models cannot determine the correctness of some           in the real world. During this process, mistakes negatively
+actions without referring to the texts. Additionally, cur-            impact quality, speed, cost, and safety. Common mistakes
+rent mistake datasets rarely use procedural texts for video           include skipped necessary steps or wrong execution ways,
+recording except for cooking. To ﬁll these gaps, this pa-             which can sometimes result in life-or-death situations. One
+per proposes the EgoOops dataset, where egocentric videos             promising solution to this problem is to develop an intelli-
+record erroneous activities when following procedural texts           gent video archive that records workers’ activities, detects
+across diverse domains. It features three types of annota-            their mistakes, and shows them the mistake clips to prevent
+tions: video-text alignment, mistake labels, and descrip-             recurrences.
+tions for mistakes. We also propose a mistake detection ap-
+proach, combining video-text alignment and mistake label                 The intelligent video archives are developed using video
+classiﬁcation to leverage the texts. Our experimental re-             datasets recording workers’ steps in detail. Many egocentric
+sults show that incorporating procedural texts is essential           video datasets [1, 5, 10, 16, 22, 24, 26, 27, 31, 38] have been
+for mistake detection. Data is available through https:               proposed by equipping a worker with an egocentric camera
+/ / y - haneji . github . io / EgoOops - project -                    to capture activity details. Previously, most datasets were
+                                                                      interested in correct execution of activities [1, 5, 10, 22, 26].
+
+                                                                2711
+Table 1. Comparison of mistake datasets. Range: mistake labels to a video or each step segment with start and end times; Cat.: ﬁner-
+
+grained categorization than correct, mistake, and correction; Desc.: descriptions explaining why each segment is incorrect; OM, EM: order
+mistakes, execution mistakes (see Sec. 3.1); Proc.: workers follow step-by-step procedural texts. →Domain speciﬁc (e.g., extra screws).
+†Orders unseen in the training set, not always faulty.
+
+Dataset                   Mistake annotations                         Domain  Proc. Ego #videos Duration (hour)
+                 Range Cat. Desc. OM EM
+
+Assembly101 [31] Segment → → ↭ → Assembly → ↭                                 1,425  167
+                 Video ↭→ → ↭† ↭ Assembly → →                                 1,152   24.8
+ATA [9]                                                                       2,221
+                                                                                     166
+HoloAssist [38]  Segment → ↭ → ↭ Assembly → ↭                                    84     5.8
+                                                                                386   28
+IndustReal [27]  Segment → ↭ ↭ ↭ Assembly → ↭                                   384   94.5
+
+EgoPER [16]      Segment ↭ ↭ ↭ ↭ Cooking ↭ ↭                                     50     6.8
+CaptainCook4D [24] Segment ↭→ ↭ ↭ ↭ Cooking ↭ ↭
+
+EgoOops (Ours)   Segment ↭ ↭ ↭ ↭ Diverse ↭ ↭
+
+Some recent studies have also included and annotated mis-             contains 50 egocentric videos totaling 6.8 hours across ﬁve
+take actions in their assembly [9, 27, 31, 38] and cook-              tasks of new domains: electrical circuits, color mixture ex-
+ing [16, 24] video datasets. Using these mistake video                periments, ionic reaction experiments, toy building blocks,
+datasets, researchers have proposed mistake detection ap-             and cardboard crafts.
+proaches [8, 9, 16, 24, 29, 31].
+                                                                         We also propose an approach to the problem of mistake
+   However, these studies have the following three limita-            action detection, especially focusing on the utilization of
+tions (see Tab. 1). L1: video-focused approaches. Ex-                 procedural texts (L1). To leverage the texts, our approach
+isting studies [8, 9, 13, 16, 24, 29, 31] have focused on             combines video-text alignment and mistake label classiﬁ-
+video-only approaches to mistake detection and not utilized           cation; the former localizes the start and end times of each
+procedural texts. Their approaches are suitable for visually          procedural step, and the latter assigns the step segments one
+apparent mistakes like incorrectly attached parts and falling         label of mistake classes. In experiments using EgoOops,
+plates. Nevertheless, in text-following activities, some mis-         our multi-modal approach outperforms a video-only base-
+takes are deviations from procedural texts, thus not obvi-            line, and the ablation of textual inputs decreases our perfor-
+ous only from visual cues (e.g., in Fig. 1, the use of tape           mance. These results demonstrate that incorporating proce-
+is a mistake because the text designates glue). Therefore,            dural texts is essential for mistake detection. Additionally,
+besides videos, texts are essential for models to detect mis-         we test existing mistake classiﬁers and multi-modal large
+takes accurately. L2: speciﬁc domains. Procedural texts               language models for the classiﬁcation problem. As for the
+are included in only a few mistake datasets recording cook-           alignment problem, we compare our fully-supervised ap-
+ing [16, 24]. Since many real-world activities follow pro-            proach with zero-shot and self-supervised ones. The results
+cedural texts, it is essential to collect data from more do-          conﬁrm that EgoOops targets novel domains of procedural
+mains. L3: rough mistake labels. Most datasets deﬁne                  activities and contains useful alignment annotations.
+coarse-grained (correct/mistake/correction) [27, 31, 38] or
+domain-speciﬁc (e.g., extra screws) [9, 24] categories. Gen-          2. Related work
+eral and ﬁne-grained categorization enables analysis of mis-
+take patterns across diverse domains (e.g., a commonly fre-           In this section, we compare EgoOops with other datasets in
+quent category of mistakes).                                          terms of two perspectives: procedural activity dataset and
+                                                                      mistake action dataset.
+   To address these issues, we propose a novel dataset
+called EgoOops (see Fig. 1), where egocentric videos                  2.1. Procedural activity datasets
+record erroneous activities when following procedural texts
+(L1) across diverse domains (L2). Given the collected                 Procedural activity understanding is an important capabil-
+videos and texts, we perform the following three steps for            ity for enhancing smart systems, such as AR/VR assis-
+annotations. First, we align steps in the procedural text with        tants [38] and intelligent archives. In particular, aligning
+video segments (i.e., start and end timestamps). Second, if a         a sequence of step instructions with a video (i.e., video-text
+segment contains a mistake action, we categorize it into six          alignment) is fundamental. To support research in this di-
+mistake classes (L3). Finally, the segments assigned mis-             rection, a variety of procedural activity datasets have been
+take labels are provided with descriptions of why the actions         developed. While early datasets collected third-person per-
+are considered mistakes. As for the size and tasks, EgoOops           spective videos accompanied by textual descriptions of each
+                                                                      timestep from YouTube [20, 34, 41], recent datasets focus
+
+                                                                2712
+on ﬁrst-person (egocentric) videos that capture ﬁne-grained            executions mistakes in this study.1
+details of workers’ activities [1, 5, 10, 17, 22, 26, 33]. For            Execution mistakes occur when a worker misinterprets
+example, EPIC-KITCHENS [5] dataset consists of 432 ego-
+centric videos with step instructions in the cooking domain,           and executes steps. We classify the execution mistakes into
+including start and end times for each segment. Our dataset            the six types of errors:
+provides similar video-text alignment annotations as exist-            1. Incorrect-object-use (Object) executes a step with a dif-
+ing datasets, but distinguishes itself by focusing on erro-
+neous actions, thereby enabling the study of error detection              ferent object speciﬁed in the text. This includes cases
+within procedural activities.                                             when the incorrect number of objects is used.
+                                                                       2. Incorrect-object-picking (Mispick) picks up an incor-
+2.2. Mistake action datasets                                              rect object, but the worker recognizes the mistake and
+                                                                          releases the object. This mistake does not execute a step,
+Mistakes are critical in procedural activities, as they can               unlike incorrect-object-use.
+propagate through subsequent steps and signiﬁcantly affect             3. Self-correction (Correction) recognizes and corrects
+task success. This has led to the development of various                  mistakes in a step that has been executed in a wrong way.
+datasets (see Tab. 1). These datasets are categorized into             4. Accidental-mistakes (Accident) causes accidental hap-
+free-style and text-following settings.                                   penings mainly due to carelessness.
+                                                                       5. Wrong-way (Way) picks a correct object but executes a
+   In free-style activity datasets [9, 27, 31, 38], workers aim           step in a way that misaligns with the instruction in the
+to complete goals not relying on procedural texts. For ex-                text.
+ample, Assembly101 [31] records toy assembly and anno-                 6. Other-mistakes (Others) induces other types of mis-
+tates segment-level labels of correct, mistake, and correc-               takes. This also includes cases where multiple types of
+tion. Building on such datasets, previous studies have pro-               the above mistakes occur simultaneously.
+posed various approaches to ﬁnd mistakes in videos [8, 9,
+29, 31, 38]. These approaches rely only on videos because              3.2. Task selection
+mistakes in free-style activities are mainly visually apparent
+such as incorrectly attached parts and dropped screws.                 To capture a broad range of mistake types described in
+                                                                       Sec. 3.1, we construct the EgoOops dataset with activity
+   Another line of studies records workers following pro-              videos from diverse domains. Accordingly, we select the
+cedural texts in their datasets [16, 24]. EgoPER [16] an-              following ﬁve tasks:
+notates recipe-execution videos with order and execution               • Electrical circuits (EC): Connecting electrical elements
+mistakes, and CaptainCook4D [24] proposes categorization
+speciﬁc to cooking (e.g., temperature error). One prob-                  to complete an electrical circuit that turns a propeller.
+lem is that they still do not utilize procedural texts to ﬁnd          • Color mixture experiments (CM): Examining the color
+mistakes in videos. In text-following activities, some mis-
+takes are deviations from procedural texts, thus the texts               of various solutions of detergent and ﬂuorescent paint
+are essential for models. In addition, to the best of our                when illuminating them with a blacklight.
+knowledge, no datasets besides cooking involve procedu-                • Ionic reaction experiments (IR): Examining ionic reac-
+ral texts, whereas many real-world activities follow them.               tion by dropping chemical solutions to metal plates.
+Our EgoOops dataset annotates video-text alignment and                 • Toy building blocks (BB): Piling up building blocks to
+mistake labels across diverse domains, promoting the uti-                construct the speciﬁed structure.
+lization of texts in mistake detection.                                • Cardboard crafts (CB): Crafting Omikuji boxes,
+                                                                         Japanese random fortunes, from cardboard.
+3. EgoOops dataset                                                        We prepare procedural texts for each task as follows: CM
+                                                                       and CB use procedures collected from the web; IR and EC
+EgoOops dataset provides procedural activity videos in-                use instruction manuals included with out-of-box kits; BB
+cluding erroneous work and annotations for these mis-                  uses a procedure that we manually write from scratch.
+takes. The activities are performed by following instruc-
+tional steps of procedural texts in order. In this section,            3.3. Video recording
+we ﬁrst deﬁne mistakes and then describe task selection,
+video recording, and annotations. Finally, dataset statistics          We asked four graduate students to perform the tasks based
+are provided.                                                          on the procedural texts. To record their activities, a head-
+                                                                       mounted camera (Panasonic HX-A500) was used (Fig. 2).
+3.1. Mistake deﬁnition                                                 The egocentric videos were recorded at 30 fps with 4K RGB
+                                                                       resolution. We chose the egocentric perspective to cap-
+We deﬁne mistakes as “deviations from instructional steps.”
+Out of mistake types that meet this deﬁnition, we consider                 1Other types of mistakes such as order mistakes (e.g., skipping and
+                                                                       reordering steps) may also occur during activities, but we focus on the
+                                                                       execution mistakes which are our main concern. We leave the study of the
+                                                                       other types of mistakes to future work.
+
+                                                                 2713
+        Egocentric                                                               Table 2. Statistics of recorded videos and procedural texts.
+        Camera
+                                                                                      Videos      Segments       Texts
+   Figure 2. Egocentric head-mounted camera on participants.
+                                                                                 Task #vid. Avg. #seg. #seg. Avg. #steps #words
+ture the participants’ visual attention and ﬁne-grained hand-                         (min)       / #vid. (sec) per text / #steps
+object interactions, which are critical for modeling proce-
+dural understanding. During the recordings of EC and BB,                         EC   10 3.2  98  9.8 15.4   8                                 7.6
+images of the ﬁnal products were given to the participants.2
+To avoid the inﬂuence of background changes, we ﬁxed the                         CM   10 4.4 91   9.1 25.8   8                                 17.0
+initial locations of the objects, tools, and printed procedural
+texts. Further, the participants were instructed to work in                      IR   10 5.4  95  9.5 29.7   9                                 12.7
+the chair to capture manipulated objects in detail.
+                                                                                 BB   10 1.9  87  8.7 9.0    7                                 18.6
+   Each participant was asked to perform each task two or
+four times, totaling 10 recordings per task. For each task,                      CB   10 26.1 167 16.7 86.7  14                                9.6
+ﬁve of 10 recordings contain mistakes that the participants
+performed intentionally. For the other ﬁve recordings, the                       All  50 8.2 538 10.8 40.7   9.2 13.5
+participants were asked to follow the procedural texts avoid-
+ing mistakes. Note that the latter ﬁve recordings still contain                  vide mistake labels and descriptions based on the segments
+mistakes due to their careless errors.                                           annotator-A annotated. The labels and descriptions between
+                                                                                 the annotators were compared using Cohen’s kappa [3] and
+3.4. Annotations                                                                 BERTScore [40]. The tIOU was 88.8, and Cohen’s kappa
+                                                                                 and BERTScore were 86.8 and 96.3, respectively, ensuring
+EgoOops provides annotations of video-text alignment,                            that the annotations of the dataset are consistent.
+mistake labels, and textual descriptions of the mistakes.
+                                                                                 3.5. Statistics
+   Video-text alignment refers to the segments in the
+recorded videos, and each segment is represented as a start                      In this section, we ﬁrst report video- and text-side statis-
+and end timestamp. Each segment corresponds to a human                           tics on EgoOops, then discuss mistake label statistics. The
+action, which is a step in the procedural text or a mistake                      statistics of mistake descriptions are written in the supple-
+(e.g., grasping the wrong object).                                               mentary materials.
+
+   Mistake labels are assigned to segments that correspond                          Table 2 shows different trends between the tasks in terms
+to execution mistakes. A mistake label is one of the six                         of video duration, segment duration, and the number of seg-
+mistake types in Sec. 3.1. In addition to the mistake labels,                    ments. For video duration, the longest is the cardboard task
+we also provide textual descriptions of why the performed                        at 26.1 minutes, while the shortest is the building block task
+actions are considered mistakes.                                                 at 1.9 minutes. As for the texts, Tab. 2 compares the num-
+                                                                                 ber of steps in a procedural text and the number of words
+   We asked two persons for annotation, who are                                  per step. The task with the most steps is the cardboard task,
+called annotator-A and annotator-B to avoid confusion.                           while the task with the longest instructions is the building
+Annotator-A was asked to annotate the whole dataset us-                          block task. These statistics indicate that EgoOops covers a
+ing a web annotation tool that we developed. After the an-                       variety of procedural tasks ranging from short to long.
+notation, annotator-B was asked to annotate several videos
+from the dataset again to calculate inter-annotator agree-                          Table 3 shows the counts of the labels for execution
+ments. For video-text alignment, annotator-B extracted seg-                      mistakes. In total, EgoOops contains 95 execution mis-
+ments from videos and mapped them to the corresponding                           takes. Counting the number of each type of mistake, the
+step labels. The temporal Intersection over the union (tIoU)                     two most frequent labels are incorrect-object-picking (label
+to the original segments was then calculated. For mis-                           2) and wrong-way (label 5). In addition, we also ﬁnd unique
+take labels and descriptions, annotator-B was asked to pro-                      mistake patterns of each task. For example, accidental-
+                                                                                 mistakes (label 4) frequently happen in ionic reaction exper-
+    2Our preliminary experiments showed these tasks were difﬁcult to com-        iments but rarely in the other tasks. We expect the reason is
+plete only with the texts.                                                       that the ionic reaction experiments involve moving a small
+                                                                                 metal piece with tweezers and dropping solution into a nar-
+                                                                                 row space. Overall, many execution mistakes occur in the
+                                                                                 videos of EgoOops, and the tasks have their own frequent
+                                                                                 mistake types.
+
+                                                                                 4. Application: mistake action detection
+
+                                                                                 We propose a text-oriented approach to mistake action de-
+                                                                                 tection. This section formalizes the problem as consisting
+                                                                                 of video-text alignment and mistake label classiﬁcation and
+                                                                                 explains our approach to them.
+
+                                                                           2714
+       Table 3. The number of mistake labels.                                          one InfoNCE [35] at both local (same video-narration pairs)
+
+Task Mistake label                                                                     and global (different video-narration pairs) levels. During
+        1. Object 2. Mispick 3. Correction 4. Accident 5. Way 6. Others
+                                                                                       inference, StepFormer can temporally localize the video
+
+EC     9   5   1  2                            3  2                                    segment of each step instruction (i.e., video-text alignment).
+
+CM     4   8   0  2                            5  3                                    Speciﬁcally, the extracted step slots align with the step in-
+
+IR     0   3   1  5                            6  4                                    structions in procedural texts, allowing unmatched slots to
+
+BB     2   5   5  1                            5  1                                    be dropped. Next, the remaining slots are aligned with the
+
+CB     5   3   0  1                            2  2
+
+Total  20  24  7  11 21                           12                                   video to identify the start and end times of each step. In
+
+4.1. Problem formalization                                                             these alignment processes, Drop-DTW is used again.
+                                                                                       Pre-training. We select StepFormer because its self-
+Mistake action detection consists of two problems in our
+formalization: video-text alignment and mistake label clas-                            supervised learning can be used for pre-training to miti-
+siﬁcation. It leads to localizing temporal segments and
+classes of mistakes in a video.                                                        gate the negative impact of the small size of EgoOops. In
+
+   Given an untrimmed video V = (f1, . . . , fL) and the                               the original paper [7], StepFormer is trained on untrimmed
+corresponding procedural text T = (t1, . . . , tK ), our ﬁrst
+problem is video-text alignment. Here, V consists of L                                 web videos and narrations in HowTo100M [20] using
+frames, and T includes K steps of instructions. For k-th
+step tk, our goal is to localize the start and end frame num-                          UniVL [19] features. Instead, we train it on Ego4D [10] us-
+bers (sk, ek).
+                                                                                       ing EgoVLPv2 [25] features to ﬁll the domain gap between
+   The alignment outputs are passed to the next problem of
+mistake label classiﬁcation, which predicts a mistake label                            web and egocentric videos. Ego4D is a massive-scale ego-
+for each step segment. The k-th step segment is represented
+by extracted video frames based on the start and end frame                             centric video dataset accompanied by transcriptions [10],
+numbers as V↑k = (fsk , . . . , fse ). Our objective is to assign
+the segment V↑k one label of mistake classes (c1, . . . , cN ),                        hence we can pre-train StepFormer following the same pro-
+where cn and N represent the name of the n-th class and the
+number of the classes, respectively. In our experiments, we                            cedure as the original one.
+group the mistakes except for 3. correction (see Sec. 3.1)                             StepFormer++. The pre-trained model is ﬁne-tuned on
+into the common mistake class and solve the classiﬁcation
+of three classes: correct, mistake, and correction. 3                                  EgoOops with an additional loss to train StepFormer in a
+
+4.2. Video-text alignment                                                              fully supervised setting by leveraging the video-text align-
+
+For video-text alignment, we enhance an existing model of                              ment annotations. Figure 3 shows an overview of the result-
+StepFormer [7] by introducing an additional fully super-
+vised loss function, termed StepFormer++. We ﬁrst provide                              ing model StepFormer++. The overall process is the same
+an overview of the original StepFormer and then explain
+how we extend it.                                                                      as the original StepFormer. Given (V, T), the model ﬁrst
+Preliminary: StepFormer. StepFormer was originally
+proposed for learning video-text alignment from untrimmed                              extracts         video        Hv       =    (  h   1  ,  .  .  .  ,  h  l  ,  .  .  .  ,  h  L  )  and      text    Ht  =
+videos accompanied by narrations in a self-supervised man-                                                                                v                    v                    v
+ner [7]. StepFormer is a Transformer decoder [36] equipped                             (h1t ,              hkt ,              hK
+with U learnable queries. Given video features extracted                                       .  .  .  ,         .  .  .  ,       )  features              using          EgoVLPv2                instead     of
+using UniVL [19], the queries attends to the video features,                                                                    t
+producing U contextualized vectors called step slots, which
+capture key steps in the video. The step slots temporally                              UniVL. Then, the Transformer decoder makes slot queries
+align with narration vectors extracted using UniVL, where
+they use a sequence-to-sequence alignment algorithm Drop-                              attend Hv, producing step slots S = (s1, . . . , su, . . . , sU ).
+DTW [6]. Considering this alignment as positive pairs, the
+loss to supervise the step slots is calculated as contrastive                          Finally, the model acquires the step-text alignment via
+
+    3Our preliminary experiments showed that distinguishing the seven                  Drop-DTW by computing a similarity matrix of S and Ht.
+classes (six classes in Sec. 3.1 plus the correct class) is difﬁcult currently.
+                                                                                       The step-text alignment is used to compute the original loss
+
+                                                                                       at only the global (different video-narration pairs) level. In-
+
+                                                                                       stead of the local (same video-narration pairs) loss, we add
+
+                                                                                       a new loss to the StepFormer for learning from video-text
+
+                                                                                       alignment annotations. After Drop-DTW between the slots
+
+                                                                                       and step instructions4, we supervise the remaining step slots
+                                                                                       Sˆ = (ˆs1, . . . , ˆsk, . . . , ˆsK ) to match with the start and end
+
+                                                                                       frame numbers (sk, ek). Speciﬁcally, this is calculated us-
+
+                                                                                       ing the InfoNCE framework:
+
+                                                                                       Lsupervised(ˆsk, Hv) = ↑ log                                               j ↓[sk ,ek ]         f  (ˆsk  ,  hj   )
+
+                                                                                                                                                                                                     v
+                                                                                                                                                                                             l , (1)
+                                                                                                                                                                              l f (ˆsk, hv)
+
+                                                                                       where         f  (ˆsk  ,   h  →  )  =  e  x    p(  c  os    (ˆsk     ,  h  →  )  )  /ω    ,  and   ω  is    a    scaling
+                                                                                                                     v                                            v
+
+                                                                                       temperature. We add this loss to the original ones, and the
+
+                                                                                       pre-trained model is ﬁne-tuned on EgoOops.
+
+                                                                                       4.3. Mistake label classiﬁcation
+
+                                                                                       Multi-modal classiﬁer. Given a pair of predicted video
+                                                                                       segment V↑ and k-th step instruction tk, the model pre-
+
+                                                                                       4We leave the same number of slots as the steps in the procedural text.
+
+                                                                                 2715
+               StepFormer    Sequence-to-sequence alignment                                                                         Procedural text               5.1. Mistake action detection
+                                         Via Drop-DTW                                                                          1. Draw auxiliary line…
+                                                                                                     EgoVLPv2 text encoder     2. Cut along the auxiliary…        Baseline. We do not adopt existing mistake detection meth-
+          EgoVLPv2 visual encoderTransformer                                                                                   3. Leave the ends of the …         ods as baselines because they do not ﬁt our settings. For
+                 Decoder                                                                                                       4. Leave the ends of the …         instance, Assembly101 [31] and CaptainCook4D [24] as-
+                                                                                                                                                                  sume trimmed video clips as inputs, while our task assumes
+               Step queries  Step                              Step                                                                                               untrimmed videos. The method in [29] focuses on order-
+                             slots                            vectors                                                                                             ing mistakes in the videos and does not address execution
+                                                                                                                                                                  mistakes. EgoPED [16] and AMNAR [13] are the closest
+                                                          StepFormer++ (addi/onal loss)                                                                           to our setting as they predict both segments and mistake la-
+                                                                                                                                                                  bels. However, their methods are based on anomaly detec-
+                     Self-supervised         Prediction                                                                                                           tion, predicting binary labels of “correct” and “mistakes,”;
+                                                                                                                                                                  thus they cannot predict the three classes of “correct,” “mis-
+                     Loss (global) +                       Supervised frame-wise InfoNCE (Eq. (1))                                                                takes,” and “correction.”
+
+                  (original StepFormer)                                                                                                                              Therefore, instead of existing mistake action detection
+                                                                                                                                                                  models, we compare our method with the recent temporal
+                                                 Ground                                                                                                           action localization (TAL) model, ActionFormer [39]. This
+                                                   truth                                                                                                          is because TAL operates under similar conditions, where
+                                                                                                                                                                  the models detect both temporal segments and their action
+          Figure 3. An overview of StepFormer++.                                                                                                                  labels. In our experiments, we train ActionFormer to predict
+                                                                                                                                                                  mistake labels for the detected segments, instead of action
+dicts the mistake label. Speciﬁcally, the model ﬁrst con-                                                                                                         labels as in the original settings. For a fair comparison, we
+                                                                                                                                                                  apply NMS to retain as many segments as the ground truths.
+vert V↑   and tk  into       video        H↑        =      (  h  st  ,  .  .                                                .  ,  h  et  )    and   text          In addition, since our metrics require step labels, we assign
+                                                                 v                                                                   v                            them to the segments in order from the start to the end of
+hk                                           v                                                                                                                    the videos. Note that the inputs for TAL are videos only.
+                                                                                                                                                                  Evaluation metrics. We follow TAL [39] and report mean
+  t  features  using  EgoVLPv2.                  Then,        it  computes                                                                 the      mean          average precision (mAP) at tIoU thresholds of 0.1, 0.2, and
+                                                                                                                                                                  0.3. It computes the mean of average precision across only
+of H↑v, concatenates the averaged vector with hkt , and for-                                                                                                      mistake and correction classes because we focus on mis-
+                                                                                                                                                                  take detection performance. Since our problem formaliza-
+wards it into a two-layer perceptron g with ReLU func-                                                                                                            tion involves video-text alignment (see Sec. 4.1, our metrics
+                                                                                                                                                                  require correctly predicting both step and mistake labels.
+tion  as  following:  zk     =      g  (  c  on  c  at  (  m  e  an  (  H↑                                                     )  ,  h  k  )  )  ,  where         Note that ActionFormer processes only videos and does not
+                                                                                                                                        t                         conduct video-text alignment [39]; yet we assign step labels
+                                                                           v                                                                                      to the segments sequentially from the video’s start to end for
+zk = (zk1, . . . , zkn, . . . , zkN ) represents the logits for classes,                                                                                          fair comparison.
+                                                                                                                                                                  Splits. Our EgoOops dataset is relatively small compared to
+and N is the number of the classes. The model applies the                                                                                                         other action mistake datasets. To ensure reliable results, we
+                                                                                                                                                                  perform 5-fold cross-validation. We divide the 50 videos
+argmax operation on zk and outputs the prediction label.                                                                                                          into a 30/10/10 split for training, validation, and testing, re-
+Training. To train the model, we use the class-balanced                                                                                                           spectively. All 30 training videos from the ﬁve tasks are
+                                                                                                                                                                  used to train one unique model for scalability and general-
+focal loss [4] because the frequency of the mistake and cor-                                                                                                      ization across diverse tasks. We report the average test-set
+                                                                                                                                                                  scores using the model weights that achieve the highest per-
+rection labels is lower than the correct label. Speciﬁcally,                                                                                                      formance on the validation set. To construct folds, we pay
+                                                                                                                                                                  attention to the two points. First, each validation and testing
+using zt, the loss is calculated as following:                                                                                                                    fold contains one correct and one mistake video for every
+                                                                                                                                                                  task, totaling 10 videos. Second, each fold consist of the
+                                          1↑ε                           e  x                                                p  (  z  c  n  )                      same workers’ videos as following the group k-fold [28].
+                                                                                                                                     t                            This allows us to test the models on unseen worker’s activ-
+     Lclassiﬁcation(zt) = ↑                      rc log                                                                                    cj , (2)               ities, minimizing the bypass possibility to learn the worker-
+                                    1↑ε n                                  j exp(zt )                                                                             speciﬁc features to detect mistakes.
+                                                                                                                                                                  Results. Table 4 shows the performance on mistake ac-
+where rcn is the number of training samples belonging to
+the class cn, and ε ↓ [0, 1) is a hyperparameter. We adopt
+teacher forcing [11, 36] as the training strategy. Speciﬁ-
+cally, we input the ground-truth segment of the t-th step to
+the model to stabilize training whereas the predicted ones
+are used for testing.
+
+4.4. Implementation details.
+
+We follow the ofﬁcial implementation of StepFormer and
+use the same hyperparameters as stated in [7] unless we
+mention modiﬁcations. We set the number of step queries
+to be U = 32 and the batch size to be 6 for ﬁne-tuning
+StepFormer++ on EgoOops. The video and text feature di-
+mension of EgoVLPv2 is d = 4, 096. We use Drop-DTW
+with an 80 percentile drop cost [6] to align the step slots
+and video features. We set ω = 0.03 in the InfoNCE loss
+and ε = 0.9999 in the class-balanced loss. For the mistake
+label classiﬁcation, we train the classiﬁer in 1,200 epochs.
+
+5. Experiments
+
+We ﬁrst report an end-to-end performance on mistake action
+detection in Section 5.1. We then conduct in-depth experi-
+ments on video-text alignment and mistake label classiﬁca-
+tion individually in Section 5.2 and 5.3.
+
+                                                                                                                                                            2716
+Table 4. Results of mistake action detection. Oracle denotes                Table 6. Results of video-text alignment. ZS: zero-shot, SS: self-
+upper-bound performance using ground-truth step segments.                   supervised, FS: fully supervised.
+
+Methods                                  mAP@tIoU                           Methods              F1 Prec. Rec. MoF
+                                   0.1 0.2 0.3 Avg.
+ActionFormer [39]                                                           StepFormer (ZS) [7]  24.1 24.6 23.7 24.9
+StepFormer++ w/ MLP (ours)         1.8 0.1 0.1 0.7
+GT steps (oracle)                  2.6 2.5 2.5 2.5                          StepFormer (SS) [7]  26.1 26.6 25.7 27.0
+                                                                            StepFormer++ (ours, FS) 28.1 28.4 27.9 28.1
+                                              34.7
+
+Pred: mistake, GT: mistake         Pred: mistake, GT: correct
+
+Put three copper plates on the     Pour about 15mL of water into a
+left column of the using the pair  cup, dip the tip of a yellow
+of tweezers.                       highlighter in the water and
+                                   squeeze out a drop.
+
+Figure 4. Success (left) and failure (right) cases of mistake detec-
+tion. Text boxes at the bottom show the predicted steps.
+
+Table 5. Ablation study of textual inputs to the mistake label clas-
+siﬁer of our approach.
+
+Inputs to classiﬁer  Avg. mAP      Avg. mAP (oracle)
+Video Text                    0.3                     4.7
+                              2.5                   34.7
+↭  ↭                                                                                Figure 5. Qualitative results of video-text alignment.
+↭
+                                                                            work [7, 32]. Our StepFormer++ achieves an F1 score of
+tion detection. Our proposed method achieves an average                     28.1, surpassing both the ZS (24.1) and SS (26.1) variants.
+mAP of 2.5, surpassing ActionFormer’s 0.7. In contrast, our                 These results demonstrate that our fully supervised loss ef-
+score is still far from the oracle’s 34.7, which uses ground-               fectively trains StepFormer++ when alignment annotations
+truth step segments and only performs mistake label clas-                   are available.
+siﬁcation. This suggests that accurate video-text alignment
+largely improves mistake action detection. In addition, we                     Figure 5 shows example results of the self-supervised
+explore the success and failure examples as shown in Fig. 4.                StepFormer and StepFormer++. While the self-supervised
+In the success case, the correct alignment leads to the ﬁnd-                one fails to localize the steps of putting copper, zinc, and
+ing of a mistake; in the failure case, the localized step is                magnesium plates, our StepFormer++ correctly ﬁnds their
+incorrect, hurting the performance of mistake classiﬁcation.                alignments. This implies that it is difﬁcult to distinguish
+Moreover, we conduct an ablation study on input modali-                     steps involving similar-looking objects in a self-supervised
+ties, as shown in Tab. 5. When comparing models with and                    learning, but our fully-supervised loss helps to learn them.
+without text input, we observe that the average mAP drops                   Also, this demonstrates that our fully supervised loss im-
+signiﬁcantly from 2.5 to 0.3. This highlights the importance                proves StepFormer’s video-text alignment capability, thus
+of textual information for accurate mistake classiﬁcation.                  StepFormer++ achieves more precise step prediction.
+
+5.2. Video-text alignment                                                   5.3. Mistake label classiﬁcation
+
+We conduct detailed experiments on the video-text align-                    We address the task of mistake label classiﬁcation, which
+ment component. In this experiment, we evaluate the per-                    predicts one of three labels (correct, mistake, and correc-
+formance of our proposed StepFormer++ against two ver-                      tion) based on ground-truth segments. As baselines, we
+sions of the original StepFormer [7]. One is trained on                     evaluate mistake classiﬁers trained on existing mistake ac-
+Ego4D and evaluated in a zero-shot manner (ZS), while                       tion datasets and report their performance on the EgoOops
+the other is further ﬁne-tuned on EgoOops using a self-                     dataset. Furthermore, we explore the capabilities of re-
+supervised approach (SS).                                                   cent multi-modal large language models (MLLMs) to assess
+                                                                            how accurately they can predict mistake labels.
+   As shown in Tab. 6, we report frame-wise F1, Preci-                      Classiﬁers trained on existing datasets. The EgoOops
+sion, Recall, and Mean over Frames (MoF), following prior                   dataset introduces tasks from a diverse range of previously
+                                                                            unexplored domains (see Sec. 3.2), beyond those covered
+
+                                                                      2717
+in existing assembly [9, 27, 31, 38] and cooking [16, 24]                             Procedure:
+datasets. To evaluate whether models trained on existing                              {PROCEDURE}
+datasets can generalize to unseen domains, we apply these                             This step: {STEP_INSTRUCTION}
+models to predict mistake labels on the EgoOops dataset in
+a zero-shot manner.                                                                   It is an egocentric video clip where the worker per-
+                                                                                      forms an activity referring to the procedure. Note that if
+   Speciﬁcally, we compare the performance of our clas-                               the step is ”UNDEFINED”, it is an extra step not written
+siﬁer trained on EgoOops with models trained on Assem-                                in the procedure.
+bly101 [31] and CaptainCook4D [24], which are repre-                                  Carefully look at the clip. Try to ﬁnd worker’s failures of
+sentative benchmarks for assembly and cooking errors, re-                             precisely carrying out the step instruction (i.e. mistake)
+spectively. For Assembly101, we adopt the TempAgg                                     or correction of mistakes. We penalize more for over-
+model [30], a long-range video recognition architecture                               looking mistake and correction classes. Select the best
+leveraging TSM features [18]. For CaptainCook4D, we uti-                              option to the following multiple-choice question based
+lize their best-performing model: a multi-layer perceptron                            on the video clip.
+(MLP) head on top of a frozen 3D-ResNet backbone [12].
+In contrast, we train a MLP-based model (see Sec. 4.3) on                             Question: Which label best matches the activity
+EgoOops to evaluate the effect of tuning to its domains.                              performed by the camera wearer?
+                                                                                      0. correct
+MLLMs. Finding mistake actions is a visual reasoning                                  1. correction
+task, where models must understand both the video and the                             2. mistake
+associated procedural text to determine whether a worker                              The best option:
+correctly follows the instructions. MLLMs perform well in
+visual reasoning benchmarks [2, 37], thus we instruct them            Figure 6. The prompt template for MLLMs. We replace the place-
+to solve mistake label classiﬁcation given a trimmed video            holders with the task’s procedure and the performed step for each
+clip, the task’s procedure, and the performed step.                   trimmed video clip.
+
+   Speciﬁcally, we evaluate two leading open-source                   Table 7. Results of mistake action classiﬁcation. ZS: zero-shot,
+MLLMs on EgoOops in a zero-shot manner: InternVL2.5-                  FS: fully-supervised. Note that [24] addresses binary classiﬁca-
+8B [2] and Qwen2-VL-7B-Instruct [37]. For each instance,              tion of correct or mistake, thus the scores for correction are not
+we construct the input prompt using a ﬁxed template (Fig. 6)          available.
+designed to (1) provide the full procedure as context, (2) en-
+courage active identiﬁcation of mistakes and corrections,             MLLM Classiﬁer           Methods                  Mistake       Correction
+(3) and follow a multiple-choice question format, which                                                          Prec. Rec. F1   Prec. Rec. F1
+MLLMs are well-trained to handle. The completed prompt                                Uniform sampling
+and the video frames are passed to the model, which outputs                           Assembly101 [31] (ZS)      16.4 33.3 21.9    1.3 33.3 2.5
+its answer in free-form text. Video frame sampling follows                            CaptainCook4D [24] (ZS)    14.8 14.8 14.8    2.4 42.9 4.5
+each model’s ofﬁcial pre-processing: InternVL2.5 takes 24                             MLP (ours, FS)             16.5 76.1 27.1
+frames as input, while Qwen2-VL takes 48 frames.                                                                 35.0 48.9 40.8           N/A
+                                                                                      InternVL2.5-8B [2]                         57.1 57.1 57.1
+Results. Table 7 presents the results of mistake label                                Qwen2-VL-7B-Instruct [37]  47.6 34.1 39.7
+classiﬁcation. Among the classiﬁers, the model trained                                                           75.0 30.7 43.5    0.0 0.0 0.0
+on CaptainCook4D performs better than the uniform sam-                                                                             2.6 14.3 4.4
+pling baseline, demonstrating a certain level of domain-
+generalization ability. In contrast, the model trained on As-         6. Conclusion
+sembly101 does not surpass the baseline, indicating its lim-
+ited transferability to unseen domains. The model trained             This paper introduced EgoOops dataset that consists of ego-
+on EgoOops signiﬁcantly outperforms uniform sampling,                 centric videos, procedural texts, and three types of annota-
+highlighting the beneﬁts of domain-speciﬁc adaptation.                tions: video-text alignment, mistake labels, and mistake de-
+                                                                      scriptions. Based on this, we proposed a text-oriented ap-
+   In terms of MLLMs, Qwen2-VL-7B-Instruct exceeds the                proach to the task of mistake action detection. Our experi-
+fully-supervised MLP classiﬁer when comparing their per-              ments demonstrated that textual information plays a crucial
+formance to recognize the “mistake” class, suggesting its             role in accurately identifying mistakes. Furthermore, we
+strong capabilities to ﬁnd mistakes. However, its perfor-             conducted an in-depth analysis of video-text alignment and
+mance on recognizing corrections of mistakes is consider-             mistake label classiﬁcation. The results revealed that while
+ably lower compared to the fully-supervised model. This               MLLMs exhibit promising performance in mistake recog-
+gap suggests that current MLLMs have limited ability to               nition but still struggle to reason about mistake corrections
+reason about whether an action constitutes a correction.              in videos, highlighting a key area for future improvement.
+                                                                      Acknowledgments. This work was supported in part by
+                                                                      JSPS KAKENHI Grant Numbers 25K21274.
+
+                                                                2718
+References                                                                      Zachary Chavis, Antonino Furnari, Rohit Girdhar, Jackson
+                                                                                Hamburger, Hao Jiang, Miao Liu, Xingyu Liu, Miguel Mar-
+ [1] Siddhant Bansal, Chetan Arora, and C. V. Jawahar. My                       tin, Tushar Nagarajan, Ilija Radosavovic, Santhosh Kumar
+      View is the Best View: Procedure Learning from Egocen-                    Ramakrishnan, Fiona Ryan, Jayant Sharma, Michael Wray,
+      tric Videos. In Proceedings of the European Conference on                 Mengmeng Xu, Eric Zhongcong Xu, Chen Zhao, Siddhant
+      Computer Vision, pages 657–675, 2022. 1, 3                                Bansal, Dhruv Batra, Vincent Cartillier, Sean Crane, Tien
+                                                                                Do, Morrie Doulaty, Akshay Erapalli, Christoph Feichten-
+ [2] Zhe Chen, Weiyun Wang, Yue Cao, Yangzhou Liu, Zhang-                       hofer, Adriano Fragomeni, Qichen Fu, Abrham Gebrese-
+      wei Gao, Erfei Cui, Jinguo Zhu, Shenglong Ye, Hao Tian,                   lasie, Cristina Gonzalez, James Hillis, Xuhua Huang, Yifei
+      Zhaoyang Liu, Lixin Gu, Xuehui Wang, Qingyun Li, Yimin                    Huang, Wenqi Jia, Weslie Khoo, Jachym Kolar, Satwik Kot-
+      Ren, Zixuan Chen, Jiapeng Luo, Jiahao Wang, Tan Jiang, Bo                 tur, Anurag Kumar, Federico Landini, Chao Li, Yanghao
+      Wang, Conghui He, Botian Shi, Xingcheng Zhang, Han Lv,                    Li, Zhenqiang Li, Karttikeya Mangalam, Raghava Modhugu,
+      Yi Wang, Wenqi Shao, Pei Chu, Zhongying Tu, Tong He,                      Jonathan Munro, Tullie Murrell, Takumi Nishiyasu, Will
+      Zhiyong Wu, Huipeng Deng, Jiaye Ge, Kai Chen, Min Dou,                    Price, Paola Ruiz Puentes, Merey Ramazanova, Leda Sari,
+      Lewei Lu, Xizhou Zhu, Tong Lu, Dahua Lin, Yu Qiao, Jifeng                 Kiran Somasundaram, Audrey Southerland, Yusuke Sugano,
+      Dai, and Wenhai Wang. Expanding Performance Boundaries                    Ruijie Tao, Minh Vo, Yuchen Wang, Xindi Wu, Takuma
+      of Open-Source Multimodal Models with Model, Data, and                    Yagi, Ziwei Zhao, Yunyi Zhu, Pablo Arbelaez, David Cran-
+      Test-Time Scaling. arXiv preprint arXiv:2412.05271, 2024.                 dall, Dima Damen, Giovanni Maria Farinella, Christian Fue-
+      8, 6                                                                      gen, Bernard Ghanem, Vamsi Krishna Ithapu, C. V. Jawahar,
+                                                                                Hanbyul Joo, Kris Kitani, Haizhou Li, Richard Newcombe,
+ [3] Jacob Cohen. A Coefﬁcient of Agreement for Nominal                         Aude Oliva, Hyun Soo Park, James M. Rehg, Yoichi Sato,
+      Scales. Educational and Psychological Measurement, 20(1):                 Jianbo Shi, Mike Zheng Shou, Antonio Torralba, Lorenzo
+      37–46, 1960. 4, 3                                                         Torresani, Mingfei Yan, and Jitendra Malik. Ego4D: Around
+                                                                                the World in 3,000 Hours of Egocentric Video. In Proceed-
+ [4] Yin Cui, Menglin Jia, Tsung-Yi Lin, Yang Song, and Serge                   ings of IEEE/CVF Conference on Computer Vision and Pat-
+      Belongie. Class-Balanced Loss Based on Effective Number                   tern Recognition, pages 18973–18990, 2022. 1, 3, 5
+      of Samples. In Proceedings of the IEEE/CVF Conference               [11] Alex Graves. Generating Sequences With Recurrent Neural
+      on Computer Vision and Pattern Recognition, pages 9268–                   Networks. arXiv preprint arXiv:1308.0850, 2014. 6
+      9277, 2019. 6                                                       [12] Kensho Hara, Hirokatsu Kataoka, and Yutaka Satoh. Learn-
+                                                                                ing Spatio-Temporal Features with 3D Residual Networks
+ [5] Dima Damen, Hazel Doughty, Giovanni Maria Farinella,                       for Action Recognition. In Proceedings of the IEEE Inter-
+      Sanja Fidler, Antonino Furnari, Evangelos Kazakos, Da-                    national Conference on Computer Vision, pages 3154–3160,
+      vide Moltisanti, Jonathan Munro, Toby Perrett, Will Price,                2017. 8, 6
+      and Michael Wray. The EPIC-KITCHENS Dataset: Collec-                [13] Wei-Jin Huang, Yuan-Ming Li, Zhi-Wei Xia, Yu-Ming Tang,
+      tion, Challenges and Baselines. IEEE Transactions on Pat-                 Kun-Yu Lin, Jian-Fang Hu, and Wei-Shi Zheng. Modeling
+      tern Analysis and Machine Intelligence, 43(11):4125–4141,                 Multiple Normal Action Representations for Error Detection
+      2021. 1, 3                                                                in Procedural Tasks. In Proceedings of the IEEE/CVF Con-
+                                                                                ference on Computer Vision and Pattern Recognition, pages
+ [6] Mikita Dvornik, Isma Hadji, Konstantinos G. Derpanis, Ani-                 27794–27804, 2025. 2, 6
+      mesh Garg, and Allan Jepson. Drop-DTW: Aligning Com-                [14] ISO/IEC 18004:2024. Information technology – Automatic
+      mon Signal Between Sequences While Dropping Outliers.                     identiﬁcation and data capture techniques – QR code bar
+      In Proceedings of the Annual Conference on Neural Infor-                  code symbology speciﬁcation. Standard, International Or-
+      mation Processing Systems, pages 13782–13793, 2021. 5,                    ganization for Standardization, 2024. 2
+      6                                                                   [15] Kyoto University Research Information Management Com-
+                                                                                mittee. Policy on Research Data Management and
+ [7] Nikita Dvornik, Isma Hadji, Ran Zhang, Konstantinos G.                     Sharing. https://www.kyoto-u.ac.jp/en/research/research-
+      Derpanis, Richard P. Wildes, and Allan D. Jepson. Step-                   policy/rdm/, 2020. 4
+      Former: Self-Supervised Step Discovery and Localization in          [16] Shih-Po Lee, Zijia Lu, Zekun Zhang, Minh Hoai, and Ehsan
+      Instructional Videos. In Proceedings of the IEEE/CVF Con-                 Elhamifar. Error Detection in Egocentric Procedural Task
+      ference on Computer Vision and Pattern Recognition, pages                 Videos. In Proceedings of the IEEE/CVF Conference on
+      18952–18961, 2023. 5, 6, 7                                                Computer Vision and Pattern Recognition, pages 18655–
+                                                                                18666, 2024. 1, 2, 3, 6, 8
+ [8] Alessandro Flaborea, Guido Maria D’Amely di Melen-                   [17] Yin Li, Miao Liu, and James M. Rehg. In the Eye of Be-
+      dugno, Leonardo Plini, Luca Scofano, Edoardo De Mat-                      holder: Joint Learning of Gaze and Actions in First Person
+      teis, Antonino Furnari, Giovanni Maria Farinella, and Fabio               Video. In Proceedings of the European Conference on Com-
+      Galasso. PREGO: Online mistake detection in PRocedural                    puter Vision, pages 619–635, 2018. 3
+      EGOcentric videos. In Proceedings of the IEEE/CVF Con-              [18] Ji Lin, Chuang Gan, and Song Han. TSM: Temporal Shift
+      ference on Computer Vision and Pattern Recognition, pages                 Module for Efﬁcient Video Understanding. In Proceedings
+      18483–18492, 2024. 2, 3, 6
+
+ [9] Reza Ghoddoosian, Isht Dwivedi, Nakul Agarwal, and Be-
+      hzad Dariush. Weakly-supervised action segmentation and
+      unseen error detection in anomalous instructional videos. In
+      Proceedings of the IEEE/CVF International Conference on
+      Computer Vision, pages 10128–10138, 2023. 2, 3, 8
+
+[10] Kristen Grauman, Andrew Westbury, Eugene Byrne,
+
+                                                                    2719
+of the IEEE/CVF International Conference on Computer Vi-               ating estimator performance.                   https://scikit-
+
+sion, pages 7082–7092, 2019. 8, 5                                      learn/stable/modules/cross validation.html. 6
+
+[19] Huaishao Luo, Lei Ji, Botian Shi, Haoyang Huang, Nan              [29] Luigi Seminara, Giovanni Maria Farinella, and Antonino
+
+Duan, Tianrui Li, Jason Li, Taroon Bharti, and Ming                    Furnari. Differentiable task graph learning: Procedural ac-
+
+Zhou. UniVL: A Uniﬁed Video and Language Pre-Training                  tivity representation and online mistake detection from ego-
+
+Model for Multimodal Understanding and Generation. arXiv               centric videos. In Proceedings of the Annual Conference on
+
+preprint arXiv:2002.06353, 2020. 5                                     Neural Information Processing Systems, 2024. 2, 3, 6
+
+[20] Antoine Miech, Dimitri Zhukov, Jean-Baptiste Alayrac,             [30] Fadime Sener, Dipika Singhania, and Angela Yao. Tempo-
+
+Makarand Tapaswi, Ivan Laptev, and Josef Sivic.                        ral Aggregate Representations for Long-Range Video Under-
+
+HowTo100M: Learning a Text-Video Embedding by                          standing. In Proceedings of the European Conference on
+
+Watching Hundred Million Narrated Video Clips. In                      Computer Vision, pages 154–171, 2020. 8, 5
+
+Proceedings of the IEEE/CVF International Conference on                [31] Fadime Sener, Dibyadip Chatterjee, Daniel Shelepov, Kun
+
+Computer Vision, pages 2630–2640, 2019. 2, 5                           He, Dipika Singhania, Robert Wang, and Angela Yao. As-
+
+[21] Iftekhar Naim, Young C. Song, Qiguang Liu, Liang Huang,           sembly101: A Large-Scale Multi-View Video Dataset for
+
+Henry Kautz, Jiebo Luo, and Daniel Gildea. Discriminative              Understanding Procedural Activities. In Proceedings of
+
+Unsupervised Alignment of Natural Language Instructions                the IEEE/CVF Conference on Computer Vision and Pattern
+
+with Corresponding Video Segments. In Proceedings of the               Recognition, pages 21064–21074, 2022. 1, 2, 3, 6, 8, 5
+
+Conference of the North American Chapter of the Associa-               [32] Yuhan Shen, Lu Wang, and Ehsan Elhamifar. Learning to
+
+tion for Computational Linguistics: Human Language Tech-               Segment Actions from Visual and Language Instructions via
+
+nologies, pages 164–174, 2015. 2                                       Differentiable Weak Sequence Alignment. In Proceedings of
+
+[22] Taichi Nishimura, Kojiro Sakoda, Atsushi Hashimoto,               the IEEE/CVF Conference on Computer Vision and Pattern
+
+Yoshitaka Ushiku, Natsuko Tanaka, Fumihito Ono, Hiro-                  Recognition, pages 10151–10160, 2021. 7
+
+taka Kameko, and Shinsuke Mori. Egocentric Biochem-                    [33] Gunnar A. Sigurdsson, Abhinav Gupta, Cordelia Schmid,
+
+ical Video-and-Language Dataset. In Proceedings of the                 Ali Farhadi, and Karteek Alahari. Actor and Observer: Joint
+
+IEEE/CVF International Conference on Computer Vision,                  Modeling of First and Third-Person Videos. In Proceed-
+
+pages 3129–3133, 2021. 1, 3                                            ings of the IEEE Conference on Computer Vision and Pattern
+
+[23] Taichi Nishimura, Kojiro Sakoda, Atsushi Ushiku, At-              Recognition, pages 7396–7404, 2018. 3
+
+sushi Hashimoto, Natsuko Okuda, Fumihito Ono, Hirotaka                 [34] Yansong Tang, Dajun Ding, Yongming Rao, Yu Zheng,
+
+Kameko, and Shinsuke Mori. BioVL2: An Egocentric Bio-                  Danyang Zhang, Lili Zhao, Jiwen Lu, and Jie Zhou. COIN:
+
+chemical Video-and-Language Dataset. Journal of Natural                A Large-Scale Dataset for Comprehensive Instructional
+
+Language Processing, 29(4):1106–1137, 2022. 2                          Video Analysis. In Proceedings of the IEEE/CVF Confer-
+
+[24] Rohith Peddi, Shivvrat Arya, Bharath Challa, Likhitha Pal-        ence on Computer Vision and Pattern Recognition, pages
+
+lapothula, Akshay Vyas, Bhavya Gouripeddi, Qifan Zhang,                1207–1216, 2019. 2
+
+Jikai Wang, Vasundhara Komaragiri, Eric Ragan, Nicholas                [35] Aaron van den Oord, Yazhe Li, and Oriol Vinyals. Represen-
+
+Ruozzi, Yu Xiang, and Vibhav Gogate. CaptainCook4D: A                  tation Learning with Contrastive Predictive Coding. arXiv
+
+Dataset for Understanding Errors in Procedural Activities.             preprint arXiv:1807.03748, 2018. 5
+
+In Proceedings of the Annual Conference on Neural Infor-               [36] Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszko-
+
+mation Processing Systems, 2024. 1, 2, 3, 6, 8, 5                      reit, Llion Jones, Aidan N Gomez, !ukasz Kaiser, and Il-
+
+[25] Shraman Pramanick, Yale Song, Sayan Nag,                          lia Polosukhin. Attention is All you Need. In Proceedings
+
+Kevin Qinghong Lin, Hardik Shah, Mike Zheng Shou,                      of the Annual Conference on Neural Information Processing
+
+Rama Chellappa, and Pengchuan Zhang. EgoVLPv2:                         Systems, 2017. 5, 6
+
+Egocentric Video-Language Pre-training with Fusion in the              [37] Peng Wang, Shuai Bai, Sinan Tan, Shijie Wang, Zhihao Fan,
+
+Backbone. In Proceedings of the IEEE/CVF International                 Jinze Bai, Keqin Chen, Xuejing Liu, Jialin Wang, Wenbin
+
+Conference on Computer Vision, 2023. 5                                 Ge, Yang Fan, Kai Dang, Mengfei Du, Xuancheng Ren, Rui
+
+[26] Francesco Ragusa, Antonino Furnari, and Giovanni Maria            Men, Dayiheng Liu, Chang Zhou, Jingren Zhou, and Jun-
+
+Farinella. MECCANO: A multimodal egocentric dataset                    yang Lin. Qwen2-VL: Enhancing Vision-Language Model’s
+
+for humans behavior understanding in the industrial-like do-           Perception of the World at Any Resolution. arXiv preprint
+
+main. Computer Vision and Image Understanding, 235:                    arXiv:2409.12191, 2024. 8, 6
+
+103764, 2023. 1, 3                                                     [38] Xin Wang, Taein Kwon, Mahdi Rad, Bowen Pan, Ishani
+
+[27] Tim J. Schoonbeek, Tim Houben, Hans Onvlee, Peter H. N.           Chakraborty, Sean Andrist, Dan Bohus, Ashley Feniello, Bu-
+
+de With, and Fons van der Sommen. IndustReal: A Dataset                gra Tekin, Felipe Vieira Frujeri, Joshi Neel, and Marc Polle-
+
+for Procedure Step Recognition Handling Execution Errors               feys. HoloAssist: An egocentric human interaction dataset
+
+in Egocentric Videos in an Industrial-Like Setting. In Pro-            for interactive AI assistants in the real world. In Proceedings
+
+ceedings of the IEEE/CVF Winter Conference on Applica-                 of the IEEE/CVF International Conference on Computer Vi-
+
+tions of Computer Vision, pages 4365–4374, 2024. 1, 2, 3,              sion, pages 20270–20281, 2023. 1, 2, 3, 8, 6
+
+8                                                                      [39] Chen-Lin Zhang, Jianxin Wu, and Yin Li. ActionFormer:
+
+[28] Scikit learn.  3.1. Cross-validation: Evalu-                      Localizing Moments of Actions with Transformers. In Pro-
+
+                                                                 2720
+      ceedings of the European Conference on Computer Vision,
+      pages 492–510, 2022. 6, 7
+[40] Tianyi Zhang, Varsha Kishore, Felix Wu, Kilian Q. Wein-
+      berger, and Yoav Artzi. BERTScore: Evaluating Text Gener-
+      ation with BERT. In Proceedings of the International Con-
+      ference on Learning Representations, 2020. 4, 3
+[41] Dimitri Zhukov, Jean-Baptiste Alayrac, Ramazan Gok-
+      berk Cinbis, David Fouhey, Ivan Laptev, and Josef Sivic.
+      Cross-Task Weakly Supervised Learning From Instructional
+      Videos. In Proceedings of the IEEE/CVF Conference on
+      Computer Vision and Pattern Recognition, pages 3532–
+      3540, 2019. 2
+
+                                                                                2721
+

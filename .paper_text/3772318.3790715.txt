@@ -1,0 +1,1575 @@
+ARify: Leveraging Narrated Instructional Videos to Create
+     Augmented Reality Tutorials for Procedural Tasks
+
+           Xiyun Hu∗                         Chenfei Zhu∗                                     Shao-Kang Hsia∗
+
+School of Mechanical Engineering    School of Mechanical Engineering                   School of Mechanical Engineering
+         Purdue University                   Purdue University                                  Purdue University
+
+   West Lafayette, Indiana, USA        West Lafayette, Indiana, USA                       West Lafayette, Indiana, USA
+         hu690@purdue.edu                  zhu1237@purdue.edu                                   shsia@purdue.edu
+
+            Dizhi Ma                           Rahul Jain                                       Karthik Ramani
+
+Elmore Family School of Electrical  Elmore Family School of Electrical                  School of Mechanical Engineering
+    and Computer Engineering            and Computer Engineering                            and Elmore Family School of
+          Purdue University                   Purdue University
+   West Lafayette, Indiana, USA        West Lafayette, Indiana, USA                    Electrical and Computer Engineering
+        ma742@purdue.edu                    jain348@purdue.edu                                    Purdue University
+
+                                                                                           West Lafayette, Indiana, USA
+                                                                                                 ramani@purdue.edu
+
+Abstract                                                                               April 13–17, 2026, Barcelona, Spain. ACM, New York, NY, USA, 23 pages.
+                                                                                       https://doi.org/10.1145/3772318.3790715
+Augmented Reality (AR) tutorials enhance procedural task learning
+by providing situated, step-by-step guidance. Yet, creating such                       1 Introduction
+tutorials requires AR authoring expertise, posing a significant entry
+barrier. To lower this barrier, we introduce ARify, an authoring                       Procedural tasks, including machine tasks [71], cooking [62], and
+system that semi-automatically transforms narrated instructional                       sports training [27], are multi-step activities that involve execut-
+videos into AR tutorials. To guide system design, we conducted a                       ing a sequence of actions performed under specific conditions to
+content analysis of video tutorials and derived a design space of                      achieve particular goals, which often require structured instructions
+instructional intents, tactics, and AR representations. Building on                    (e.g., manuals or video tutorials) and sustained practice to master. In
+this, ARify generates AR tutorials by integrating a vision–language                    recent years, Augmented Reality (AR) tutorials [81, 85] have been
+model to plan tutorial structures and an AR builder to configure AR                    increasingly adopted to teach procedural tasks. Unlike traditional
+representations, and offers interfaces that allow users to refine and                  media such as printed manuals or videos, which force learners to
+customize the results. A numerical study on three machine tasks                        split attention between instructions and their workspace [48], AR
+and a user study with 18 participants showed that ARify achieves                       tutorials deliver step-by-step guidance directly in learners’ environ-
+promising performance across task types, and allows novices to au-                     ments, where instructions are spatially anchored to physical objects
+thor effective AR tutorials, validating its effectiveness and usability.               and delivered hands-free [2]. This situated delivery reduces split
+                                                                                       attention, thereby lowering cognitive load and improving learning
+CCS Concepts                                                                           outcomes [1, 58, 66].
+
+• Human-centered computing → Mixed / augmented reality;                                   Despite these advantages, authoring AR tutorials for procedural
+Virtual reality; Graphical user interfaces; Natural language                           tasks is challenging. Conventional approaches rely on game en-
+interfaces.                                                                            gines such as Unity [84] or Unreal [21], where creators manually
+                                                                                       construct multi-step logic and spatial content through extensive
+Keywords                                                                               programming and asset preparation, which substantially limits ac-
+                                                                                       cessibility. To ease this burden, AR and Virtual Reality (VR) author-
+Augmented Reality, Large Language Model, Procedural Task, Tuto-                        ing systems have been proposed to simplify AR tutorial creation.
+rial                                                                                   Demonstration-based methods [4, 16, 36, 67, 89] allow creators to
+                                                                                       build AR tutorials by first performing a physical demonstration
+ACM Reference Format:                                                                  to record task actions and context (e.g., conditions, environment),
+Xiyun Hu, Chenfei Zhu, Shao-Kang Hsia, Dizhi Ma, Rahul Jain, and Karthik               and then customizing the AR interface and logic directly in the
+Ramani. 2026. ARify: Leveraging Narrated Instructional Videos to Create                immersive environment (e.g., selecting user interface (UI) compo-
+Augmented Reality Tutorials for Procedural Tasks. In Proceedings of the                nents, aligning them with physical objects, and defining tutorial
+2026 CHI Conference on Human Factors in Computing Systems (CHI ’26),                   structure). AdapTutAR [36], for example, allows users to author
+∗Three authors contributed equally to this research.                                   machine-task tutorials that automatically adapt to different envi-
+                                                                                       ronments through embodied demonstrations.
+This work is licensed under a Creative Commons Attribution 4.0 International License.
+CHI ’26, Barcelona, Spain                                                                 While physical demonstration can effectively illustrate concrete
+© 2026 Copyright held by the owner/author(s).                                          actions, it often struggles to convey other important aspects of
+ACM ISBN 979-8-4007-2278-3/26/04
+https://doi.org/10.1145/3772318.3790715
+CHI ’26, April 13–17, 2026, Barcelona, Spain                              AR Tutorial     Hu, Zhu, and Hsia, et al.
+
+       Instructional Video                    “Gently shake the                        “Press the button
+                                              bin to remove the                        to release the lid.”
+               “Press the button
+              to release the lid.”                    trash.”
+
+                                                                 (a)                   (c)
+
+ARify System
+
+                                                                 (b-1)                 (b-2)
+
+Figure 1: Overview of ARify. (a) A user records a narrated instructional video demonstrating how to empty a vacuum bin. (b-1)
+ARify extracts an initial AR tutorial structure for review and step refinement in the Tutorial Structure Editor. (b-2) In the AR
+Editor, the user positions and configures AR representations for each step. (c) One step of the resulting AR tutorial rendered on
+the physical vacuum. This step contains a text box, a direction indicator, and a text-to-speech voice prompt. (The images were
+transferred to sketch style via Gemini Nano Banana [24])
+
+procedural tasks, such as quantitative details and higher-level rea-      AR tutorials. These systems typically transform structured, task-
+soning. These elements are more naturally communicated through            specific resources (e.g., technical documents or manuals) into AR
+narration: in tutorial videos, for example, instructors frequently sup-   representations through predefined rules or pipelines. For instance,
+plement demonstrations with synchronized explanations of goals,           Mohr et al. [57] generate 3D animations directly from product
+conditions, or quality criteria to improve clarity and interpretability.  documentation based on annotated explosion diagrams. However,
+Motivated by this, prior work has explored incorporating narrative        such rule-based systems are usually tailored to specific use scenarios
+demonstration in AR tutorial authoring. For instance, Tutorial-           and input formats, making them difficult to generalize across tasks
+Lens [42] captures both actions and verbal explanations to generate       and contexts, and thereby limiting their broader applicability.
+visual AR guidance, and InstruMentAR [50] synchronizes physical
+demonstrations with narration to create more expressive AR tuto-             The emergence of large language models (LLMs) has shown
+rials. Results demonstrated that authoring with narrative demon-          promising capabilities for creating AR tutorials. Leveraging their
+strations enables more comprehensive and interpretable guidance.          reasoning and planning abilities, recent system [101] move beyond
+However, despite reducing programming effort, these methods im-           rigid rule-based pipelines and generate AR guidance in real-time
+pose additional requirements for AR authoring expertise. As a result,     based on user queries. LLMs have also been used to derive multi-step
+creating AR tutorials remains largely limited to experienced AR           learning experiences directly from videos [47]. Video large language
+developers, leaving domain experts with procedural knowledge—             models demonstrate procedural understanding and reasoning from
+such as assembly technicians, repair professionals, or chefs—facing       visual input [75, 82, 87, 98]. Motivated by these capabilities, we
+significant barriers to entry.                                            propose generating AR tutorials from narrated instructional videos,
+                                                                          the widely used format to present both physical demonstration and
+   To broaden access for non-AR creators, recent research [5, 38, 43,     narrated instructional intent.
+57, 78, 79, 93] has explored automatic approaches for generating
+                                                                             We introduce ARify, an authoring system that semi-automatically
+                                                                          transforms narrated instructional videos into AR tutorials. To guide
+ARify                                                                                                                       CHI ’26, April 13–17, 2026, Barcelona, Spain
+
+system design, we conducted a content analysis of instructional           [59], construction practice [11], self-guided fabrication curricula
+videos to examine how AR tutorials can be generated from instruc-         [45], laboratory instrumentation [22], and physical skill training
+tional videos and derived a corresponding design space. With ARify,       [40, 70]. Our goal is to develop an authoring system that enables
+the user records a narrated instructional video (Figure 1a). Based        users to create AR tutorials for procedural tasks.
+on our design space, a Tutorial Planner automatically infers a
+tutorial structure using a vision-language model (VLM), Gemini 2.5        2.2 Authoring Systems for AR Tutorials
+Flash [25], which the user verifies and edits in the Tutorial Struc-
+ture Editor (Figure 1b-1). The validated structure is passed to the       Conventional AR tutorial authoring typically occurs in desktop
+AR Builder to configure AR representations. The user can further          game engines, where creators must hand-build multi-step behav-
+refine spatial placement and parameter values of the generated AR         iors such as tutorial logic, spatial content placement, and mappings
+tutorial in the AR Editor (Figure 1b-2). Finally, the completed AR        between triggers and actions. This workflow raises the barrier
+tutorial is deployed to an AR headset for learning (Figure 1c). To        for non-programmers and remains time-consuming even for ex-
+evaluate the effectiveness of ARify, we first conducted a numerical       perienced developers. Prior work has sought to lower this barrier
+study on three machine tasks. The results validate the design of          through two main approaches: demonstration-based authoring
+ARify and demonstrate its promising and consistent performance            and rule-based generation.
+in AR tutorial creation across task types. To further assess usability,
+we conducted a user study with 18 participants. Findings indicated           Demonstration-based authoring: Demonstration is a common
+that ARify lowers the entry barrier for AR tutorial creation and          strategy for making spatial content without heavy programming.
+enables novice users to author effective tutorials. Together, these       Systems capture an expert’s performance and let authors place or
+results demonstrate the effectiveness, generalizability, and usability    refine AR content around that performance. In-situ and mobile ap-
+of ARify in assisting users to create AR tutorials. We report both        proaches project or replay demonstrations aligned to the learner’s
+quantitative and qualitative findings and discuss their implications      viewpoint [4, 29, 36], while proxy workflows let users create in a vir-
+for the design of AR tutorials.                                           tual replica and export placements to the real scene [16, 65]. Concur-
+                                                                          rent authoring captures steps as the task is performed, composing
+   In summary, we highlight three contributions:                          videos, text, images, and animations into portable instructions [89].
+                                                                          Recording narration alongside action improves interpretability and
+     • A design space of instructional tactics in procedural task         preserves explanations [33, 42, 50]. Other systems also broaden
+        video tutorials and their corresponding modes of represen-        input modalities by augmenting paper-based materials with spa-
+        tation in AR tutorials.                                           tial media [67] and by supporting maintenance authoring through
+                                                                          spatial annotations and remote collaboration [63]. These systems
+     • ARify, a VLM-based authoring system that semi-automatically        yield precise, scene-grounded placement and clear exemplars of
+        processes video input to produce step-by-step AR tutorials.       hand–object relations. However, they still assume AR authoring
+                                                                          expertise and require in-situ or proxy sessions where creators man-
+     • A numerical study and a user study evaluating the effective-       ually configure step logic and UI placement.
+        ness and usability of ARify in creating AR tutorials.
+                                                                             Rule-based generation: Rule-based generation methods al-
+2 Related Works                                                           leviate authoring effort by automatically translating structured
+2.1 AR Tutorials                                                          resources into AR tutorials, leveraging predefined pipelines or
+                                                                          schemas to extract and present procedural instructions. PaperTo-
+Augmented Reality is used in both non-procedural and procedural           Place lifts steps from documents and optimizes their placement
+tasks to enhance training and learning. In non-procedural tasks, AR       in the environment [5]. Documentation- and CAD-driven tools
+supports exploratory visualization by revealing internal or hidden        convert diagrams and models into interactive instructions [57]
+structures [31], advances conceptual explanation by aligning ex-          and integrate recognition to reduce assembly errors [43]. Capture-
+emplars to the body in creative and cosmetic domains [12, 83], and        heavy approaches record multimodal traces and segment them into
+enables situated visualization that facilitates spatial reasoning in ed-  steps [78], while model-free methods use volumetric change to ex-
+ucational activities [37, 51, 52]. Modality choices vary with activity    tract tabletop procedures directly from demonstrations [79]. Video-
+type in interactive experiences, where text, diagrams, and spatial        based approaches generate avatar or animation surrogates from 2D
+overlays show task-dependent effectiveness [41]. Non-procedural           footage [38, 93], including medical training where hand motion is
+training systems also integrate adaptive feedback, for example, com-      reconstructed from RGB [20]. These approaches broaden access and
+bining AR guidance with physiological signals to adjust practice          can standardize layouts, but they often depend on formalized inputs
+difficulty during music learning [53].                                    or constrained mappings and tend to under-specify kinematics or
+                                                                          the object-centric parameters needed for robust placement. Even
+   In procedural tasks such as cooking and machine operation, AR          when videos and narrations are used, the goal is typically to record
+tutorials exhibit two design requirements. First, instructions are        and replay a performance rather than to induce a tutorial structure
+situated at the locus of action, as seen in appliance manuals and         suitable for AR tutorials.
+mobile overlays [59], field construction workflows [11], vehicle
+automation onboarding [15], and cooking assistants embedded in               We target automatic generation of AR tutorials directly from
+the workspace [23]. Even with conventional media, placing pictures        narrated instructional video, mitigating reliance on structured in-
+or videos at task-relevant locations strengthens the binding between      puts and minimizing manual placement. In contrast to rule-based
+instruction and action [26, 97]. Second, procedural work demands          pipelines, including video-conditioned variants that reconstruct
+step-wise sequencing in which operators follow a prescribed order
+to complete the task; such sequencing appears in mobile manuals
+CHI ’26, April 13–17, 2026, Barcelona, Spain                                                                                                       Hu, Zhu, and Hsia, et al.
+
+motions or avatars, we treat video as an input for inducing a tuto-      cues, we further aim to enable users to create step-wise AR tutorials
+rial structure and for configuring AR representations. This preserves    for procedural tasks. Rather than offering ad hoc assistance or pro-
+the concreteness and scene grounding of demonstration-based ap-          ducing non-AR study materials, we induce a tutorial structure from
+proaches without prolonged capture and editing, while avoiding           the video and map inferred instructional tactics to AR representation.
+the formal-asset dependencies and template mappings typical of
+rule-based systems.                                                      3 ARify Design Space
+
+2.3 LLMs for Tutorial and Guidance                                       To understand how AR tutorials can be generated from instruc-
+                                                                         tional videos, we conducted a content analysis of video tutorials for
+Benefiting from their strong reasoning and planning capabilities,        procedural tasks to identify instructional intents and instructional
+LLMs have been widely applied across a variety of domains and            tactics (i.e., atomic actions that convey instructional information),
+tasks [3, 17–19, 32, 91], including interactive tutorials and guidance-  then mapped them to AR representations. Our goal is to develop
+related scenarios. In the following, we first review works that lever-   a design space that links (i) what instructors intend to communi-
+age LLMs for tutorial generation, then discuss systems that provide      cate, (ii) how these intents are expressed in instructional videos
+in-situ AR guidance, and finally examine approaches that apply           (physically or narratively), and (iii) how they can be instantiated in
+LLMs to video-based QA and procedural reasoning.                         AR to provide spatially and temporally aware guidance, to support
+                                                                         generating AR tutorials from instructional videos.
+   Tutorial generation. Several systems show that VLMs can
+reorganize raw tutorial footage into structured learning artifacts          In the following subsections, we define the concept of a tutorial
+for web or desktop consumption. VideoMix aggregates multiple             and introduce key terms to ensure conceptual consistency, describe
+sources into concise summaries and representative clips using a          our content analysis methods and the resulting design space, and
+VLM pipeline [95]. For software learning, AQuA links visual an-          conclude by outlining the design goals for ARify.
+chors in videos with documentation and GPT-based analysis to
+answer task questions over long screencasts [96]. Mixed-media            3.1 Definition and Terminologies
+creators assemble videos, images, text, and diagrams into coherent
+lessons using AI-based component extraction and layout heuris-           Following prior work [61, 64, 88, 94], we define a tutorial as a hierar-
+tics [8]; related tools transform programming videos into mentored,      chical representation of task → step → action, where a step denotes
+step-wise experiences [47] or into interactive notes that preserve       a semantically coherent subgoal of the task, and an action refers to
+hierarchy and salient moments [103]. Collectively, these works           an atomic operation performed to achieve a subgoal. Based on this
+demonstrate that VLMs can recover step structure, align narra-           definition, we present the key terminologies in Table 1, with par-
+tion with visual evidence, and produce concise textual guidance—         ticular emphasis on the action level, as it determines how detailed
+capabilities that are essential for authoring.                           instructional intents can be conveyed in AR. We further formalize
+                                                                         the relationships between terms to ensure clear conceptual under-
+   In-situ AR guidance. A complementary thread uses LLMs/VLMs            standing and consistency throughout the paper.
+to guide users during tasks without producing reusable, step-wise
+tutorials. Examples dynamically synthesize on-the-spot instruc-               • R1. Structure orders steps. A tutorial has one structure;
+tions and visual highlights from user prompts [101]. Systems that                the structure is an ordered list of steps with dependency
+couple environmental context with generative models produce                      links.
+avatar-based instructions for in-situ learning [73]. While these
+approaches reduce programming effort and show that LLMs can                   • R2. Steps culminate in subgoals. Every step yields exactly
+mediate situated guidance, they typically optimize for immediate                 one subgoal that is observable and serves as the completion
+assistance rather than creating portable, step-wise artifacts with               criterion.
+explicit progression and object-relative anchoring.
+                                                                              • R3. Steps contain actions. Every step contains one or more
+   Video understanding. Underlying the systems above are VLM                     actions; actions are either physical or verbal.
+capabilities for multi-step reasoning, temporal grounding, and con-
+cise summarization. For question answering and procedural reason-             • R4. Tactics express actions. Every action instance is com-
+ing, models combine clip-level captioning, hierarchical structures,              municated via exactly one tactic instance in context.
+chain-of-thought prompting, and spatiotemporal queries to improve
+long- and short-form inference [75, 82, 87, 98]. For grounding and            • R5. Intents motivate tactics. Every tactic instance carries
+alignment, methods improve temporal localization, step segmenta-                 exactly one intent in our analysis. Across the corpus, tactic
+tion, and narration alignment through boundary-aware training,                   types and intent types exhibit many-to-many associations,
+adaptive sampling, and modular reasoning [6, 7, 35, 102]. For cap-               but instance-wise associations are one-to-one.
+tioning and summarization, approaches produce dense captions
+and fine-grained multimodal summaries that support retrieval and         3.2 Methods
+learning [9, 13, 34, 86]. Beyond visual frames, audio-visual LLMs
+fuse auditory and visual tokens for richer multimodal reasoning          Following [94], we began our content analysis with iterative quali-
+[76].                                                                    tative coding. The goal was to identify common instructional tactics
+                                                                         and the instructional intents they serve. Building on these results, we
+   Motivated by evidence that VLMs can infer steps and align nar-        curated AR representations for each instructional intent, informed
+ration, and that LLM/VLM-guided AR can deliver timely situated           by a literature review of prior AR tutorial research. This process
+                                                                         enabled us to build a mapping from actions in instructional videos
+                                                                         to AR representations, providing a foundation for the automatic
+                                                                         generation of AR tutorials.
+ARify                                                                    CHI ’26, April 13–17, 2026, Barcelona, Spain
+
+                              Table 1: Formal definitions of terms used throughout the paper.
+
+Term                          Definition
+Tutorial
+Tutorial structure            Step-wise guidance for completing a procedural task; comprises an ordered sequence with progression and
+Step                          dependencies.
+Subgoal
+Action                        The scaffold that organizes a tutorial: ordered steps, timing, referenced objects and tools, and prerequisite links.
+Instructional tactic          Does not prescribe presentation style.
+Instructional intent
+Narrated instructional video  A semantic container that groups several atomic actions toward an intermediate outcome. Steps are the unit
+                              authors and learners reason about.
+
+                              The intermediate state achieved at the end of a step, stated in observable terms that enable completion checks.
+
+                              The smallest task-relevant unit within a step. Either a physical manipulation with a clear start and end, or a verbal
+                              operation that confirms, checks, or plans a task condition.
+                              How an action is communicated in context in the video or narration, such as demonstration, emphasis, warning,
+                              or summary.
+
+                              The information a tactic aims to convey in context (e.g., target identity, path, quantity, rationale), independent of
+                              how it is expressed.
+
+                              A recorded demonstration of a procedural task in which the presenter’s spoken narration, either live or post-
+                              produced, explicitly guides the viewer through the steps, goals, and rationale of the procedure, with the narration
+                              temporally aligned to the on-screen actions and objects.
+
+   Given the large volume of video tutorials and the diversity of        of the collected videos can be found in Appendix A.3. As it is im-
+tasks they address, our analysis did not attempt to exhaustively         practical to cover all possible videos, we believe deriving common
+cover all procedural domains. Instead, we focused on a represen-         characteristics from these representative samples provides a rea-
+tative domain—Machine Tasks. Machine tasks, such as repair and           sonable basis for a generalizable design space.
+assembly, exemplify key characteristics of procedural activities, in-
+cluding multi-step structures and precise spatial operations. While      3.2.2 Investigating Instructional Cues and Intents. To identify how
+they do not encompass all aspects of procedural tasks, we believe        instructors convey instructional intents in video tutorials, we con-
+insights from this domain capture substantial characteristics and        ducted iterative qualitative open coding of the collected videos.
+can inform the creation of diverse AR procedural tutorials.
+                                                                            To ensure the reliability of the findings, two of the authors per-
+3.2.1 Tutorial Collection. We selected three representative Ma-          formed the coding. Following common practices [10, 94], we first
+chine Tasks—Assembly, Repair, and Training—and collected video           coded a shared seed set of videos (15 videos; 5 per category). We
+tutorials for analysis. These categories were chosen because they        modeled each video tutorial as a hierarchical structure described
+are among the most common machine tasks, generally follow clear          in Sec. 3.1, and annotated each identified action with (i) the ob-
+step-by-step procedures, require substantial training to master, and     servable instructional tactic employed by the instructor and (ii)
+consequently yield abundant tutorial content.                            the instructional intent inferred from its context to surface the full
+                                                                         range of instructional expressions in the corpus. At this stage, we
+   To collect videos, we conducted keyword searches on YouTube           also recorded short textual evidence (transcript snippets or frame
+using queries of the form task name + "step-by-step tutorial". We first  notes) and allowed multi-label or “other” when necessary.
+filtered out videos shorter than 3 minutes or longer than 20 minutes,
+and those published before 2017 to ensure sufficient instructional          Two coders then met for several rounds of discussion to com-
+content and contemporary task elements. We then applied three cri-       pare their annotations, merge semantically similar codes, clarify
+teria: (1) the video presents a clear procedural goal with a stepwise    category boundaries, and resolve ambiguous cases. Through this
+structure, (2) information is primarily conveyed by narration (in        iterative process, we organized recurring tactic patterns into prelim-
+English) and physical demonstration, rather than post-processed          inary tactic categories and grouped related intents into broader in-
+visual effects, and (3) the workspace and relevant objects are visible   tent categories. This stage produced the initial codebook, including
+without severe occlusion.                                                category definitions, decision rules, and representative examples.
+
+   To balance coverage and consistency, we sampled 15 videos per            Using the initial codebook, both coders independently annotated
+task, resulting in 45 instructional videos for analysis. For each se-    an additional subset of videos (6 videos; 2 per category) to assess
+lected video, we used the Gemini APIs1 to retrieve the transcript of     the clarity and usability of the emerging scheme. We computed
+the video via URL. The collected videos vary in both duration and        intercoder reliability using Krippendorff’s 𝛼 over the tactic type
+object complexity, assessed by the number of object parts involved       assignments. Disagreements revealed ambiguous boundaries and
+in the task, to ensure broad coverage. The detailed information          underspecified definitions, which were resolved through discus-
+                                                                         sion and revisiting the underlying videos and transcript segments
+1 https://ai.google.dev/gemini-api/docs/video-understanding              until consensus was reached. These resolutions informed further
+                                                                         refinement of code definitions, coding rules, and examples. We
+                                                                         repeated this process (annotating a new subset and refining the
+CHI ’26, April 13–17, 2026, Barcelona, Spain                                                                                                       Hu, Zhu, and Hsia, et al.
+
+codebook) until satisfactory reliability between coders (Krippen-                AR representations can vary, ARify should support post-
+dorff’s 𝛼 > 0.9) was reached on the annotated subset. The target                 generation editing. Users should be able to adjust tutorial
+reliability was achieved after three iterations, and the codebook                structures, tactics, and AR representation forms.
+was then finalized.
+                                                                         4 System
+3.2.3 Constructing AR Representations. We next examined how
+the identified instructional intents could be instantiated in AR tu-     We introduce ARify, an authoring system that transforms narrated
+torials. To this end, we reviewed prior research on AR tutorials,        instructional videos into AR tutorials. As summarized in Figure 3,
+analyzed their design strategies, and synthesized commonly used          ARify takes a user-recorded video as input and uses a Tutorial
+AR representations for conveying each intent. For instance, region       Planner to induce a tutorial structure with steps. For each step,
+highlights are frequently employed to disambiguate target parts,         the VLM assigns instructional tactics and, based on the design
+while arrows and trajectories are used to illustrate navigation paths.   space in Section 3.3, recommends candidate AR representations
+By systematically surveying existing systems, we compiled a set of       consistent with the inferred tactic and intent. The user can edit
+candidate AR representations for each intent and organized them          and refine the generated tutorial structure at this stage using the
+into a representational palette.                                         Tutorial Structure Editor. After the structure is confirmed by the
+                                                                         user, the AR Builder then invokes perception modules to set the
+   By aligning instructional intents—identified in videos through        parameters required by each AR representation in each step. The
+tactics—with corresponding AR representations, we constructed a          draft AR tutorial is then presented in AR Editor for preview and
+design space: a mapping of what instructors aim to communicate,          refinement of the placement and anchor of the AR representations.
+how these intents are expressed in instructional videos, and how         Finally, the AR tutorial can be exported to a target AR runtime
+they can be effectively rendered in AR tutorials.                        system for deployment.
+
+3.3 Design Space                                                            We illustrate the workflow with a drill battery replacement task
+                                                                         (Figure 3). First, a creator records an instructional video on replacing
+Through content analysis, we identified nine types of instructional      a battery, narrating live to explain each step as they perform it. Then,
+tactics from video tutorials. Each tactic corresponds to a group of re-  using Tutorial Planner, ARify automatically segments the video
+lated instructional intents and is associated with several candidate     into steps and atomic actions, identifies the instructional intent
+AR representations. Based on the modality, we further categorized        per action, and proposes AR representations. For example, in the
+these tactics into two groups: movement-centric and narration-           first step, the instructor explains that "we need to press the trigger
+centric. They result in four motion-centric tactics and five narration-  of the drill because it can check if the battery is out of charge".
+centric tactics. A visual overview of these tactics is presented in      The Tutorial Planner labels the step as rationale and recommends
+Figure 2, with their mappings to instructional intents and AR rep-       an AR text box that explains the reason. Once the structure is
+resentations summarized in Table 2.                                      accepted or edited in the Tutorial Structure Editor, ARify’s AR Builder
+                                                                         runs perception modules to estimate the necessary parameters that
+   By mapping instructional tactics to AR representations via their      define the behavior of the AR representation. The creator previews
+underlying instructional intents, this design space provides both a      the resulting AR tutorial in AR Editor, makes final adjustments,
+conceptual framework for analyzing video-based instruction and           and deploys the tutorial to a head-mounted display for on-device
+a practical foundation for the semi-automatic generation of AR           verification.
+tutorials.
+                                                                         4.1 Tutorial Planner
+3.4 Design Goals
+                                                                         To achieve DG1, we orchestrate a VLM agent (Gemini 2.5 Flash [25])
+ARify aims to lower the barrier to AR tutorial creation by enabling      to interpret a narrated instructional video and synthesize a tutorial
+its automatic generation from instructional videos. Grounded in this     structure that decomposes the task into manageable subgoals and
+vision, and informed by the design space that links video elements       provides a basis for subsequent AR representation configuration.
+to AR counterparts, we propose the following design goals for            The planner combines specification-based planning with in-context
+ARify:                                                                   learning to improve consistency and reduce variability across tasks.
+
+     • DG1: Video Analysis Capability. ARify should be able              4.1.1 Specification–based planning. A structure specification pro-
+        to parse narrated instructional videos into hierarchical task    vides a standardized template for the agent to plan tutorials, en-
+        → step → action structures, while precisely capturing both       abling systematic construction through slot-filling. Following Sec-
+        movement- and narration-centric tactics expressed within         tion 3.3, we define the template as shown in Table 3.
+        each step.
+                                                                         4.1.2 In-context Learning. To improve planning reliability, the
+     • DG2: Automatic Creation of AR Content. ARify should               VLM is prompted with few-shot demonstrations that show how to
+        be able to map tactics identified in videos to their corre-      transform a narrated instructional video into a well-formed tutorial
+        sponding AR representations, configure them in a situated        structure. Following prior work on demonstration-based parsing
+        and step-wise structure, and generate AR tutorials that are      [72], each demonstration is an input–output pair: the input consists
+        ready for use.                                                   of a short video description with a transcript; the output is a struc-
+                                                                         tured plan that fills the specification from the above section. We
+     • DG3: Controllability and Editability. Since automatic
+        generation may introduce errors and user preferences for
+ARify                                                                                                                                                                      CHI ’26, April 13–17, 2026, Barcelona, Spain
+
+                      Movement-Centric                                                                                                  “Make the            Narration-Centric                     “Rotate the knob
+                                                                                                                                      bracket level.”                                                 for 5 turns”
+                                                                                                                                   2                                          “Ensure the battery
+                                                                                                        1                                                                          is charged.”
+
+                                                                                                                   3
+
+       Deictic Reference    Navigation                                                                                                       Command         Status Check                          Quantitative Specification
+
+                                                                                                                                      “If the door wobbles,                                                           “Seat the O-ring to
+                                                                                                                                          insert a shim”                                                                 prevent leaks”
+
+       Object Manipulation  Body Movement                                                                                             Conditional Statement                                        Rationale
+
+Figure 2: Instructional Tactics identified Through Content Analysis Process. (Images created with Gemini Nano Banana [24])
+
+                      Table 2: Design space of ARify: categories, tactics, intents, and candidate AR representations
+
+Category              Tactic                      Intent                                                                                                                   AR Representations
+Movement-centric      Deictic Reference           Disambiguate the target part or region and establish a shared                                                            Region Indicator; Text Box (label); Virtual
+Instructional Tactic                              referent.                                                                                                                Object (pin/highlight)
+                      Navigation                  E.g., point at the M3 screw; hover and tap a certain slot; trace a small
+Narration-centric     Object Manipulation         circle around the alignment tab.                                                                                         Direction Indicator (arrow/path); Virtual
+Instructional Tactic                              Convey path, order, and pace of motion relative to objects.                                                              Object (animated object); Text-to-Speech
+                      Body Movement               E.g., trace along the gasket channel A→B; “left hinge, then right                                                        (pace cues)
+                      Command                     hinge”; route a cable through clips.                                                                                     Hand Visualization (grasp/pose); Virtual
+                      Status Check                Model correct hand-object-tool relationships for control and safety.                                                     Object (tool overlay); Region Indicator
+                      Quantitative Specification  E.g., off-hand clamps the housing while the dominant hand turns the                                                      (contact zones)
+                                                  screwdriver; show a pinch grip; support the workpiece while pulling a
+                      Conditional Statement       drill trigger.                                                                                                           Direction Indicator (approach direction);
+                      Rationale                   Demonstrate ergonomic stance, posture, and approach directions.                                                          Video Display (motion demo);
+                                                  E.g., Square stance facing the vise; elbows in when lifting a panel;                                                     Region Indicator (keep-out region)
+                                                  approach a hot surface from the side.                                                                                    Text Box;
+                                                  Issue concise action commands tied to named objects or parts.                                                            Text-to-Speech
+                                                  E.g., “Align the bracket with the stud”; “Route the wire under the clip”;
+                                                  “Press the reset button once.”                                                                                           Region Indicator (target state);
+                                                  Verify preconditions or hazard states before proceeding.                                                                 Text Box (checklist);
+                                                  E.g., “Ensure the valve is closed”; “Confirm the battery is seated”;                                                     Text-to-Speech
+                                                  “Power off the machine.”                                                                                                 Text Box (numeric target);
+                                                  Provide numeric targets for extent, force, or duration.                                                                  Virtual Object (status of object);
+                                                  E.g., “Turn the knob 90◦”; “Tighten to 5 Nm”; “The monitor should                                                        Image Display (status of object);
+                                                  show 5 s”; “Fill to 200 mL.”                                                                                             Text-to-Speech
+                                                                                                                                                                           Text Box (if–then prompt);
+                                                  Encode next step based on sensed outcomes.                                                                               Text-to-Speech
+                                                  E.g., “If the door wobbles, insert a shim”; “If the seal gaps, re-seat and
+                                                  retighten”; “If the LED blinks blue, replace the battery.”                                                               Text Box (explanation);
+                                                  State goals and quality criteria to guide judgment.                                                                      Text-to-Speech;
+                                                  E.g., “Seat the O-ring to prevent leaks”; “Finish flush to avoid rocking”;                                               Image/Video Display (before-after
+                                                  “Use 5 Nm to avoid stripping threads.”                                                                                   exemple)
+
+adopt six demonstrations drawn from the video dataset collected in                                                                    toward moderate granularity, with a heuristic target of roughly
+Section 3.2, selected to cover all three types of machine tasks. An                                                                   1–5 atomic actions per step. The combination of few-shot structure
+example can be found in Appendix A.2.                                                                                                 templates and boundary cues leads the agent to propose tutorial
+                                                                                                                                      structures that are both readable and directly usable by subsequent
+   To keep segmentation consistent across tasks, the prompt also                                                                      AR representation configuration. The metaprompt can be found in
+encodes simple boundary cues that mirror how instructors struc-                                                                       Appendix A.1.
+ture demonstrations: (i) subgoal completion, where a meaningful
+intermediate state is reached; (ii) object or tool switch, which typ-
+ically marks a new unit of work; and (iii) discourse markers in
+narration, such as “next,” “then,” or “now”. The model is guided
+CHI ’26, April 13–17, 2026, Barcelona, Spain                                                                                                            Hu, Zhu, and Hsia, et al.
+                                                                                                                                                  AR Tutorial
+                                                                          ARify System
+                                                                                                                                                               (c-1)
+                        Tutorial Structure Editor
+                                                                                                                                                               (c-2)
+   Instructional Video                           Step 1: Check the        action_1:                             Step 2: Remove the drill   • • •
+Frames                                              battery status           -tactic_type: object_manipulation               battery
+                                                                             -AR_rep: image_display
+                                              Description: Press the            -parameters: …                  Description: Press the
+                                              drill trigger to check the                                        two side buttons on the
+                                              power.                      action_2:                             battery and slide it out.
+                                                                             -tactic_type: rationale
+                                                                             -AR_rep: text_box                                             (b-1)
+                                                                                -parameters: …
+
+Narrations                   Tutorial                                                                           AR
+                             Planner                                                                            Builder
+    “Make sure the
+ trigger is unlocked”   AR Editor                                                                                        • • •
+                                                                                                                Step 2 (b-2)
+                        (a)
+
+                                                          Step 1
+
+Figure 3: ARify workflow. (a) A narrated instructional video is provided as input, including video frames and narration. (b-1)
+The Tutorial Planner proposes an initial tutorial structure that the user inspects and refines in the Tutorial Structure Editor.
+(b-2) After acceptance or revision, the AR Builder configures AR representation based on the output of the tutorial structure
+editor, and the user can position and adjust them in the AR Editor. (c) Deployed AR tutorial in the learner’s environment: (c-1)
+third-person view and (c-2) first-person view.
+
+                        Table 3: Unified format for Step, Instructional Tactic, and AR Representation.
+
+Step                                                                                                            Tactic & AR Representation
+-Start / End time: timestamps in source video                                                                   Tactic
+-Subgoal: intermediate outcome of step                                                                          -Type: tactic category
+-Title: concise description of the step                                                                         -Start / End time: within-step timestamps
+-Objects: key entities in the step                                                                              -Intent: instructional intent
+-Dependencies: prerequisite step indices                                                                        -Description: how tactic is expressed
+-Instructional tactics: tactics within this step
+-AR recommendations: candidate AR items                                                                         AR Representation
+                                                                                                                -Type: AR representation type
+                                                                                                                -Linked tactics: tactic(s) it conveys
+                                                                                                                -Behavior summary: expected behavior + parameter
+                                                                                                                slots
+
+4.2 AR Builder                                                                                                     Figure 4 shows the AR representation primitives implemented
+                                                                                                                in our prototype. Below, we outline how each one conveys instruc-
+To achieve DG2, we curate a library of AR representations aligned                                               tional tactics (Section 3.3) and when an author might choose it,
+with the instructional tactic taxonomy in Section 3.3. Given the                                                together with its parameters.
+accepted tutorial structure, the builder selects candidate representa-
+tions per step, leveraging the tactic-intent-AR representation map-                                                Text Box. Presents short directives, object-status checks, quan-
+ping, then configures their behavior by calling perception modules                                              titative targets, or brief rationales. Parameters include the anchor
+(e.g. object detection, hand pose estimation, details are provided                                              entity, a title, and body text; the builder derives these from the step
+in Section 5) to fill parameters. The result is a draft AR tutorial                                             and tactic descriptions.
+presented in the AR Editor for refinement of placement, anchor,
+and content, after which the finalized package can be exported to                                                  Image Display. Shows a still reference frame highlighting a small
+the target runtime.                                                                                             feature or a before-and-after state. Parameters include the anchor
+                                                                                                                entity, title, and image content. The builder selects the anchor and
+ARify                                                                                               CHI ’26, April 13–17, 2026, Barcelona, Spain
+
+(a) Text Box  (b) Image Display               (c) Video Display   (d) Text-to-speech
+
+(e) Direction Indicator (f) Region Indicator  (g) Virtual Object  (h) Hand Visualization
+
+       Figure 4: AR Representations supported by ARify.
+
+                                                                                               (a)  (b)  (c)
+
+title; the content is a keyframe (start or end) chosen according to                       Figure 5: Tutorial Structure Editor. (a) Video panel: drag and
+the tactic’s instructional intent.                                                        drop a clip, scrub and preview, optionally enter prompts, then
+                                                                                          submit to the VLM. (b) Step list: view, edit, add, or delete steps;
+   Video Display. Renders a short exemplar clip as picture-in-picture.                    adjust titles, descriptions, and time spans. (c) Step graph:
+Parameters include the anchor entity, title, and video segment. The                       visualize ordering and dependencies; reorder steps, create
+builder selects the anchor and title; the segment is the portion of                       or remove dependency edges, and pan/zoom or recenter the
+the video where the instructor performs the action.                                       layout.
+
+   Text-to-Speech. Delivers brief narration that complements vi-                          labels, and referenced objects and tools (Figure 5b). In the list view
+suals for directives, quantitative specifications, or confirmations.                      (Figure 5b), authors can adjust start and end times on a timeline,
+Parameters include start delay (relative to step onset) and script                        revise step text, and rename objects or tools. In the graph view
+content; the builder provides the script and proposes a delay.                            (Figure 5c), they can add or remove edges to specify dependencies.
+                                                                                          All edits update the tutorial structure immediately, and the editor
+   Direction Indicator. Displays an arrow to indicate a direction or                      presents the evidence supporting each step (keyframes and aligned
+location. Parameters include the tail anchor and the head anchor,                         narration spans).
+both selected by the builder.
+                                                                                                         (b)
+   Region Indicator. Highlights a salient area or target location rel-
+ative to an anchor. Parameters include the anchor, pose (position                         (a)            (c)
+and orientation), and size. The builder proposes the anchor and an
+initial pose and size, which the author later refines in the AR editor.                   Figure 6: AR tutorial editor. (a) Main 3D view: navigate with
+                                                                                          keyboard/mouse, drag to reposition AR elements, and click
+   Virtual Object. Provides a target pose to illustrate the goal con-                     an element to inspect and edit its parameters in context. (b)
+figuration, acts as an authoring proxy for configuring AR elements                        AR Representation editor: modify content and anchor. (c)
+anchored to it, or plays an animation of the object’s movement. Pa-                       Control panel: add or delete elements, move to previous/next
+rameters include anchor (cannot be itself), pose (single or sequence),                    step, save and export, or reset the tutorial to its pre-edit state.
+and mesh. The builder selects the anchor; the mesh is produced
+by segmenting the object in a keyframe and generating geometry                            4.3.2 AR Editor. The AR Editor loads the current draft tutorial into
+via a diffusion model; the pose is estimated with an object-pose                          a 3D scene for spatial editing (Figure 6). For each step, authors can
+estimator. If the generated mesh is subpar, the system falls back to                      add or remove AR representations (Figure 6c), adjust placement
+the default mesh shown on the left side of Figure 4g.                                     using translation and rotation gizmos (Figure 6a), change anchors
+                                                                                          between head, object, and hand, and edit behavior parameters (Fig-
+   Hand Visualization. Shows articulated hand pose or motion to                           ure 6b). Authors can override any parameter and see the effect
+model grasp and fine manipulations. Parameters include anchor                             through step-wise playback, simple retargeting checks by moving
+and pose (single or sequence); the VLM defines the anchor, and a                          objects within the scene, and optional preview on a head-mounted
+hand-pose estimator provides the pose.                                                    display (HMD).
+
+4.3 Authoring Interface
+
+To meet DG3, ARify provides two interfaces: (1)Tutorial Structure
+Editor, which lets authors inspect and revise the tutorial structure
+and steer the Tutorial Planner; and (2)AR Editor, which supports
+spatial placement, parameter adjustment, and preview of AR tuto-
+rial.
+
+4.3.1 Tutorial Structure Editor. The Tutorial Structure Editor presents
+the source video, transcript, step list, and a graph visualization of
+the tutorial structure in synchronized views (Figure 5). Authors
+may optionally supply a brief planning prompt to steer the planner
+(Figure 5a), then review proposed steps with timestamps, tactic
+CHI ’26, April 13–17, 2026, Barcelona, Spain                                                                                                                                           Hu, Zhu, and Hsia, et al.
+
+4.4 Exported Tutorial Format                                                                                 YOLO-World [90] is first applied to the RGB frames for object detec-
+                                                                                                             tion, SAM2 [69] then segments the foreground object within each
+As shown in Figure 6, ARify exports each tutorial as a Unity project                                         detected bounding box, and InstantMesh [92] reconstructs a proxy
+artifact that can be previewed in the editor and built for runtime                                           3D mesh from the segmented object image. Finally, we feed the RGB
+deployment. The artifact includes:                                                                           frames, depth frames, and object mesh into FoundationPose [30] to
+                                                                                                             estimate the 6-DoF object pose over the duration of the step. The
+   (1) a JSON tutorial structure listing steps, concise descriptions,                                        resulting 3D hand pose, 3D object mesh, and 6-DoF object pose are
+        referenced objects and tools, tactic labels, and dependencies;                                       passed to the AR Builder and used in the final deployment. On an
+                                                                                                             A100 40 GB GPU server, the average inference times for a single
+   (2) instantiated AR representations selected from our library                                             1280 × 720 image are 99.8 ms for YOLO, 412.7 ms for SAM2, 24.6 s
+        (Figure 4), with parameter slots ready for runtime binding;                                          for InstantMesh, 585 ms for FoundationPose, and 4.47 s for HaMeR.
+                                                                                                             Over a 1,000 Mbps network connection, the average latency for
+   (3) media assets (keyframes and short clips) used by image and                                            Gemini to analyze the video is 31.9 s.
+        video displays.
+                                                                                                             6 Numerical Study
+   At runtime, the tutorial loads as a spatially grounded scene with
+explicit, user-advanced progression. Elements are anchored to ob-                                            To quantitatively evaluate the performance of ARify, we conducted
+jects, the head, or the hand as specified. When detection confidence                                         a numerical study to assess its ability to generate AR tutorials from
+is sufficient, object-locked elements attach to the corresponding                                            instructional videos. In particular, we focused on planning perfor-
+parts or regions; otherwise, they will anchor to the head. Voice                                             mance, as it governs both the overall tutorial structure and the type
+prompts mirror concise directives and numeric targets using a text-                                          and timing of tactic–AR representations. To enable a systematic and
+to-speech service. Learners can step forward and backward and                                                comprehensive assessment, we constructed an evaluation dataset
+replay segments as needed.                                                                                   by collecting and annotating additional instructional videos and
+                                                                                                             quantitatively evaluated the system under different conditions. The
+5 Implementation                                                                                             following sections describe the dataset formation, evaluation pro-
+                                                                                                             cedures, and metrics, and present experimental results along with
+Inputs                    RGB Frames                                        Depth Frames                     a discussion of the findings.
+
+Perception  HaMeR                     YOLO             SAM2                 InstantMesh   FoundationPose     6.1 Dataset Formation
+Modules
+                                                                                                             Using the methods described in Sec. 3.2, we collected 36 additional
+Outputs                                                                                                      instructional videos (12 Assembly, 12 Repair, and 12 Training) from
+                                                                                                             YouTube. Three experienced AR researchers annotated the eval-
+            3D Hand Pose              2D Bounding Box  Object Segmentation  Object Mesh   6-DoF Object Pose  uation videos using the structured slot-filling template provided
+                                                                                                             through an annotation interface. Annotators were instructed to
+Figure 7: The AR Builder perception module processes RGB                                                     annotate each video using the same hierarchy of task → step →
+and depth frames for a single step, using HaMeR [100] for                                                    action, and labeled each action with the 9 tactics in our design
+3D hand pose estimation, YOLO-World [90], SAM2 [69], and                                                     space. Inter-rater reliability was assessed using Krippendorff’s 𝛼,
+InstantMesh [92] for object detection, segmentation, and                                                     and disagreements were resolved through discussion. The finalized
+proxy mesh reconstruction, and FoundationPose [30] for                                                       annotations served as ground-truth (GT) structures against which
+estimating the 6-DoF object pose.                                                                            system outputs were evaluated. In total, the dataset contained 2371
+                                                                                                             tactic annotations, with distribution statistics presented in Table 4.
+   We deploy the AR tutorials on a Meta Quest Pro [54] HMD
+for rendering and interaction. A RealSense D435i [39] camera is                                              6.2 Procedure and Evaluation Metrics
+mounted above the headset and is extrinsically calibrated to the
+Quest tracking space, providing RGB–D aligned to the headset                                                 6.2.1 Evaluation Procedure. To evaluate the proposed system, we
+frames. Heavy perception models and the web service run on a                                                 conducted an ablation study together with a quantitative analysis
+backend server with an NVIDIA A100 GPU.                                                                      of our implementation. As ARify uses few-shot demonstrations to
+                                                                                                             enhance the LLM planner, we first examined the effect of demon-
+   The runtime and spatial preview are built in Unity 2022.3.20f1 [84]                                       strations, following prior work [72, 104]. Specifically, we investigate
+with the Meta XR SDK [55] for passthrough and hand input. Voice                                              two factors: (1) whether demonstrations are provided, and (2) the
+prompts are produced via a text-to-speech service [56]. Tutorial                                             task type represented in them (assembly, repair, or training). To this
+Planner uses the Gemini 2.5 Flash [25] model (temperature=0.5,                                               end, we tested four conditions: Zero-Shot, Assembly-Only, Repair-
+thinkingBudget=−1) to jointly analyze the video and its narration.                                           Only, and Training-Only, each implemented with the same Tutorial
+For each action, the backend perception module takes the RGB and                                             Planner structure as ARify. In the Zero-Shot condition, no demon-
+depth frames and processes them through the workflow shown in                                                strations were supplied, whereas in the other three conditions, the
+Figure 7, implemented as a FastAPI service [68]. For 3D hand pose                                            LLM received six demonstrations (matching the number used in
+estimation, we use HaMeR [100] on RGB input. For 3D object mesh                                              ARify) drawn from a single task category.
+and pose estimation, we adopt a pipeline inspired by Any6D [46].
+ARify                                                                           CHI ’26, April 13–17, 2026, Barcelona, Spain
+
+Table 4: Distribution of instructional tactics in the collected                    We applied the following metrics to the matched tactics:
+dataset.
+                                                                                     • Precision. Precision measures how many predicted tactics
+       Tactic                          Total Count                                      are actually correct with respect to GT:
+
+       Deictic Reference               249                                                                     |Predicted ∩ GroundTruth|
+                                                                                                Precision =
+       Navigation                      155
+                                                                                                                         |Predicted|
+       Object Manipulation             706
+                                                                                     • Recall. Recall measures how many GT tactics are success-
+       Body Movement                   117                                              fully predicted by the system:
+
+       Command                         400                                                                   |Predicted ∩ GroundTruth|
+                                                                                                  Recall =
+       Status Check                    178
+                                                                                                                     |GroundTruth|
+       Quantitative Specification      218
+                                                                                     • F1 Score. The harmonic mean of precision and recall, re-
+       Conditional Statement           112                                              flecting their balance:
+
+       Rationale                       236                                                                         Precision × Recall
+                                                                                                       F1 = 2 ×
+       Total                           2371
+                                                                                                                   Precision + Recall
+   In addition, to comprehensively evaluate both performance and
+generalizability of ARify, we quantitatively examined it along two              6.3 Results and Discussion
+dimensions:
+                                                                                6.3.1 Effect of Few-Shot Demonstrations. We first examined whether
+     • Task Types (T): Performance was evaluated separately for as-             supplying demonstrations improves performance by comparing
+        sembly, repair, and training tasks to measure generalizability          both ARify and the task-only configurations against the Zero-Shot
+        across procedural contexts.                                             condition across all task instances (Table 5). Paired tests showed that
+                                                                                all few-shot configurations, regardless of the task type represented
+     • Instructional Tactics (A): Results were analyzed for the nine            in the demonstrations, significantly outperformed Zero-Shot on
+        demonstration tactics defined in our design space to assess             every metric (all p < 0.001). Importantly, task-only demonstrations
+        consistency across different instructional intents.                     also yielded substantial gains even when their task type differed
+                                                                                from the target task, indicating that the procedural patterns en-
+6.2.2 Metrics. To assess whether the system can generate AR tu-                 coded in the demonstrations transfer across task boundaries. These
+torials in a robust and accurate manner, we evaluate performance                findings confirm that providing few-shot guidance is broadly ben-
+at both the task and tactic levels. This includes examining the                 eficial and that the procedural structures in our design support
+correctness of overall tutorial structures as well as the fidelity of           cross-task generalization rather than being restricted to a single
+instructional tactics. To evaluate overall structures, we use:                  domain.
+
+       • Sequence Accuracy. To evaluate whether the overall tuto-                  We next investigated how the task type represented in the demon-
+         rial structure of a task is correctly recognized, we compute           strations affects this improvement. For each target instance, we
+         sequence-level accuracy based on the longest common subse-             compared ARify (6 demonstrations, 2 per task) with task-only con-
+         quence (LCS) between the predicted and ground-truth tactic             ditions (6 demonstrations, task-exclusive). Task-matched demon-
+         orders. It is defined as:                                              strations produced slightly higher within-task scores on average,
+                                     LCS(Predicted, GroundTruth)                but these differences were small and not statistically significant
+         Sequence Accuracy =                                                    (all p > 0.05), suggesting that simply adding more same-task ex-
+                                              |GroundTruth|                     amples does not meaningfully improve in-domain performance. In
+                                                                                contrast, on non-matched tasks, the task-only conditions resulted
+       This metric captures overall planning quality, penalizing                in significantly lower performance than ARify (all p < 0.01). This
+       missing, extra, or misclassified tactics while respecting tem-           shows that integrating demonstrations from multiple task types
+       poral order.                                                             enhances the generality and robustness of the acquired procedural
+                                                                                patterns without sacrificing in-domain accuracy, making ARify’s
+To evaluate performance at the tactic level, we first align pre-                multi-task demonstration strategy preferable in practice.
+
+dicted tactics from the system with GT using a one-to-one matching              6.3.2 Performance Across Task Types. We next examined whether
+                                                                                these improvements varied across task types (Assembly, Repair, and
+scheme. Specifically, we denote each tactic as a tuple (𝑡start, 𝑡end, tactic).  Training). Because task types are independent groups, we employed
+Then, we construct a bipartite graph where an edge connects a pre-              the Kruskal–Wallis test to compare performance distributions. The
+                                                                                results revealed no statistically significant differences across tasks
+dicted tactic 𝑝 and a GT tactic 𝑔 if their temporal IoU:                        for any evaluation metric (all 𝑝 > 0.4), and pairwise Mann–Whitney
+                                                                                U tests confirmed this trend (𝑝adj ≥ 0.74). This suggests that ARify
+                     𝑝 𝑝               𝑔 𝑔                                      generalizes well across different procedural tasks without being
+                     | [𝑡start, 𝑡end] ∩ [𝑡start, 𝑡end] |                        biased toward a particular task scenario.
+       IoU(𝑝, 𝑔) = 𝑝 𝑝
+                                       𝑔 𝑔
+                     | [𝑡start, 𝑡end] ∪ [𝑡start, 𝑡end] |
+
+exceeds a threshold 𝜏 (we use 𝜏 =0.3 by default), and their tactics
+
+match exactly. We then compute the maximum-cardinality match-
+
+ing via the Hungarian algorithm [60].
+CHI ’26, April 13–17, 2026, Barcelona, Spain                                                                Hu, Zhu, and Hsia, et al.
+
+Table 5: Performance across task types under different few-shot conditions (mean ± std). All few-shot configurations, including
+both task-only variants and ARify, significantly outperform the Zero-shot on every metric (all 𝑝 < 0.001). Compared to task-only
+conditions, ARify attains similar within-task performance (no significant differences; all 𝑝 > 0.05) but substantially higher
+performance on non-matched tasks (all 𝑝 < 0.01).
+
+Condition                                     Task      Sequence Acc. ↑ Precision ↑ Recall ↑ F1 ↑
+
+Zero-shot                                     Assembly  79.6 ± 12.3     80.0 ± 7.5  83.0 ± 7.9  80.7 ± 5.3
+                                              Repair    77.3 ± 12.0     77.0 ± 8.7  75.0 ± 6.4  75.7 ± 6.8
+                                              Training  72.1 ± 8.1      82.0 ± 6.8  80.4 ± 6.9  81.4 ± 6.3
+
+                                              Average   76.3 ± 11.4     80.5 ± 6.9 78.9 ± 6.3 79.6 ± 5.9
+
+                      Assembly                          90.2 ± 7.9      91.9 ± 3.9  88.7 ± 7.3  89.9 ± 4.5
+                                                        83.5 ± 10.3     84.2 ± 5.5  81.6 ± 4.6  82.4 ± 5.1
+                      Repair                            79.6 ± 7.6      88.7 ± 3.9  84.1 ± 6.0  85.4 ± 4.7
+Assembly-only
+
+                      Training
+
+                                              Average   84.4 ± 9.7      88.0 ± 4.9 85.7 ± 5.8 86.7 ± 5.1
+
+Repair-only                                   Assembly  84.4 ± 10.5     87.9 ± 4.5  86.0 ± 8.4  86.3 ± 5.0
+                                              Repair    90.5 ± 8.6      89.3 ± 4.9  87.9 ± 5.2  88.3 ± 4.7
+                                              Training  80.4 ± 7.4      89.1 ± 4.3  83.3 ± 6.6  85.3 ± 5.3
+
+                                              Average   85.1 ± 9.9      88.2 ± 4.9 86.0 ± 6.0 87.1 ± 5.0
+
+                      Assembly                          84.9 ± 9.2      87.0 ± 4.2  86.0 ± 7.6  85.8 ± 4.6
+                                                        84.1 ± 10.8     83.9 ± 5.6  81.5 ± 6.6  82.2 ± 5.6
+                      Repair                            88.0 ± 6.8      92.6 ± 3.3  87.7 ± 6.0  89.1 ± 4.6
+Training-only
+
+                      Training
+
+                                              Average   85.7 ± 9.3      87.7 ± 5.2 85.7 ± 6.1 86.6 ± 5.3
+
+ARify                                         Assembly  89.2 ± 8.1      91.6 ± 4.0  88.6 ± 7.5  89.7 ± 4.7
+                                              Repair    90.2 ± 9.2      88.7 ± 5.1  87.5 ± 5.1  87.7 ± 4.5
+                                              Training  86.9 ± 6.9      92.4 ± 3.5  87.4 ± 6.0  88.9 ± 4.8
+
+                                              Average   88.8 ± 8.2      90.9 ± 4.5 89.5 ± 4.7 90.1 ± 4.1
+
+6.3.3 Performance Across Tactics. At the tactic level (Table 6), al-    these results indicate that ARify can serve as a broadly applicable
+though our system achieved strong performance across all tactics        framework for AR tutorial generation, balancing global structural
+(all Precision, Recall, and F1 scores above 80), Friedman tests re-     coherence with local instructional detail.
+vealed statistically significant differences across instructional tac-
+tics in Recall (𝑝 = 2.4 × 10−4) and F1 (𝑝 = 6.2 × 10−4), but not in     7 Usability Study
+Precision (𝑝 = 0.37). Post-hoc Wilcoxon signed-rank tests further
+indicated that Object Manipulation significantly outperformed most      We conducted an IRB-approved usability study to evaluate the
+other tactics (𝑝 < 0.01).                                               usability and authoring experience of ARify. We recruited 18 partic-
+                                                                        ipants (10 male, 8 female), aged 20–40 years (M=27.56, SD=5.17), to
+6.3.4 Discussion. Taken together, these findings provide a holistic     evaluate our system. Fifteen participants reported prior experience
+evaluation of ARify. The significant improvements over other con-       with machine-related tasks, whereas three had no such background.
+ditions confirm that the system designs of ARify are effective in       Of the fifteen participants with prior experience, eleven primarily
+tutorial planning. The consistent performance across different task     performed very simple tasks (e.g., assembling furniture, changing a
+types demonstrates robustness and generalizability, while tactic-       light bulb); three reported regularly performing tasks of moderate
+level differences highlight the limitations of the system. Overall,     complexity (e.g., bike repair, computer hardware assembly); and
+ARify                                                                                                                                                                         CHI ’26, April 13–17, 2026, Barcelona, Spain
+
+Table 6: Performance of ARify across tactics (mean ± std). Significant overall differences were found in Recall and F1 (Friedman
+test, 𝑝 < 0.001).
+
+       Tactic Category    Instructional Tactic                                                                                                      Precision ↑ Recall* ↑ F1-Score* ↑
+       Movement-centric
+                          Deictic Reference                                                                                                         88.4 ± 12.4  82.2 ± 15.8  84.3 ± 12.5
+       Narration-centric  Navigation                                                                                                                87.9 ± 9.9   83.2 ± 12.1  84.6 ± 6.6
+                          Object Manipulation                                                                                                       92.3 ± 9.5   96.0 ± 5.8   93.9 ± 7.0
+                          Body Movement                                                                                                             87.4 ± 20.0  81.4 ± 13.4  85.2 ± 9.0
+
+                          Command                                                                                                                   93.6 ± 9.7   88.8 ± 21.1  91.4 ± 11.9
+                          Status Check                                                                                                              94.1 ± 11.0  94.4 ± 13.1  93.6 ± 10.9
+                          Quantitative Specification                                                                                                85.5 ± 11.1  84.9 ± 11.5  84.5 ± 8.5
+                          Conditional Statement                                                                                                     92.1 ± 10.8  84.6 ± 17.1  86.5 ± 11.4
+                          Rationale                                                                                                                 95.3 ± 8.6   90.0 ± 13.2  91.8 ± 9.3
+
+one was a professional technician experienced in troubleshooting                                                                                    represented while providing opportunities to demonstrate the full
+                                                                                                                                                    range of instructional tactics and AR representations defined in
+and resolving highly complex machine tasks. Fourteen participants                                                                                   our design space. Task assignments were randomized at the partici-
+                                                                                                                                                    pant level and balanced across the study to ensure that each task
+were familiar with AR applications on smartphones, tablets, or head-                                                                                was performed an equal number of times overall. For each task,
+                                                                                                                                                    participants first watched a pre-recorded tutorial video to ensure
+mounted displays, while the remaining four had no prior exposure                                                                                    familiarity with the procedure. They then demonstrated the task
+                                                                                                                                                    on an office table, with the process recorded using a tabletop setup
+to AR/VR technologies. None of the participants had previously                                                                                      consisting of an Intel RealSense D435i camera for video capture
+                                                                                                                                                    and a fixed tabletop microphone for synchronized live narration
+developed AR/VR applications. Two of the participants had prior                                                                                     audio.
+
+training on developing software applications on desktop/mobile                                                                                         Following each task, participants completed a brief post-task
+                                                                                                                                                    questionnaire about their experience creating the AR tutorials. Af-
+platforms, while the others had no such experience or training.                                                                                     ter the first task, they were given a five-minute break before pro-
+                                                                                                                                                    ceeding to the next. At the end of the study, each participant was
+7.1 Procedure                                                                                                                                       interviewed and completed the standard System Usability Scale
+                                                                                                                                                    (SUS) questionnaire. The entire study lasted approximately one
+                                                        Task 1: LEGO Assembly                                                                       hour, with each participant receiving a $20 e-gift card as compen-
+                                                                                                1. Attach left feet                                 sation.
+                                                                                                2. Attach right feet
+                                                                                                3. Attach left arm                                     Task 1: LEGO Assembly. This task involves assembling a LEGO
+                                                                                                4. Attach right arm                                 model by following a set of step-by-step instructions. The primary
+                                                                                                5. Insert mini figures into the chest               goal is to test the participant’s ability to follow a procedural guide
+                                                                                                6. Close the bottom chest plate, then the two       to construct an object from individual parts.
+                                                                                                    side chest plates
+                                                                                                7. Close the helmet                                    Task 2: Drill Inspection & Repair. This task simulates a com-
+                                                                                                                                                    mon maintenance procedure. The participant need to inspect a
+                                                  Task 2: Drill Inspection & Repair                                                                 handheld power drill for specific issues, diagnose the problem, and
+                                                                                                1. Ensure drill is unlocked, press trigger to test  then perform a repair. The objective is to evaluate the user’s ability
+                                                                                                    if there is power                               to identify component faults and execute a sequence of diagnostic
+                                                                                                2. Lock the drill                                   and repair steps.
+                                                                                                3. Locate the clip for the battery
+                                                                                                4. Press the clip to remove the battery                Task 3: Multimeter Training. This task focuses on training
+                                                                                                5. Retrieve a new battery                           a user to operate a digital multimeter (DMM). Participants learn
+                                                                                                6. Insert the battery into the drill                to use the device to measure electrical properties (e.g., voltage,
+                                                                                                7. Unlock the drill and check if it is working      current, and resistance). The goal is to assess how effectively the
+                                                                                                                                                    training method teaches the user to select the correct settings on
+                                                      Task 3: Multimeter Training                                                                   the multimeter and properly position the probes to take accurate
+                                                                                                1. Connect the black probe to "COM" port            readings.
+                                                                                                2. Connect the red probe to "V" port
+                                                                                                3. Check the voltage of the battery
+                                                                                                4. Set the option to 2000mV
+                                                                                                5. Connect the red probe to the positive side
+                                                                                                    of the battery
+                                                                                                6. Connect the black probe to the negative
+                                                                                                7. Read the measurement
+
+Figure 8: Step-by-step procedures of the three machine tasks
+in the user study.
+
+   Before starting, participants were informed of the study objec-
+
+tives and asked to sign a consent form. Each participant was then
+
+assigned two machine tasks, selected from three candidates: LEGO
+Assembly, Drill Inspection & Repair, and Multimeter Training, and
+instructed to create AR tutorials for the assigned tasks using our
+
+system. This selection ensured that all three machine tasks were
+CHI ’26, April 13–17, 2026, Barcelona, Spain                                                                                                          Hu, Zhu, and Hsia, et al.
+
+   Step-by-step procedures of the three machine tasks are shown                For the VLM, we observed failure cases where the model mis-
+in Figure 8.                                                                segments long demonstrations into steps, conflates concurrent ac-
+                                                                            tions, or assigns incorrect tactics despite correctly transcribing the
+7.2 Results                                                                 narration. For instance, when narrators combine rationale with
+                                                                            commands (e.g., “now hold the bottom clip of the battery so the
+The Likert-scale results of the user study are summarized in Figure 9.      lock is released”), the VLM sometimes labels the entire segment
+Overall, users appreciated the system’s support for interpretability        as a single command and omits the rationale tactic. These errors
+in transferring instructional videos into AR tutorials. They reported       propagate to later stages and result in tutorial structures with miss-
+that the tutorial flow generated by the system was easy to follow and       ing or redundant steps, or AR representations that are temporally
+understand (Q1: AVG=4.50, SD=0.56): “The generated tutorial steps           misaligned with the underlying actions. Additionally, when a user
+were clear, and I could see exactly how they matched the video.” (P4)       makes a mistake and later corrects it during recording, the VLM
+and valued the clarity of AR representations provided by the system         tends to create additional steps for both the mistake and the cor-
+(Q2: AVG=4.42, SD=0.75): “The AR visualization made it obvious what         rection under our current prompting configuration. This behavior
+each step meant—it’s much clearer than just text instructions.” (P2).       reveals a limitation of our collected YouTube video dataset, where
+Users also admired that the AR previews provided on the authoring           we implicitly assume that recorded demonstrations are error-free.
+interface align well with the final output tutorials (Q3: AVG=4.36,         In future work, more comprehensive in-the-wild evaluation with
+SD=0.78), which gave them confidence during the creation process:           user-recorded videos will be valuable for refining how the VLM is
+“When I previewed it, it looked almost the same as the final AR tutorial,   configured to handle errors, corrections, and other natural varia-
+so I knew exactly what to expect.” (P6). Supported by the intuitive         tions in demonstrations.
+interface and a clear representation of tutorials, users found it easy
+to revise both the tutorial structure (Q4: AVG=4.25, SD=0.94) and              For the perception module, in tasks that involve small objects or
+detailed AR representations (Q5: AVG=4.33, SD=0.60) to fit their            densely packed components, object detection and pose estimation
+own preferences or correct mistakes: “I could quickly adjust the            often struggle to provide sufficiently accurate anchor locations and
+steps when something was off, and the system updated everything             orientations for AR representations. For example, in the multimeter
+smoothly.” (P7)                                                             training task from our user study, we observed that the probe wire
+                                                                            is highly deformable and the probe body is thin, which causes the
+   For system performance, users acknowledged that the system is            object mesh generation module to fail to reconstruct a reliable
+able to not only analyze instructional videos into meaningful tuto-         mesh for the probe, thus preventing downstream pose estimation.
+rial structures (Q7: AVG=4.31, SD=0.70): “It captured the main steps        In such cases, the system only allows alternative AR representations
+from the video very accurately, without me having to guide it much.”        that do not rely on object orientation and are anchored to other
+(P2) but also generate useful AR tutorials for the tasks accordingly        entities. Similarly, in scenes with multiple identical instances of
+(Q8: AVG=4.22, SD=0.79): “The tutorial wasn’t just correct—it was           an object (e.g., a grid of screws), even when the narrator verbally
+actually practical and something I could use directly.” (P5). As a result,  disambiguates the target (e.g., “the upper left screw”), the current
+most users reported satisfaction with the AR tutorials generated            perception module does not process the detailed descriptions and
+by the system (Q6: AVG=4.08, SD=0.99): “The final tutorial looked           therefore cannot leverage these linguistic cues to select the correct
+polished and ready to use—it’s not something I’d expect from an au-         instance. In such cases, the system may fail to reliably determine
+tomatic tool.” (P9), demonstrating the system’s ability to generate         which part the AR representation should attach to, even when the
+high-quality, useful AR tutorials.                                          VLM has inferred an appropriate tactic.
+
+   In general, users emphasized that our system provided an intu-              These failure modes imply that the current implementation is
+itive method to create AR tutorials (Q9: AVG=4.61, SD=0.61), and            most effective for tasks with large, well-separated objects, stable
+lowered the learning curve and entry barrier for novice AR users            viewpoints, and relatively simple hand motions, and is less reliable
+(Q10: AVG=4.61, SD=0.61): “You don’t need to be an expert in AR             for scenarios with dense clutter, heavy occlusion, tiny or visually
+tools—just provide a video, and it creates the tutorial for you.” (P4).     similar parts, or subtle motor skills, where both the VLM and the
+For overall usability, the users reported an SUS score of AVG =             perception modules are more likely to break down. We envision
+80.00 and SD = 14.85. This score indicates the high usability of the        that as VLMs and other video understanding algorithms continue
+system.                                                                     to advance—for instance, in accurately parsing tutorial hierarchies,
+                                                                            object and body movements, and temporal coordination—these
+8 Limitations and Discussion                                                limitations will be reduced and the applicability of our system
+8.1 Instructional Video Understanding                                       broadened.
+
+Our system relies on a VLM to analyze instructional videos and              8.2 Limitations in AR Representation
+generate tutorial structures, complemented by perception modules
+that extract necessary information to configure AR representa-              Based on the design space we derived from instructional videos,
+tions. Together, these components enable the system to integrate            we reviewed prior AR tutorial work to identify representative AR
+narration-centric tactics and movement-centric tactics into expres-         representations commonly used to convey instructional intents.
+sive tutorials. However, system performance is constrained by the           These representations are useful and can be combined to support
+limitations of current algorithms.                                          diverse activities across tasks. Yet, the current selection of AR in-
+                                                                            terface elements still represents only a limited subset of possible
+ARify                                                                                         CHI ’26, April 13–17, 2026, Barcelona, Spain
+
+                                                                           0%       25%  50%             75%  100%
+
+       Strongly Disagree  Slightly Disagree                                Neutral       Slightly Agree  Strongly Agree
+
+                          Figure 9: User Study Likert-type questionnaire results.
+
+informative primitives, and cannot fully capture specialized cases                Future work should investigate more intuitive workflows that
+(e.g., rendering a whole-body ghost or simulating the rotation of a            support natural communication with the system, improving inter-
+gear connection). While our study demonstrates the potential of                pretability and controllability of outputs (e.g., through multi-modal
+transferring instructional videos into AR tutorials, a broader and             communications) while preserving the benefits of automation, thus
+more task-specific AR representation library would further enhance             further lowering the barrier to entry.
+expressiveness and effectiveness, and better support professional
+applications [80].                                                             8.4 Extending Modalities Beyond Video
+
+8.3 Automation, Controllability, and                                           Instructional videos integrate physical demonstrations with narra-
+      Interpretability                                                         tion, conveying nuanced motion, timing, and rationales of actions.
+                                                                               While effective for procedural tasks, relying on videos alone can be
+Our system enables the automatic creation of AR tutorials from                 limiting. Incorporating additional modalities may further enrich the
+narrated instructional videos. Compared with prior approaches,                 workflow and enable higher-quality AR tutorials. On the input side,
+this automation leverages richer input and produces more diverse               manuals provide detailed technical information such as warnings,
+and expressive tutorials, significantly reducing the effort required           troubleshooting steps, and operational constraints, offering a richer
+for authoring. However, automation also introduces challenges.                 source than narration alone. For machine training tasks, including
+LLM-based systems can make errors or hallucinate, leading to un-               manuals in a form that can be visualized and animated alongside
+expected or unreasonable results [49, 99]. To mitigate this, our               demonstrations, may enhance the professionalism and clarity of AR
+system provides a desktop interface that allows users to edit each             tutorials. On the output side, multimodal feedback such as haptic
+element of the generated tutorials and a preview interface to help             cues (e.g., vibration) can complement visual overlays, increasing
+them interpret the output. Nevertheless, the tutorials may be com-             immersion and reinforcing key actions [77]. By integrating such
+plex in format and differ from real usage scenarios, making them               modalities, future systems could improve both the creation process
+difficult for novice users to refine [14] (e.g., adjusting spatial place-      for authors and the learning experience for end users.
+ment and timing can be cumbersome, and AR preview alone may
+not ensure proper alignment with real objects).
+CHI ’26, April 13–17, 2026, Barcelona, Spain                                                                                                     Hu, Zhu, and Hsia, et al.
+
+8.5 Cross-Platform Adaptability                                           We recognize that the use of generative AI for AR authoring
+                                                                       could automate or compete with tutorial creators [28, 44, 74, 105].
+ARify currently generates AR tutorials primarily for AR-HMD de-        Our intent is to augment creators by lowering production barriers
+ployment, which enables multi-modal interactions that increase         and enabling new AR formats. Exploring the broader ethical impli-
+immersion and enhance expressiveness. However, AR-HMD de-              cations of generative AI in AR tutorial creation is an important and
+vices remain expensive and require cumbersome hardware setups,         promising direction for future work.
+limiting accessibility and widespread adoption. Recent advances
+in mobile AR and lightweight AR frameworks have created new            9 Conclusion
+opportunities for tutorial delivery [1, 4]. Increasingly, AR tutori-
+als are being deployed on smartphones and tablets, supporting          We presented ARify, an authoring system that transforms narrated
+flexible use across diverse environments such as factories, class-     instructional videos into deployable AR tutorials by combining an
+rooms, and museums. This shift reflects a broader trend toward         automatic Tutorial Planner, interactive Tutorial Structure Editor,
+making AR technologies more portable, affordable, and easy to          AR Builder, and AR Editor. Grounded in a content analysis of in-
+access. Although the current implementation of ARify produces          structional videos, our design space guided the inference of tutorial
+AR-HMD-compatible tutorials, the underlying workflow and in-           structure and the mapping of instructional tactics to AR represen-
+termediate tutorial representation are platform-independent. With      tations. Across three machine tasks, ARify outperformed a baseline
+further development, ARify can be extended to support multiple AR      on overall structure quality and tactic-level metrics, with consistent
+platforms, broadening usage scenarios and enabling more flexible       performance across tasks. A user study with 18 participants further
+authoring and learning experiences.                                    showed that ARify lowers the entry barrier for AR tutorial creation
+                                                                       and enables novices to author effective tutorials. We conclude by
+8.6 Generalizability Across Procedural Task                            articulating four contributions: an automatic approach for AR tuto-
+       Domains                                                         rial creation from video, a design space connecting instructional
+                                                                       tactics to AR representations, a VLM-based authoring workflow
+In this paper, we chose machine tasks as a representative class of     that produces stepwise AR content, and empirical evidence from
+procedural tasks to explore how narrated instructional videos can      numerical and user studies supporting effectiveness and usability.
+be leveraged to create AR tutorials and to guide the design of ARify.  Together, we envision that these findings will provide a founda-
+Although machine tasks exhibit key characteristics of procedural       tion for future AR tutorial systems that couple vision-language
+activities such as multi-step structure and precise spatial manip-     understanding with authoring tools to support scalable creation of
+ulation, other procedural domains may introduce requirements           procedural guidance.
+that exceed the current system’s capabilities. For example, cook-
+ing tasks may require recognizing deformable materials, tracking       Acknowledgments
+subtle state transitions, and handling non-rigid tool–ingredient
+interactions, while sports training may require fine-grained body      We wish to thank all the reviewers for their invaluable feedback.
+tracking and the analysis of temporally coordinated motions. These     This work is partially supported by the NSF under the Future of
+domain-specific characteristics lead to additional requirements on     Work at the Human-Technology Frontier (FW-HTF) 1839971 and
+perception and AR representation (e.g., deformable-object under-       NSF Partnerships for Innovation Technology Transfer (PFI-TT)
+standing, motion-oriented overlays) that differ from machine tasks,    2329804. We also acknowledge the Feddersen Distinguished Profes-
+and may call for evaluation protocols that combine structural cor-     sorship Funds. Any opinions, findings, and conclusions expressed
+rectness with human judgments of instructional clarity or learning     in this material are those of the authors and do not necessarily
+outcomes. Thus, while ARify demonstrates promising performance         reflect the views of the funding agency.
+on machine tasks, its generalizability to other procedural domains
+remains uncertain. Future work will examine these domains and          References
+explore how the framework can be adapted and expanded to sup-
+port AR tutorial authoring more broadly beyond the machine-task           [1] João Alves, Bernardo Marques, Miguel Oliveira, Tiago Araújo, Paulo Dias, and
+setting.                                                                       Beatriz Sousa Santos. 2019. Comparing spatial and mobile augmented reality for
+                                                                               guiding assembling procedures with task validation. In 2019 IEEE international
+8.7 Ethical Considerations                                                     conference on autonomous robot systems and competitions (ICARSC). IEEE, 1–6.
+
+We analyze publicly available instructional videos on YouTube only        [2] Jonas Blattgerste, Benjamin Strenge, Patrick Renner, Thies Pfeiffer, and Kai
+for formative research (coding and numerical analysis), referencing            Essig. 2017. Comparing conventional and augmented reality instructions for
+sources by YouTube IDs and operating on derived representations                manual assembly tasks. In Proceedings of the 10th international conference on
+(e.g., transcripts, step plans, tactic labels). We do not download,            pervasive technologies related to assistive environments. 75–82.
+store, or redistribute source video files. For demonstrations, few-
+shot prompting, and evaluation, we use original narrated instruc-         [3] Andres M Bran, Sam Cox, Oliver Schilter, Carlo Baldassari, Andrew D White,
+tional videos that we capture or provided by users. Our goal is to             and Philippe Schwaller. 2023. Chemcrow: Augmenting large-language models
+extract and abstract the underlying structure and components of                with chemistry tools. arXiv preprint arXiv:2304.05376 (2023).
+how people teach procedural tasks, not to transform others’ works
+into new media artifacts or reproduce their content.                      [4] Yuanzhi Cao, Anna Fuste, and Valentin Heun. 2022. Mobiletutar: A lightweight
+                                                                               augmented reality tutorial system using spatially situated human segmentation
+                                                                               videos. In CHI Conference on Human Factors in Computing Systems Extended
+                                                                               Abstracts. 1–8.
+
+                                                                          [5] Chen Chen, Cuong Nguyen, Jane Hoffswell, Jennifer Healey, Trung Bui, and
+                                                                               Nadir Weibel. 2023. PaperToPlace: Transforming Instruction Documents into
+                                                                               Spatialized and Context-Aware Mixed Reality Experiences. In Proceedings of the
+                                                                               36th Annual ACM Symposium on User Interface Software and Technology. 1–21.
+
+                                                                          [6] Shimin Chen, Xiaohan Lan, Yitian Yuan, Zequn Jie, and Lin Ma. 2024.
+                                                                               Timemarker: A versatile video-llm for long and short video understanding
+ARify                                                                                                                                      CHI ’26, April 13–17, 2026, Barcelona, Spain
+
+        with superior temporal localization ability. arXiv preprint arXiv:2411.18211       [29] Fengming He, Xiyun Hu, Jingyu Shi, Xun Qian, Tianyi Wang, and Karthik
+        (2024).                                                                                  Ramani. 2023. Ubi Edge: Authoring Edge-Based Opportunistic Tangible User
+  [7] Yuxiao Chen, Kai Li, Wentao Bao, Deep Patel, Yu Kong, Martin Renqiang Min,                 Interfaces in Augmented Reality. In Proceedings of the 2023 CHI Conference on
+        and Dimitris N Metaxas. 2024. Learning to Localize Actions in Instructional              Human Factors in Computing Systems. 1–14.
+        Videos with LLM-Based Multi-Pathway Text-Video Alignment. In European
+        Conference on Computer Vision. Springer, 193–210.                                  [30] Yisheng He et al. 2024. FoundationPose: Unified 6D Pose Estimation.
+  [8] Yuexi Chen, Vlad I Morariu, Anh Truong, and Zhicheng Liu. 2024. TutoAI:                    arXiv:2403.12345 [cs.CV]
+        a cross-domain framework for AI-assisted mixed-media tutorial creation on
+        physical tasks. In Proceedings of the 2024 CHI Conference on Human Factors in      [31] Mario Heinz, Sebastian Büttner, and Carsten Röcker. 2019. Exploring training
+        Computing Systems. 1–17.                                                                 modes for industrial augmented reality learning. In Proceedings of the 12th ACM
+  [9] Yu-Tong Cheng, Jiaxin Wu, Zhixin Ma, Jiangshan He, Xiao-Yong Wei, and Chong-               international conference on PErvasive technologies related to assistive environments.
+       Wah Ngo. 2025. Interactive video search with multi-modal LLM video captioning.            398–401.
+        In International Conference on Multimedia Modeling. Springer, 302–309.
+ [10] Bonnie Chinh, Himanshu Zade, Abbas Ganji, and Cecilia Aragon. 2019. Ways of          [32] Sirui Hong, Mingchen Zhuge, Jonathan Chen, Xiawu Zheng, Yuheng Cheng,
+        qualitative coding: a case study of four strategies for resolving disagreements.         Jinlin Wang, Ceyao Zhang, Zili Wang, Steven Ka Shing Yau, Zijuan Lin, et al.
+        In Extended abstracts of the 2019 CHI conference on human factors in computing           2023. MetaGPT: Meta programming for a multi-agent collaborative framework.
+        systems. 1–6.                                                                            In The twelfth international conference on learning representations.
+ [11] Ana Regina Mizrahy Cuperschmid, Marina Graf Grachet, and Márcio Minto
+        Fabricio. [n. d.]. Augmented Reality as a Tutorial Tool for Construction Tasks.    [33] Xiyun Hu, Dizhi Ma, Fengming He, Zhengzhe Zhu, Shao-Kang Hsia, Chenfei
+        ([n. d.]).                                                                               Zhu, Ziyi Liu, and Karthik Ramani. 2025. GesPrompt: Leveraging Co-Speech
+ [12] Dicksson Rammon Oliveira De Almeida, Paulo Abadie Guedes, Manoela                          Gestures to Augment LLM-Based Interaction in Virtual Reality. In Proceedings
+        Milena Oliveira da Silva, Andre Luiz Buarque Vieira e Silva, Joao Paulo Silva do         of the 2025 ACM Designing Interactive Systems Conference. 59–80.
+        Monte Lima, and Veronica Teichrieb. 2015. Interactive makeup tutorial using
+        face tracking and augmented reality on mobile devices. In 2015 XVII Symposium      [34] Hang Hua, Yunlong Tang, Chenliang Xu, and Jiebo Luo. 2025. V2xum-llm:
+        on Virtual and Augmented Reality. IEEE, 220–226.                                         Cross-modal video summarization with temporal prompt instruction tuning. In
+ [13] Andong Deng, Zhongpai Gao, Anwesa Choudhuri, Benjamin Planche, Meng                        Proceedings of the AAAI Conference on Artificial Intelligence, Vol. 39. 3599–3607.
+        Zheng, Bin Wang, Terrence Chen, Chen Chen, and Ziyan Wu. 2025. Seq2time:
+        Sequential knowledge transfer for video llm temporal grounding. In Proceedings     [35] Bin Huang, Xin Wang, Hong Chen, Zihan Song, and Wenwu Zhu. 2024. Vtimellm:
+        of the Computer Vision and Pattern Recognition Conference. 13766–13775.                  Empower llm to grasp video moments. In Proceedings of the IEEE/CVF Conference
+ [14] Andreas Dengel, Muhammad Zahid Iqbal, Silke Grafe, and Eleni Mangina. 2022.                on Computer Vision and Pattern Recognition. 14271–14280.
+        A review on augmented reality authoring toolkits for education. Frontiers in
+        Virtual Reality 3 (2022), 798032.                                                  [36] Gaoping Huang, Xun Qian, Tianyi Wang, Fagun Patel, Maitreya Sreeram,
+ [15] Henrik Detjen, Robert Niklas Degenhart, Stefan Schneegass, and Stefan Geisler.             Yuanzhi Cao, Karthik Ramani, and Alexander J Quinn. 2021. Adaptutar: An
+        2021. Supporting user onboarding in automated vehicles through multimodal                adaptive tutoring system for machine tasks in augmented reality. In Proceedings
+        augmented reality tutorials. Multimodal Technologies and Interaction 5, 5 (2021),        of the 2021 CHI Conference on Human Factors in Computing Systems. 1–15.
+        22.
+ [16] Paulo Dias, Bernardo Marques, Ivo Felix, and Beatriz Sousa Santos. 2025. Cre-        [37] Emin İbili, Mevlüt Çat, Dmitry Resnyansky, Sami Şahin, and Mark Billinghurst.
+        ating asynchronous Augmented Reality Instructions through a Virtual Reality              2020. An assessment of geometry teaching supported with augmented reality
+        Framework. In 2025 IEEE Conference on Virtual Reality and 3D User Interfaces             teaching materials to enhance students’ 3D geometry thinking skills. Interna-
+        Abstracts and Workshops (VRW). IEEE, 1065–1071.                                          tional Journal of Mathematical Education in Science and Technology 51, 2 (2020),
+ [17] Runlin Duan, Yuzhao Chen, Rahul Jain, Yichen Hu, Jingyu Shi, and Karthik                   224–246.
+        Ramani. 2025. Canvas3D: Empowering Precise Spatial Control for Image Gener-
+        ation with Constraints from a 3D Virtual Canvas. arXiv preprint arXiv:2508.07135   [38] Keiichi Ihara, Kyzyl Monteiro, Mehrad Faridan, Rubaiat Habib Kazi, and Ryo
+        (2025).                                                                                  Suzuki. 2025. Video2MR: Automatically generating mixed reality 3D instructions
+ [18] Runlin Duan, Chenfei Zhu, Yuzhao Chen, Yichen Hu, Jingyu Shi, and Karthik                  by augmenting extracted motion from 2D videos. In Proceedings of the 30th
+        Ramani. 2025. DesignFromX: Empowering Consumer-Driven Design Space                       International Conference on Intelligent User Interfaces. 1548–1563.
+        Exploration through Feature Composition of Referenced Products. In Proceedings
+        of the 2025 ACM Designing Interactive Systems Conference. 1040–1060.               [39] Intel. 2025. Intel® RealSense™ Depth Camera D435i - Product Specifica-
+ [19] Runlin Duan, Chenfei Zhu, Yuzhao Chen, Dizhi Ma, Jingyu Shi, Ziyi Liu, and                 tions. https://www.intel.com/content/www/us/en/products/sku/190004/intel-
+        Karthik Ramani. 2025. SketchConcept: Sketching-based Concept Recomposition               realsense- depth- camera- d435i/specifications.html
+        for Product Design using Generative AI. arXiv preprint arXiv:2508.07141 (2025).
+ [20] Daniel Eckhoff, Christian Sandor, Christian Lins, Ulrich Eck, Denis Kalkofen,        [40] Hye-Young Jo, Laurenz Seidel, Michel Pahud, Mike Sinclair, and Andrea Bianchi.
+        and Andreas Hein. 2018. TutAR: augmented reality tutorials for hands-only                2023. Flowar: How different augmented reality visualizations of online fitness
+        procedures. In Proceedings of the 16th ACM SIGGRAPH International Conference             videos support flow for at-home yoga exercises. In Proceedings of the 2023 CHI
+        on Virtual-Reality Continuum and its Applications in Industry. 1–3.                      Conference on Human Factors in Computing Systems. 1–17.
+ [21] Epic Games. 2025. Unreal Engine. https://www.unrealengine.com/en-US.
+ [22] John Estrada, Sidike Paheding, Xiaoli Yang, and Quamar Niyaz. 2022. Deep-            [41] Dominic Kao, Alejandra J Magana, and Christos Mousas. 2021. Evaluating
+        learning-incorporated augmented reality application for engineering lab train-           tutorial-based instructions for controllers in virtual reality games. Proceedings
+        ing. Applied Sciences 12, 10 (2022), 5159.                                               of the ACM on human-computer interaction 5, CHI PLAY (2021), 1–28.
+ [23] Yalda Ghasemi, Allison Bayro, Justin MacDonald, Heejin Jeong, Joel Reynolds,
+        and Chang S Nam. 2023. Embedding spatial augmented reality in culinary             [42] Junhan Kong, Dena Sabha, Jeffrey P Bigham, Amy Pavel, and Anhong Guo.
+        training: A comparative evaluation of sAR kitchen and video tutorials. IEEE              2021. TutorialLens: authoring Interactive augmented reality tutorials through
+        Transactions on Learning Technologies 17 (2023), 765–775.                                narration and demonstration. In Proceedings of the 2021 ACM Symposium on
+ [24] Google. 2025. Gemini Nano Banana. https://gemini.google/overview/image-                    Spatial User Interaction. 1–11.
+        generation/
+ [25] Google DeepMind. 2024. Gemini 2.5 Flash Model. https://deepmind.google/              [43] Ze-Hao Lai, Wenjin Tao, Ming C Leu, and Zhaozheng Yin. 2020. Smart aug-
+        technologies/gemini/.                                                                    mented reality instructional system for mechanical assembly towards worker-
+ [26] Michihiko Goto, Yuko Uematsu, Hideo Saito, Shuji Senda, and Akihiko Iketani.               centered intelligent manufacturing. Journal of Manufacturing Systems 55 (2020),
+        2010. AR-Based Supporting System by Overlay Display of Instruction Video.                69–81.
+        Journal of the Institute of Image Electronics Engineers of Japan 39, 5 (2010),
+        631–643.                                                                           [44] Joakim Laine, Matti Minkkinen, and Matti Mäntymäki. 2025. Understanding the
+ [27] Kristen Grauman, Andrew Westbury, Lorenzo Torresani, Kris Kitani, Jitendra                 ethics of generative AI: Established and new ethical principles. Communications
+        Malik, Triantafyllos Afouras, Kumar Ashutosh, Vijay Baiyya, Siddhant Bansal,             of the Association for Information Systems 56, 1 (2025), 7.
+        Bikram Boote, et al. 2024. Ego-exo4d: Understanding skilled human activity from
+        first-and third-person perspectives. In Proceedings of the IEEE/CVF Conference     [45] Vianney Lara-Prieto, Efraín Bravo-Quirino, Miguel Ángel Rivera-Campa, and
+        on Computer Vision and Pattern Recognition. 19383–19400.                                 José Enrique Gutiérrez-Arredondo. 2015. An innovative self-learning approach
+ [28] Thilo Hagendorff. 2024. Mapping the ethics of generative AI: A comprehensive               to 3D printing using multimedia and augmented reality on mobile devices.
+        scoping review. Minds and Machines 34, 4 (2024), 39.                                     Procedia computer science 75 (2015), 59–65.
+
+                                                                                           [46] Taeyeop Lee, Bowen Wen, Minjun Kang, Gyuree Kang, In So Kweon, and Kuk-
+                                                                                                 Jin Yoon. 2025. Any6D: Model-free 6D Pose Estimation of Novel Objects. In
+                                                                                                 Proceedings of the Computer Vision and Pattern Recognition Conference. 11633–
+                                                                                                 11643.
+
+                                                                                           [47] Wengxi Li, Roy Pea, Nick Haber, and Hari Subramonyam. 2024. Tutorly: Turning
+                                                                                                 programming videos into apprenticeship learning environments with llms. arXiv
+                                                                                                 preprint arXiv:2405.12946 (2024).
+
+                                                                                           [48] Georgianna Lin, Jin Yi Li, Afsaneh Fazly, Vladimir Pavlovic, and Khai Truong.
+                                                                                                 2023. Identifying Multimodal Context Awareness Requirements for Support-
+                                                                                                 ing User Interaction with Procedural Videos. In Proceedings of the 2023 CHI
+                                                                                                 Conference on Human Factors in Computing Systems. 1–17.
+
+                                                                                           [49] Hanchao Liu, Wenyuan Xue, Yifei Chen, Dapeng Chen, Xiutian Zhao, Ke Wang,
+                                                                                                 Liping Hou, Rongjun Li, and Wei Peng. 2024. A survey on hallucination in large
+                                                                                                 vision-language models. arXiv preprint arXiv:2402.00253 (2024).
+CHI ’26, April 13–17, 2026, Barcelona, Spain                                                                                                                         Hu, Zhu, and Hsia, et al.
+
+ [50] Ziyi Liu, Zhengzhe Zhu, Enze Jiang, Feichi Huang, Ana M Villanueva, Xun Qian,                hugging face. Advances in Neural Information Processing Systems 36 (2023),
+        Tianyi Wang, and Karthik Ramani. 2023. Instrumentar: Auto-generation of                    38154–38180.
+        augmented reality tutorials for operating digital instruments through recording      [73] Jingyu Shi, Rahul Jain, Seunggeun Chi, Hyungjun Doh, Hyung-gun Chi, Alexan-
+        embodied demonstration. In Proceedings of the 2023 CHI Conference on Human                 der J Quinn, and Karthik Ramani. 2025. CARING-AI: Towards Authoring
+        Factors in Computing Systems. 1–17.                                                        Context-aware Augmented Reality INstruction through Generative Artificial
+                                                                                                   Intelligence. In Proceedings of the 2025 CHI Conference on Human Factors in
+ [51] Dizhi Ma, Xiyun Hu, Jingyu Shi, Mayank Patel, Rahul Jain, Ziyi Liu, Zhengzhe                 Computing Systems. 1–23.
+        Zhu, and Karthik Ramani. 2024. avattar: Table tennis stroke training with            [74] Jingyu Shi, Rahul Jain, Hyungjun Doh, Ryo Suzuki, and Karthik Ramani. 2023.
+        embodied and detached visualization in augmented reality. In Proceedings of the            An HCI-centric survey and taxonomy of human-generative-AI interactions.
+        37th Annual ACM Symposium on User Interface Software and Technology. 1–16.                 arXiv preprint arXiv:2310.07127 (2023).
+                                                                                             [75] Yudi Shi, Shangzhe Di, Qirui Chen, and Weidi Xie. 2025. Enhancing Video-LLM
+ [52] Faraz Mahmood, Eitezaz Mahmood, Robert Gregory Dorfman, John Mitchell,                       Reasoning via Agent-of-Thoughts Distillation. In Proceedings of the Computer
+        Feroze-Udin Mahmood, Stephanie B Jones, and Robina Matyal. 2018. Augmented                 Vision and Pattern Recognition Conference. 8523–8533.
+        reality and ultrasound education: initial experience. Journal of cardiothoracic      [76] Fangxun Shu, Lei Zhang, Hao Jiang, and Cihang Xie. 2023. Audio-visual llm for
+        and vascular anesthesia 32, 3 (2018), 1363–1367.                                           video understanding. arXiv preprint arXiv:2312.06720 (2023).
+                                                                                             [77] Roland Sigrist, Georg Rauter, Robert Riener, and Peter Wolf. 2013. Augmented
+ [53] Florian Maitz, Lucchas Ribeiro Skreinig, Denis Kalkofen, and Selina C Wriess-                visual, auditory, haptic, and multimodal feedback in motor learning: a review.
+        negger. 2023. Towards neuroadaptive augmented reality piano tutorials. In                  Psychonomic bulletin & review 20, 1 (2013), 21–53.
+        2023 IEEE International Conference on Metrology for eXtended Reality, Artificial     [78] Lucchas Ribeiro Skreinig, Peter Mohr, Blanca Berger, Markus Tatzgern, Dieter
+        Intelligence and Neural Engineering (MetroXRAINE). IEEE, 450–455.                          Schmalstieg, and Denis Kalkofen. 2024. Immersive Authoring by Demonstration
+                                                                                                   of Industrial Procedures. In 2024 IEEE International Symposium on Mixed and
+ [54] Meta. 2025. Meta Quest Pro Headset For Business. https://forwork.meta.com/                   Augmented Reality (ISMAR). IEEE, 1293–1302.
+        quest/quest- pro/                                                                    [79] Ana Stanescu, Peter Mohr, Dieter Schmalstieg, and Denis Kalkofen. 2022. Model-
+                                                                                                   free authoring by demonstration of assembly instructions in augmented reality.
+ [55] Meta Platforms. 2023. Meta XR SDK for Unity. https://developer.oculus.com/                   IEEE Transactions on Visualization and Computer Graphics 28, 11 (2022), 3821–
+        downloads/package/meta- xr- sdk/.                                                          3831.
+                                                                                             [80] Ryo Suzuki, Rubaiat Habib Kazi, Li-Yi Wei, Stephen DiVerdi, Wilmot Li, and
+ [56] Meta Platforms. 2024. Wit.ai Speech-to-Text API. https://wit.ai/.                            Daniel Leithinger. 2020. Realitysketch: Embedding responsive graphics and
+ [57] Peter Mohr, Bernhard Kerbl, Michael Donoser, Dieter Schmalstieg, and Denis                   visualizations in AR through dynamic sketching. In Proceedings of the 33rd
+                                                                                                   Annual ACM Symposium on User Interface Software and Technology. 166–181.
+        Kalkofen. 2015. Retargeting technical documentation to augmented reality. In         [81] Keishi Tainaka, Yuichiro Fujimoto, Masayuki Kanbara, Hirokazu Kato, Atsunori
+        Proceedings of the 33rd Annual ACM Conference on Human Factors in Computing                Moteki, Kensuke Kuraki, Kazuki Osamura, Toshiyuki Yoshitake, and Toshiyuki
+        Systems. 3337–3346.                                                                        Fukuoka. 2020. Guideline and tool for designing an assembly task support
+ [58] Pedro Morillo, Inmaculada Garcia-Garcia, Juan M Orduna, Marcos Fernandez,                    system using augmented reality. In 2020 IEEE international symposium on mixed
+        and M Carmen Juan. 2020. Comparative study of AR versus video tutorials for                and augmented reality (ISMAR). IEEE, 486–497.
+        minor maintenance operations. Multimedia Tools and Applications 79, 11 (2020),       [82] Reuben Tan, Ximeng Sun, Ping Hu, Jui-hsien Wang, Hanieh Deilamsalehy,
+        7073–7100.                                                                                 Bryan A Plummer, Bryan Russell, and Kate Saenko. 2024. Koala: Key frame-
+ [59] Lars Müller, Ilhan Aslan, and Lucas Krüßen. 2013. GuideMe: A mobile augmented                conditioned long video-llm. In Proceedings of the IEEE/CVF Conference on Com-
+        reality system to display user manuals for home appliances. In International               puter Vision and Pattern Recognition. 13581–13591.
+        Conference on Advances in Computer Entertainment Technology. Springer, 152–          [83] Balasaravanan Thoravi Kumaravel, Cuong Nguyen, Stephen DiVerdi, and Björn
+        167.                                                                                       Hartmann. 2019. TutoriVR: A video-based tutorial system for design applications
+ [60] James Munkres. 1957. Algorithms for the assignment and transportation prob-                  in virtual reality. In Proceedings of the 2019 CHI conference on human factors in
+        lems. J. Soc. Indust. Appl. Math. 5, 1 (1957), 32–38.                                      computing systems. 1–12.
+ [61] Megha Nawhal, Jacqueline B Lang, Greg Mori, and Parmit K Chilana. 2019.                [84] Unity Technologies. 2024. Unity 2022.3.20f1 LTS. https://unity.com/releases/
+        VideoWhiz: Non-Linear Interactive Overviews for Recipe Videos.. In Graphics                editor/whats- new/2022.3.20.
+        Interface. 15–1.                                                                     [85] Jingying Wang, Jingjing Zhang, Juana Nicoll Capizzano, Matthew Sigakis, Xu
+ [62] Rohith Peddi, Shivvrat Arya, Bharath Challa, Likhitha Pallapothula, Akshay                   Wang, and Vitaliy Popov. 2025. eXplainMR: Generating Real-time Textual
+        Vyas, Bhavya Gouripeddi, Qifan Zhang, Jikai Wang, Vasundhara Komaragiri,                   and Visual eXplanations to Facilitate UltraSonography Learning in MR. In
+        Eric Ragan, et al. 2024. CaptainCook4D: A dataset for understanding errors                 Proceedings of the 2025 CHI Conference on Human Factors in Computing Systems
+        in procedural activities. Advances in Neural Information Processing Systems 37             (CHI ’25). Association for Computing Machinery, New York, NY, USA, Article
+        (2024), 135626–135679.                                                                     422, 18 pages. doi:10.1145/3706598.3714015
+ [63] Alexander Plopski, Varunyu Fuvattanasilp, Jarkko Poldi, Takafumi Taketomi,             [86] Yizhou Wang, Ruiyi Zhang, Haoliang Wang, Uttaran Bhattacharya, Yun Fu, and
+        Christian Sandor, and Hirokazu Kato. 2018. Efficient in-situ creation of aug-              Gang Wu. 2023. Vaquita: Enhancing alignment in llm-assisted video under-
+        mented reality tutorials. In 2018 Workshop on metrology for industry 4.0 and IoT.          standing. arXiv preprint arXiv:2312.02310 (2023).
+        IEEE, 7–11.                                                                          [87] Ziyang Wang, Shoubin Yu, Elias Stengel-Eskin, Jaehong Yoon, Feng Cheng,
+ [64] Suporn Pongnumkul, Mira Dontcheva, Wilmot Li, Jue Wang, Lubomir Bourdev,                     Gedas Bertasius, and Mohit Bansal. 2025. Videotree: Adaptive tree-based video
+        Shai Avidan, and Michael F Cohen. 2011. Pause-and-play: automatically linking              representation for llm reasoning on long videos. In Proceedings of the Computer
+        screencast video tutorials with applications. In Proceedings of the 24th annual            Vision and Pattern Recognition Conference. 3272–3283.
+        ACM symposium on User interface software and technology. 135–144.                    [88] Sarah Weir, Juho Kim, Krzysztof Z Gajos, and Robert C Miller. 2015. Learn-
+ [65] Xun Qian, Fengming He, Xiyun Hu, Tianyi Wang, Ananya Ipsita, and Karthik                     ersourcing subgoal labels for how-to videos. In Proceedings of the 18th ACM
+        Ramani. 2022. Scalar: Authoring semantically adaptive augmented reality expe-              conference on computer supported cooperative work & social computing. 405–416.
+        riences in virtual reality. In Proceedings of the 2022 CHI Conference on Human       [89] Matt Whitlock, George Fitzmaurice, Tovi Grossman, and Justin Matejka. 2020.
+        Factors in Computing Systems. 1–18.                                                        AuthAR: concurrent authoring of tutorials for AR assembly guidance. In Graph-
+ [66] Moritz Quandt and Michael Freitag. 2021. A systematic review of user acceptance              ics Interface 2020.
+        in industrial augmented reality. In Frontiers in education, Vol. 6. Frontiers Media  [90] Zehao Wu, Xiang Li, Hao Zhang, and Dahua Lin. 2023. YOLO-World: Real-Time
+        SA, 700760.                                                                                Open-Vocabulary Object Detection. arXiv:2304.00501 [cs.CV] https://arxiv.org/
+ [67] Shwetha Rajaram and Michael Nebeling. 2022. Paper trail: An immersive au-                    abs/2304.00501
+        thoring system for augmented reality instructional experiences. In Proceedings       [91] Yuchen Xia, Manthan Shenoy, Nasser Jazdi, and Michael Weyrich. 2023. Towards
+        of the 2022 CHI conference on human factors in computing systems. 1–16.                    autonomous system: flexible modular production system enhanced with large
+ [68] Sebastián Ramirez. 2018. FastAPI: Modern, Fast (High-performance), Web                       language model agents. In 2023 IEEE 28th International Conference on Emerging
+        Framework for Building APIs with Python. https://fastapi.tiangolo.com/.                    Technologies and Factory Automation (ETFA). IEEE, 1–8.
+ [69] Nikhila Ravi, Valentin Gabeur, Yuan-Ting Hu, Ronghang Hu, Chaitanya Ryali,             [92] Zhiqin Xu et al. 2023. InstantMesh: Efficient 3D Mesh Generation from a Single
+        Tengyu Ma, Haitham Khedr, Roman Rädle, Chloe Rolland, Laura Gustafson,                     Image. arXiv:2306.00969 [cs.CV] https://arxiv.org/abs/2306.00969
+        et al. 2024. Sam 2: Segment anything in images and videos. arXiv preprint            [93] Masahiro Yamaguchi, Shohei Mori, Peter Mohr, Markus Tatzgern, Ana Stanescu,
+        arXiv:2408.00714 (2024).                                                                   Hideo Saito, and Denis Kalkofen. 2020. Video-annotated augmented reality
+ [70] Alessandra Semeraro and Laia Turmo Vidal. 2022. Visualizing instructions for                 assembly tutorials. In Proceedings of the 33rd annual ACM symposium on user
+        physical training: Exploring visual cues to support movement learning from                 interface software and technology. 1010–1022.
+        instructional videos. In Proceedings of the 2022 CHI Conference on Human Factors
+        in Computing Systems. 1–16.
+ [71] Fadime Sener, Dibyadip Chatterjee, Daniel Shelepov, Kun He, Dipika Singhania,
+        Robert Wang, and Angela Yao. 2022. Assembly101: A large-scale multi-view
+        video dataset for understanding procedural activities. In Proceedings of the
+        IEEE/CVF Conference on Computer Vision and Pattern Recognition. 21096–21106.
+ [72] Yongliang Shen, Kaitao Song, Xu Tan, Dongsheng Li, Weiming Lu, and Yueting
+        Zhuang. 2023. Hugginggpt: Solving ai tasks with chatgpt and its friends in
+ARify                                                                                   CHI ’26, April 13–17, 2026, Barcelona, Spain
+
+ [94]  Saelyne Yang, Sangkyung Kwak, Juhoon Lee, and Juho Kim. 2023. Beyond
+ [95]  Instructions: a taxonomy of information types in how-to videos. In Proceedings
+ [96]  of the 2023 CHI Conference on Human Factors in Computing Systems. 1–21.
+       Saelyne Yang, Anh Truong, Juho Kim, and Dingzeyu Li. 2025. VideoMix: Aggre-
+ [97]  gating How-To Videos for Task-Oriented Learning. In Proceedings of the 30th
+ [98]  International Conference on Intelligent User Interfaces. 1564–1580.
+ [99]  Saelyne Yang, Jo Vermeulen, George Fitzmaurice, and Justin Matejka. 2024.
+[100]
+[101]  AQuA: Automated question-answering in software tutorial videos with visual
+[102]  anchors. In Proceedings of the 2024 CHI Conference on Human Factors in Comput-
+[103]  ing Systems. 1–19.
+       Joanne Yip, Sze-Ham Wong, Kit-Lun Yick, Kannass Chan, and Ka-Hing Wong.
+[104]
+       2019. Improving quality of teaching and learning in classes by using augmented
+[105]  reality video. Computers & Education 128 (2019), 88–101.
+       Ce Zhang, Taixi Lu, Md Mohaiminul Islam, Ziyang Wang, Shoubin Yu, Mohit
+
+       Bansal, and Gedas Bertasius. 2023. A simple llm framework for long-range
+       video question-answering. arXiv preprint arXiv:2312.17235 (2023).
+       Muru Zhang, Ofir Press, William Merrill, Alisa Liu, and Noah A Smith. 2023. How
+       language model hallucinations can snowball. arXiv preprint arXiv:2305.13534
+       (2023).
+
+       Shaofei Zhang et al. 2023. HaMeR: Hand Mesh Recovery from Monocular
+
+       Images. arXiv:2306.00970 [cs.CV]
+
+       Ada Yi Zhao, Aditya Gunturu, Ellen Yi-Luen Do, and Ryo Suzuki. 2025. Guided
+
+       Reality: Generating Visually-Enriched AR Task Guidance with LLMs and Vision
+       Models. arXiv preprint arXiv:2508.03547 (2025).
+       Henghao Zhao, Ge-Peng Ji, Rui Yan, Huan Xiong, and Zechao Li. 2025. Video-
+       Expert: Augmented LLM for Temporal-Sensitive Video Understanding. arXiv
+       preprint arXiv:2504.07519 (2025).
+       Running Zhao, Zhihan Jiang, Xinchen Zhang, Chirui Chang, Handi Chen,
+
+       Weipeng Deng, Luyao Jin, Xiaojuan Qi, Xun Qian, and Edith CH Ngai. 2025.
+
+       NoteIt: A System Converting Instructional Videos to Interactable Notes Through
+       Multimodal Video Understanding. arXiv preprint arXiv:2508.14395 (2025).
+       Chenfei Zhu, Shao-Kang Hsia, Xiyun Hu, Ziyi Liu, Jingyu Shi, and Karthik
+
+       Ramani. 2025. agentAR: Creating Augmented Reality Applications with Tool-
+       Augmented LLM-based Autonomous Agents. In Proceedings of the 38th Annual
+       ACM Symposium on User Interface Software and Technology. 1–23.
+       Hazem Zohny, John McMillan, and Mike King. 2023. Ethics of generative AI.
+
+       79–80 pages.
+CHI ’26, April 13–17, 2026, Barcelona, Spain                                                                                              Hu, Zhu, and Hsia, et al.
+
+A Appendix                                                       * Body Movement -> Direction Indicator (approach
+                                                                         direction); Video Display (motion demo); Region
+A.1 Tutorial Planner Meta Prompt                                         Indicator (keep -out region)
+
+# Step extraction prompt                                         * Command -> Text Box; Text -to -Speech
+                                                                 * Object Status Check -> Region Indicator (target state);
+**Task.** Parse a narrated instructional video into a
+        tutorial structure suitable for AR authoring.                      Text Box (checklist); Text -to -Speech
+        Segment the video into steps (each step achieves a       * Quantitative Specification -> Text Box (numeric target)
+        subgoal and typically contains 1-5 atomic actions).
+        For every step , identify instructional tactics (                ; Virtual Object (status of object); Image Display (
+        movement - or narration -centric) and recommend                  status of object); Text -to -Speech
+        minimal AR representations to communicate the step.      * Conditional Statement -> Text Box (if -then prompt);
+                                                                         Text -to -Speech
+**Segmentation cues.** Prefer boundaries at:                     * Rationale -> Text Box (explanation); Text -to -Speech;
+(i) **subgoal completion**;                                              Image/Video Display (before -after exemple)
+(ii) **object/tool switch**;
+(iii) **discourse markers** ("next", "then", "now");             A.2 Tutorial Planner Example
+(iv) **duration chunking** if a span is long.
+The tutorial structure must be an ordered sequence with          Input:
+                                                                 {
+        dependencies.
+                                                                        [00:00:05] The video shows an unassembled IKEA Lack
+You are provided with a set of input -output examples: {{                        side table. The speaker introduces the table and
+        Examples }}                                                               its name.
+
+## Output Specifications                                                [00:00:10] The speaker discusses the pronunciation of
+                                                                                  the table 's name , "Lack", in Swedish and
+For each **step**, include:
+                                                                                 English.
+* ** start_time **: `HH:MM:SS`                                          [00:00:15] The speaker continues to discuss the
+* ** end_time **: `HH:MM:SS`
+* **subgoal**: observable intermediate outcome                                   pronunciation of the table 's name , mentioning
+* **title**: concise step title                                                  his Norwegian language skills.
+* **objects**: list of referenced tools/objects                         [00:00:20] The speaker makes a pun about the table 's
+* **description **: brief step description for authors                           name and apologizes.
+* **dependencies **: list of prerequisite step indices                  [00:00:25] The speaker states this is IKEA 's simplest
+* **instructional_tactics **: array of tactic instances:
+                                                                                   piece to assemble and shows a screw.
+   * `type `: one of                                                    [00:00:30] The speaker holds up a screw and explains
+       `[Deictic Reference , Navigation , Object Manipulation ,
+                 Body Movement , Command , Status Check ,                        there are four of them.
+                Quantitative Specification , Conditional                [00:00:35] The speaker mentions being three -quarters
+                Statement , Rationale]`
+                                                                                 of the way done with assembly.
+   * `start `: seconds from 0                                           [00:00:40] The speaker picks up one of the black
+   * `end `: seconds from 0
+   * `description `: how the tactic manifests here                               table legs and shows it.
+* **ar_representation **: recommended ar representation                 [00:00:45] The speaker holds a leg and a screw ,
+
+        for the instructional tactics (choose minimally                          explaining that each leg gets one screw.
+        sufficient set), each:                                          [00:00:50] The speaker explains that assembly is easy
+   * `type `: one of `[TextBox , ImageDisplay , VideoPlayer ,
+                                                                                  but requires some effort to twist the legs into
+            TextToSpeech , Direction Indicator , Region                            place.
+            Indicator , VirtualObject , Hand Visualization]`            [00:00:55] The speaker states he will demonstrate the
+   * `linked_tactics `: integer index into `                                       assembly on the last leg.
+            demonstration_tactics `                                     [00:01:00] The speaker places a screw into a pre -
+   * `behavior_summary `: expected behavior + parameter                          drilled hole on the tabletop.
+            slots                                                       [00:01:05] The screw is partially inserted into the
+                                                                                 tabletop.
+## Granularity and overlap                                              [00:01:10] The speaker twists the screw a half -turn
+                                                                                 to get it started.
+* Steps: aim for **1-5 atomic actions** per step (                      [00:01:15] The screw is now standing upright in the
+        readable , self -contained subgoal).                                     tabletop.
+                                                                        [00:01:20] The speaker picks up a black table leg ,
+* Tactics: detect **all relevant tactics**; movement -                           which has a hole in one end.
+        centric and narration -centric tactics may **overlap            [00:01:25] The speaker aligns the hole in the leg
+        in time**.                                                               with the screw.
+                                                                        [00:01:30] The speaker begins to twist the leg
+## Mapping hints (tactic -> typical AR item)                                     clockwise onto the screw.
+                                                                        [00:01:35] The speaker continues to twist the leg ,
+Use these defaults unless context clearly favors another                         securing it to the tabletop.
+        choice:                                                         [00:01:40] The speaker continues twisting the leg ,
+                                                                                 demonstrating a two -handed motion.
+* Deictic Reference -> Region Indicator; Text Box (label)               [00:01:45] The speaker continues to twist the leg ,
+        ; Virtual Object (pin/highlight)                                         noting the unusual motion.
+                                                                        [00:01:50] The speaker continues twisting the leg ,
+* Navigation -> Direction Indicator (arrow/path); Virtual                        mentioning that it can be tiring.
+          Object (animated object); Text -to-Speech (pace cues          [00:01:55] The speaker continues to twist the leg ,
+                                                                                 explaining he had a break and is okay.
+        )                                                               [00:02:00] The speaker continues to twist the leg
+* Object Manipulation -> Hand Visualization (grasp/pose);                        into place.
+                                                                        [00:02:05] The speaker continues to twist the leg.
+          Virtual Object (tool overlay); Region Indicator (             [00:02:10] The speaker continues to twist the leg ,
+        contact zones)                                                           mentioning the strain on the tendons in the hand
+                                                                                 .
+ARify                                                                                                            CHI ’26, April 13–17, 2026, Barcelona, Spain
+
+       [00:02:15] The speaker continues twisting , stating                                  "behavior_summary": "Render a highlighted
+                that both hands will be needed to rotate the leg                                       3D screw model at the tabletop
+                 as it gets close to the finish.
+                                                                                                     anchor to indicate placement.
+       [00:02:20] The speaker continues twisting the leg ,                                           Parameters: anchor=Tabletop ,
+                clarifying that it should be rotated clockwise.                                      outlined=true , name='Screw '."
+                                                                                     }
+       [00:02:25] The speaker continues to twist the leg                      ]
+                clockwise.                                             },
+                                                                       {
+       [00:02:30] The speaker continues to twist the leg ,                    "title": "Attach Leg to Tabletop",
+                instructing to listen for when the leg contacts               "start_time": "00:01:15" ,
+                the tabletop surface.                                         "end_time": "00:02:08" ,
+                                                                              "subgoal": "Leg attached to tabletop",
+       [00:02:35] The speaker continues to twist the leg ,                    "objects": ["Table leg", "Screw", "Tabletop"],
+                emphasizing listening for the contact.                        "dependencies": [0],
+                                                                              "instructional_tactics": [
+       [00:02:40] The speaker twists the leg further , and a                         {
+                sound indicates it has made contact.                                        "type": "Object Manipulation",
+                                                                                            "start_time": "00:00:03" ,
+       [00:02:45] The speaker instructs to twist another                                    "end_time": "00:00:53" ,
+               half -turn and line it up.                                                   "intent": "Show how to align and twist
+                                                                                                     parts to attach",
+       [00:02:50] The speaker twists the leg to align it                                    "description": "The user aligns the leg
+                properly.                                                                            with the screw and twists it to
+                                                                                                     attach ."
+       [00:02:55] The speaker continues to line up the leg.                          },
+       [00:03:00] The speaker finishes attaching the leg and                         {
+                                                                                            "type": "Directives",
+                 states , "And that 's it."                                                 "start_time": "00:00:02" ,
+       [00:03:05] The completed black IKEA Lack side table                                  "end_time": "00:00:05" ,
+                                                                                            "intent": "Provide precise action
+               is shown standing on a wooden floor.                                                  guidance",
+       [00:03:10] The speaker walks over and gently pushes                                  "description": "The presenter instructs
+                                                                                                     to align the leg with the screw."
+                the assembled table , demonstrating its stability                    },
+               .                                                                     {
+       [00:03:14] The completed table is shown in its final                                 "type": "Body Movement",
+                position.                                                                   "start_time": "00:00:25" ,
+}                                                                                           "end_time": "00:00:35" ,
+                                                                                            "intent": "Demonstrate posture or grip
+Output:                                                                                              for effective manipulation",
+[                                                                                           "description": "The presenter
+                                                                                                     demonstrates using two hands for
+       {                                                                                             twisting the leg."
+                                                                                     }
+          "title": "Insert Screw into Tabletop",                              ],
+          "start_time": "00:01:00" ,                                          "ar_recommendations": [
+          "end_time": "00:01:14" ,                                                   {
+          "subgoal": "Place screw in tabletop hole",                                        "type": "VirtualObject",
+          "objects": ["Screw", "Tabletop"],                                                 "linked_tactics": [0],
+          "dependencies": [],                                                               "behavior_summary": "Place a highlighted
+          "instructional_tactics": [                                                                 3D leg model over the target
+                                                                                                     position to indicate alignment.
+                 {                                                                                   Parameters: anchor=Tabletop ,
+                        "type": "Object Manipulation",                                               outlined=true , name='Table leg '."
+                        "start_time": "00:00:06" ,                                   },
+                        "end_time": "00:00:14" ,                                     {
+                        "intent": "Demonstrate how to manipulate                            "type": "TextBox",
+                                 an object to initiate fastening",                          "linked_tactics": [1],
+                        "description": "The user inserts the                                "behavior_summary": "Show a concise
+                                 screw into the hole and twists it to                                instruction callout anchored to the
+                                   start ."                                                          viewer. Parameters: anchor=head ,
+                                                                                                     text='Align the leg with the screw
+                 },                                                                                  and twist clockwise.'"
+                 {                                                                   },
+                                                                                     {
+                        "type": "Directives",                                               "type": "VideoPlayer",
+                        "start_time": "00:00:06" ,                                          "linked_tactics": [2],
+                        "end_time": "00:00:08" ,                                            "behavior_summary": "Play a short clip
+                        "intent": "Tell the learner what action                                      highlighting proper two -hand
+                                                                                                     twisting posture. Parameters: anchor
+                                 to perform",                                                        =head , clip_within_step_start
+                        "description": "The presenter instructs                                      ='00:00:25', clip_within_step_end
+                                                                                                     ='00:00:35', label='Two -hand
+                                 to take the screw and insert it into                                twisting motion '."
+                                   the hole."                                        }
+                                                                              ]
+                 }                                                     },
+          ],
+          "ar_recommendations": [
+
+                 {
+                        "type": "TextBox",
+                        "linked_tactics": [0, 1],
+                        "behavior_summary": "Display a short
+                                 directive callout anchored to the
+                                 viewer (camera). Parameters: anchor=
+                                 head , text='Insert the screw into
+                                 the pre -drilled hole '"
+
+                 },
+                 {
+
+                        "type": "VirtualObject",
+                        "linked_tactics": [1],
+CHI ’26, April 13–17, 2026, Barcelona, Spain                                                                                                         Hu, Zhu, and Hsia, et al.
+
+       {                                                                                  "dependencies": [2],
+              "title": "Tighten and Align Leg",                                           "instructional_tactics": [
+              "start_time": "00:02:09" ,
+              "end_time": "00:03:01" ,                                                           {
+              "subgoal": "Leg fully tightened and flush/aligned                                          "type": "Status Check",
+                       ",                                                                                "start_time": "00:00:01" ,
+              "objects": ["Table leg", "Tabletop"],                                                      "end_time": "00:00:03" ,
+              "dependencies": [1],                                                                       "intent": "Confirm final assembled state
+              "instructional_tactics": [                                                                         ",
+                     {                                                                                   "description": "The presenter shows the
+                             "type": "Object Manipulation",                                                      completed table."
+                             "start_time": "00:00:00" ,
+                             "end_time": "00:00:52" ,                                            },
+                             "intent": "Demonstrate continued twisting                           {
+                                       to secure the part",
+                             "description": "The user continues to                                       "type": "Body Movement",
+                                      twist the leg until it is fully                                    "start_time": "00:00:03" ,
+                                      tightened ."                                                       "end_time": "00:00:06" ,
+                     },                                                                                  "intent": "Demonstrate stability/handling
+                     {
+                             "type": "Status Check",                                                             ",
+                             "start_time": "00:00:25" ,                                                  "description": "The presenter moves the
+                             "end_time": "00:00:32" ,
+                             "intent": "Verify contact/fit state to                                              table to show its stability."
+                                      determine next action",                                    }
+                             "description": "The presenter instructs                      ],
+                                     to listen for the leg to contact the                 "ar_recommendations": [
+                                       tabletop ."                                               {
+                     },
+                     {                                                                                   "type": "ImageDisplay",
+                             "type": "Conditional Statement",                                            "linked_tactics": [0,1],
+                             "start_time": "00:00:38" ,                                                  "behavior_summary": "Show a reference
+                             "end_time": "00:00:42" ,
+                             "intent": "Provide next steps based on                                              still of the completed assembly.
+                                      detected state",                                                           Parameters: anchor=head ,
+                             "description": "Instructions depend on                                              image_timestamp = '00:03:05.000 ' ,
+                                      hearing the leg contact the tabletop                                       label='Completed IKEA Lack Table '."
+                                     ."                                                          },
+                     }                                                                           {
+              ],                                                                                         "type": "TextBox",
+              "ar_recommendations": [                                                                    "linked_tactics": [0],
+                     {                                                                                   "behavior_summary": "Display a completion
+                             "type": "TextBox",
+                             "linked_tactics": [0],                                                                message to the learner. Parameters:
+                             "behavior_summary": "Show a progress                                                  anchor=head , text='Your IKEA Lack
+                                      directive to continue twisting until                                       table is now assembled!'"
+                                       flush. Parameters: anchor=head ,                          }
+                                     text='Continue twisting until the                    ]
+                                     leg is flush with the tabletop.'"             }
+                     },                                                     ]
+                     {
+                             "type": "TextToSpeech",
+                             "linked_tactics": [1, 2],
+                             "behavior_summary": "Play an audio cue
+                                      describing the contact check and
+                                     follow -up half -turn. Parameters:
+                                      anchor=head , script='Listen for the
+                                     leg to make contact with the
+                                     tabletop , then twist another half
+                                     turn for alignment.'"
+                     },
+                     {
+                             "type": "VirtualObject",
+                             "linked_tactics": [0],
+                             "behavior_summary": "Show/outline the leg
+                                       model at the target placement as a
+                                      visual reference. Parameters: anchor
+                                     =Tabletop , outlined=true , name='
+                                      Table leg '."
+                     }
+              ]
+
+       },
+       {
+
+              "title": "Display Assembled Table",
+              "start_time": "00:03:04" ,
+              "end_time": "00:03:15" ,
+              "subgoal": "Assembled table presented",
+              "objects": ["Assembled table"],
+ARify                                                                                     CHI ’26, April 13–17, 2026, Barcelona, Spain
+
+A.3 Coding videos
+
+Video ID     Year Length  Topics                                                          Parts
+
+9Y_R9unnadI  2018  06:04  Bypass thermostat to troubleshoot AC cooling/heating issues.      9
+                   08:43  Troubleshoot a computer that doesn’t turn on.                    18
+nfYwKPtDiw4 2019   09:35  Repairing a dripping or leaking two-handle Delta faucet.         15
+                   13:37  Troubleshoot common sewing machine problems.                     11
+sRVG6lzYoMI  2019  06:45  Fix squeaky floors from above the floor surface.                  8
+                   12:24  Repairing a damaged fiberglass car decklid.                      24
+5pUfdpjpS5M  2020  06:52  Disassemble phone, identify parts for repair                     15
+                   12:31  Replace broken door jamb, including strike and deadbolt plates   11
+jfXuuDFNP5U 2020   04:43  reparing a sprinkler valve                                        8
+                   07:08  Repair scratches on glass using a DIY kit.                        9
+DLJecJfFUGI  2020  08:57  Replacing a house front door.                                    19
+                   16:35  Fix X1 Carbon printer ringing and banding issues.                19
+xe1mhUmnZwE 2020   06:17  Repair serger timing issue for proper stitching                  16
+                   19:22  Install yard drainage system to prevent flooding.                20
+iCK5nJMi5Yc  2021  13:52  Effectively repair broken plastic using a plastic welder         10
+
+z1Q0AuNEu-E 2022          Install a drain for a Delta bathtub.                             10
+                          Build a basic LEGO house.                                         9
+Ou8eqmResNA 2022          Assemble a ring light                                             6
+                          Assemble a skateboard                                             9
+7LqpVXHd78g 2022          Build a professional-looking custom closet                       10
+                          Assemble an EZ-Wok cart.                                          8
+izdBZ9IQfqI  2023         Assemble an IKEA HAOGA nightstand                                19
+                          Assemble a quick and easy plywood drawer box.                     7
+e7wgLQbROAs 2023          Assemble an IKEA Alex drawer unit                                22
+                          Assemble a 3.5 cubic foot cement mixer                           34
+xvfv0ZyTf3w  2024         Assemble the IKEA Malm bed frame                                 22
+                          Assemble a base 18 frameless European style cabinet.             18
+4bKLGKMWMpc 2025          Assemble an IKEA EKET cabinet and mount it.                      10
+                          Assemble a hoist channel and trolley system                      13
+9OcwJGJmcRY  2019 08:33   Installing a washing machine outlet box                           8
+JFIMAAoki5s  2019 05:24
+SdiSo0bUGoM  2020 09:46   Operate an espresso machine and make drinks.                     15
+CJFXIzSGnAw  2020 04:04   Fill capsules using the Capsa-Fill machine                       14
+RzuhQb6-bHs  2021 11:19   Learn how to use a jigsaw: features, blades, and cuts.            5
+idYq4Hal1IA  2021 08:58   Create custom T-shirts using Cricut machine.                     12
+seTG22TJdlM  2022 18:56   Figure, layout, and cut stair stringers for basic stairs.        15
+1VmqhmYtUSE  2022 05:15   Unbox and use a thermal laminator for the first time.             9
+bFhKFTzoq5E  2022 10:03   Thread and change needle on mini sewing machine                  24
+JwLWR6z4IbE  2022 10:34   How to thread and use a mini stapler sewing machine.             15
+K1qZHCNP950  2023 18:31   Grinding high-speed steel lathe tools.                           17
+wg0YmffD4DY  2025 06:28   Learn how to cut threads on a metalworking lathe.                16
+n-9te2k20B0  2025 06:52   Teach beginners to use a chop saw safely and effectively.        12
+VY14SmZi93I  2025 04:12   Create custom T-shirts using a heat press and transfers           5
+5-j6ljL0_7E  2025 04:01   How to make your first 3D print                                  15
+                          Set up, operate, troubleshoot, and maintain a sewing machine.    33
+7GaB72fbQ8I  2017 08:51   Learn pro vacuuming tips for a cleaner home.                     10
+
+JO37r628KDw 2018 11:37
+
+_ztM_Y_PlAo  2019 06:32
+
+F0qzvg_xf9c  2020 10:51
+
+UFIqiwtaAYA  2020 10:28
+
+YhN9d3yVgD8 2021 05:38
+
+XV0YXB5wZNU 2021 13:47
+
+04DarPVWkpI 2021 09:39
+
+IxZpIxryUUg  2021 18:39
+
+q7scadYptTI  2021 20:36
+
+-egiw1730m8  2022 12:49
+
+v-h1qMNhKis 2023 04:20
+
+h5L5iGSJSWk 2024 09:16
+
+4OsXoddqZj4  2025 13:41
+
+scKzL_XAqDU 2025 08:03
+

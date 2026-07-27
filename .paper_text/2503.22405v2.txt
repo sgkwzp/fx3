@@ -1,0 +1,1057 @@
+arXiv:2503.22405v2 [cs.CV] 2 Apr 2025    Modeling Multiple Normal Action Representations for Error Detection in
+                                                                             Procedural Tasks
+
+                                             Wei-Jin Huang1,∗ Yuan-Ming Li1,∗ Zhi-Wei Xia1 Yu-Ming Tang1 Kun-Yu Lin1
+                                                                           Jian-Fang Hu1 Wei-Shi Zheng1,2,3,4,†
+
+                                                   1School of Computer Science and Engineering, Sun Yat-sen University, China
+                                                                               2Peng Cheng Laboratory, China
+
+                                       3Key Laboratory of Machine Intelligence and Advanced Computing, Ministry of Education, China;
+                                                 4Guangdong Province Key Laboratory of Information Security Technology, China
+
+                                                                  {huangwj235, liym266}@mail2.sysu.edu.cn; wszheng@ieee.org
+
+                                                               Abstract                                                ……                        Select
+
+                                       Error detection in procedural activities is essential for con-  Boil water          Prepare filter                Prepare filter  Compare
+                                       sistent and correct outcomes in AR-assisted and robotic sys-    Valid Action 1       Valid Action n                  (Normal)
+                                       tems. Existing methods often focus on temporal ordering                                                             Top Matching  Threshold
+                                       errors or rely on static prototypes to represent normal ac-               Potential Valid Actions                        Action     Check
+                                       tions. However, these approaches typically overlook the                             at time t
+                                       common scenario where multiple, distinct actions are valid
+                                       following a given sequence of executed actions. This leads                Predict
+                                       to two issues: (1) the model cannot effectively detect er-
+                                       rors using static prototypes when the inference environment                     …                                                 / √  ×
+                                       or action execution distribution differs from training; and
+                                       (2) the model may also use the wrong prototypes to de-                 1                   t-2       t-1          Prepare filter  Normal Error
+                                       tect errors if the ongoing action label is not the same as      Time:
+                                       the predicted one. To address this problem, we propose                                                            (with error)    Action Action
+                                       an Adaptive Multiple Normal Action Representation (AM-
+                                       NAR) framework. AMNAR predicts all valid next actions                           Executed Actions                  Ongoing Action
+                                       and reconstructs their corresponding normal action repre-                             up to t-1                       at time t
+                                       sentations, which are compared against the ongoing action
+                                       to detect errors. Extensive experiments demonstrate that        Figure 1. Illustration of error detection using multiple valid
+                                       AMNAR achieves state-of-the-art performance, highlight-         next actions at time  t . After “Grinding Coffee Bean” at time  t-1 ,
+                                       ing the effectiveness of AMNAR and the importance of mod-       valid next actions include “Boil Water” and “Prepare Filter.” The
+                                       eling multiple valid next actions in error detection. The       best matching action is selected and compared with the ongoing
+                                       code is available at https://github.com/iSEE-                   action. If their distance exceeds the threshold, the action is marked
+                                       Laboratory/AMNAR.                                               as an error; otherwise, it is marked as normal.
+
+                                       1. Introduction                                                 tasks (e.g., cooking, assembling toys, using tools, etc.).
+                                                                                                       Since procedural tasks require consistent outcomes with-
+                                       Understanding procedural activities is an important field in    out errors, being able to detect natural mistakes is a crucial
+                                       video action understanding [19–23, 49, 50], as it reflects      ability for next-generation AR assisted and robotic systems
+                                       how an AI model recognizes actions [1, 37, 39, 41, 44, 45],     [5, 11, 36, 38, 47, 48].
+                                       separates steps [2, 6, 15, 17, 29, 43, 46], and plans move-
+                                       ments [10, 12, 26, 35], similar to how humans conduct daily        Achieving reliable error detection requires a founda-
+                                                                                                       tional understanding of what a normal action should be, al-
+                                             *: Equal contributions. †: Corresponding author.          lowing comparison to the ongoing action. So, for error de-
+                                                                                                       tection using AI, a key challenge is constructing a “normal
+                                                                                                       action representation” of the current action. Approximat-
+                                                                                                       ing a “normal action representation,” some current methods
+                                                                                                       [4, 7, 33] model transition relationships from correctly ex-
+                                                                                                       ecuted action sequences, thereby predicting the correct cur-
+                                                                                                       rent action label based on prior actions. However, while
+                                                                                                       these approaches can detect label-level errors by comparing
+                                                                                                       predicted and actual action labels, they often fail to capture
+                                                                                                       the full representation of a normal action, leading them to
+overlook cases where the correct action label is executed but    tively in error detection. Finally, the Representation Match-
+deviates from the expected normal behavior. For instance,        ing Block (RMB) selects the most likely normal action rep-
+pouring water into a filter but spilling some outside shares     resentation of current execution step and assesses its con-
+the same label as the correct action, yet introduces an error    formity with the ongoing action. By comparing this confor-
+(spillage) that current methods often miss.                      mity to a predefined threshold, we determine whether the
+                                                                 current action has an error.
+   Recently, a contrastive learning method[16] tackles this
+limitation by leveraging prototype-based representations.           We evaluate our error detection framework on three
+This method learns a series of prototypes during training to     datasets: EgoPER [16], HoloAssist [38], and Captain-
+represent the normal execution of each action class. During      Cook4D [28]. Our method improves Error Detection Ac-
+inference, it detects errors by comparing the current action’s   curacy (EDA) by 7.4% and Area Under the Curve (AUC)
+representation to the closest prototype in the same class.       by 6.5% on EgoPER, 3.7% and 1.3% on HoloAssist, and
+While effective in some scenarios, these prototypes are          2.5% and 5.3% on CaptainCook4D, proving its robustness
+static after the training stage and cannot adaptively change     across tasks. Furthermore, ablation studies on our frame-
+with action executions, which struggles to detect errors ef-     work validate the contributions of each component, reveal-
+fectively when the action distribution varies from that of the   ing several insights.
+training samples (e.g., diverse execution styles, tools with
+varied appearances, or distinct environments).                      The main contributions of our work are as follows:
+                                                                 1. We introduce a novel approach that dynamically gener-
+   To detect errors with varying action distributions, we ar-
+gue that an effective error detection model should be capa-         ates multiple normal action representations for the cur-
+ble of dynamically generating a normal action representa-           rent action, conditioned on previously executed actions,
+tion for the current action, conditioned on previously ex-          addressing the challenge of adaptively representing all
+ecuted actions. Such adaptability allows the model to ac-           normal action representations of the current action.
+count for variations in action execution that static proto-      2. We develop a new framework utilizing task graphs and
+types cannot handle. From this perspective, a straightfor-          dynamic programming to predict multiple valid next ac-
+ward implementation might attempt to predict a normal ac-           tions. This enables precise and context-aware error de-
+tion representation of the current action from the past action      tection by comparing the current action with adaptively
+sequence. However, this naive approach introduces a new             generated multiple normal action representations.
+challenge: after a sequence of executed actions, multiple        3. Comprehensive experiments on the EgoPER, HoloAssist
+valid next actions may logically follow, depending on user          and CaptainCook4D datasets validate the effectiveness
+preferences or contextual factors, rather than adhering to a        of each component in our framework, achieving state-of-
+strictly defined sequence. For instance, in the process of          the-art performance and demonstrating robustness and
+making coffee, after grinding the coffee beans, the next step       flexibility in handling diverse procedural task errors.
+might involve boiling water, preparing the filter, or select-
+ing a cup—each of which is a valid action depending on           2. Related Work
+the task context, as illustrated in Fig. 1. This range of valid
+next actions following a given sequence of actions makes         Error Detection [4, 7, 8, 11, 13, 14, 16, 18, 25, 27, 28, 32–
+it challenging for a single normal action representation to      34, 38] is a task to detect when errors occur in proce-
+encompass all possible correct action representations.           dural activities. Starting from EPIC-Tent[34], many re-
+                                                                 searchers have begun to focus on the Error Detection task.
+   To overcome these challenges, we propose a novel Adap-        Ding et al.[4] attempt to identify both order-related errors in
+tive Multiple Normal Action Representation (AMNAR)               toy assembly and part-relative placement errors by solving
+framework for error detection that predicts and models           the Error Detection problem using the constructed Graphs
+multiple valid next actions, dynamically creating multiple       method. Subsequently, several works [7, 33] focus on de-
+adaptable normal action representations that accurately cap-     tecting order-related errors. Specifically, Flaborea et al.[7]
+ture the diversity of procedural task execution. Specifically,   focus on utilizing large language models to identify order-
+our approach first employs an action segmentation model to       related errors, while Seminara et al.[33] propose using dif-
+provide an initial executed action sequence, which serves        ferentiable task graph matrices for the same purpose. Re-
+as input for the Potential Action Prediction Block (PAPB).       cently, EgoPED [16] expands this field by introducing er-
+Subsequently, PAPB predicts all valid actions based on           rors beyond action order (e.g., omission, addition or modi-
+executed actions leveraging the task graph and dynamic           fication of steps) and proposes a new contrastive step proto-
+programming. Next, our Representations Reconstruction            type learning framework. Our work shares the same prob-
+Block (RRB) reconstructs multiple normal action represen-        lem formulation with EgoPED [16]. Differently, we ad-
+tations for each valid action. As shown in Fig. 2, these         dress the challenge of multiple valid next actions that can
+modules enable AMNAR to represent all valid actions adap-        follow any given step in procedural tasks. Our approach
+                                                                 adaptively models all normal action representations of these
+               (a) Potential Action Prediction Block                                                (b) Representation Reconstruction Block                                                                        (c) Representation Matching Block
+                                                                                                                  Corresponding
+      0
+                                                  0
+
+1        4                    1                               0                                     Valid Actions          Dilated Conv  Conv 1D Conv 1D Conv 1D                                                                                            Select
+                                                                                                             MLP Encoder                                                                                                                                  Smallest
+               7                 2                   Merge 1     4 Child Nodes 7                                                                                  Q                                                Distance Compare
+                    DP                                                                                                                                                                                                                           …
+2                          0                                                       6                                                                                                       Normal Representations
+                                                                 5                                                                                                                               of Valid Actions                    Distance from Valid Actions
+         5                                                                                                                                                           Cross Attention                                                        to Ongoing Action
+                                                                                                                                                                  K
+      6                          4                                                                                                                                                    Output MLP
+                                                     2
+
+                           5
+
+           8                           8                Filtered Subsequence  Valid Actions         Temporal
+   Task Graph           Subsequences                                                                   Visual Feature
+                                                                                   Action Feature             MLP Encoder
+Executed Action Labels                                                              up to time t-1
+
+01 8           2        5                            4        5                                                                                                   V                                                                  Top Matching
+
+                                                                                                                                                                                                                                     Action Representation
+
+            Action Segmentation
+
+                                                                                                                           Action Feature at time t
+
+Executed Actions                                                 Ongoing Action                                                                                      Compute during Training
+                                                                                                                                                                      Apply during inference
+               …                                                                                           Class 0: 0.85                                                                                                              Error Threshold Comparison
+                                                                                                           Class 1: 0.67
+   1                    t-2                             t-1      t                                                                                                                                                                   √ / × an error? Is action at time t
+                                                                                                            ……
+
+                                                                                                    Class Thresholds
+
+Figure 2. Overview of the Adaptive Multiple Normal Action Representation (AMNAR) framework. The process begins with an
+
+Action Segmentation module identifying executed actions from video input. (a) Potential Action Prediction Block predicts valid next
+
+actions using a task graph from executed action labels. (b) Representation Reconstruction Block generates normal action representations
+
+for these valid actions, leveraging temporal visual features. (c) Representations Matching Block compares the ongoing action’s feature
+
+at time t with the generated representations to detect errors, indicated by a checkmark (✓) for normal actions or a cross (✗) for errors.
+
+valid actions, enabling robust error detection through adap-                                                               AMNAR in Sec. 3.2, and introduce the detailed designs in
+tively generated normal action representations for each pos-                                                               Secs. 3.3 to 3.7.
+sible action.
+                                                                                                                           3.1. Problem Formulation
+Video Anomaly Detection (VAD) focuses on spotting un-
+usual events (e.g., accidents or suspicious behaviors) in                                                                  Following previous work[16], we train our model with nor-
+surveillance footage. VAD identifies deviations from nor-                                                                  mal videos and their corresponding action labels for each
+mal activities in videos, which could indicate dangerous or                                                                procedural task execution step. Each video, denoted as
+unexpected situations such as falls or unauthorized entries                                                                 V = \{f_i\}_{i=1}^N , is paired with frame-wise action labels
+into restricted areas. One of the main branches in this field                                                               Y = \{y_i\}_{i=1}^N , where N indicates the number of frames,
+is the reconstruction-based VAD [9, 24, 30, 31, 42]. In this                                                               and each  y_i  maps to one of  S  predefined action classes or to
+branch, the models are trained to reconstruct normal frames                                                                a background class, expressed as  y_i \in \{1, 2, \ldots , S, S+1\} .
+or accurate sequences, and detect the anomaly by measur-                                                                   During inference, the objective is to detect error actions, de-
+ing the reconstruction error between the reconstructed and                                                                 noted as  E = \left \{e_j\right \}_{j=1}^M , where  M  is the number of errors.
+original frames (or sequences). Unlike VAD, which primar-
+ily detects deviations based on low-level visual or statistical                                                            3.2. Method Overview
+anomalies, our approach assesses whether ongoing actions
+align with the predicted normal action representations of all                                                              Given that multiple valid next actions may follow a given
+valid next actions. Additionally, while VAD typically re-                                                                  executed action sequence, we need to create accurate repre-
+constructs a single normal scene, our method addresses the                                                                 sentations for each possible valid action to detect small de-
+challenge of error detection in complex procedural tasks by                                                                viations in how actions are executed, even if the overall ac-
+simultaneously modeling multiple normal action represen-                                                                   tion type is correct. Combining all valid actions with video
+tations for multiple valid next actions.                                                                                   context, our method reconstructs all normal action represen-
+                                                                                                                           tations for each possible current action. The top matching
+3. Method                                                                                                                  representation to the actual action is then selected and used
+                                                                                                                           to detect errors. To do this, we propose an Adaptive Mul-
+To adaptively reconstruct all normal action representations                                                                tiple Normal Action Representation (AMNAR) framework,
+of valid actions, which are compared with ongoing actual                                                                   as illustrated in Fig. 2.
+action to detect errors, we propose an Adaptive Multiple
+Normal Action Representation (AMNAR) framework that                                                                           AMNAR initially extracts visual features from videos
+explicitly models diverse normal action representations of                                                                 using a visual feature extractor. The features are then fed
+all valid next actions based on executed action sequence.                                                                  into an Action Segmentation Model, which outputs labeled
+                                                                                                                           action segments with start and end frames. Subsequently,
+   We will first introduce problem formulation in Sec. 3.1.                                                                the Potential Action Prediction Block predicts all valid
+After that, we provide an overview of the proposed method                                                                  next actions based on the task graph and executed actions.
+                                                                                                                           The Representation Reconstruction Block then generates
+representations for these predicted actions. Lastly, the Rep-                                         0                    s = [0 1 8 2 5 4 5]
+resentation Matching Block assesses any deviations be-
+tween these representations and the ongoing action features                                        1     4                            PD
+to identify possible errors in the ongoing action.
+                                                                                                            7
+
+                                                                                                                𝑙𝑐𝑠 = [0 1 2] 𝑙𝑐𝑠 = [0 4 5] 𝑙𝑐𝑠 = [8]
+
+3.3. Action Sequences and Features Execution
+
+We represent procedural task actions using a pre-trained                                           2     5                                                                                                                                                                                                                                                      Merge
+
+feature extractor (e.g., I3D [1]) to obtain initial visual fea-                                                                                                                                                                                                                                                                                                 s∗= [0 1 2 4 5]
+
+tures, which are processed by the Action Segmentation                                                 6
+
+Model (ASM). The ASM identifies action seg^}1m=k{_}e\kn_a{t\ s= A 
+,H^}w1=k{h_}\e)k_rdee ,k_ tHs  ,k_yi(s{\ =t Hhe                                       total  num-        8 Child Nodes
+
+ 
+
+ber of actions,  y_k  is the label for the  k -th segment, and  st_k                               Task Graph                                                                                                                                                                                                                                                   𝐶 = [6 7]
+
+and  ed_k  denote the start and end frames. The ASM also
+
+generates a refined feature set  F = \{f_i\}_{i=1}^N , with each  f_i  as                          Figure 3. Overview of the Potential Action Prediction Block.
+a frame-level feature vector.                                                                      Using Dynamic Programming (DP), this module identifies all
+                                                                                                   longest common subsequences (lcs) from the executed action se-
+The executed action sequence up to time  t , denoted                                               quence  s_t  via the task graph  G . These lcs are interconnected into
+                                                                                                   a unified subgraph, forming the filtered sequence  s_t^*  . Reachable
+ s_t = \{y_k\}_{k=1}^{t-1} , captures prior actions. To account for vary-                          child nodes from  G  are then extracted as valid next actions  C_t .
+ing segment lengths, we compute an action feature  f_t^{\text {action}} 
+
+by averaging frame-level features within each segment:
+
+  f_t^{\text {action}} = \text {average}(\{f_i\}_{i=st_t}^{ed_t}), \vspace {-0.2cm}          (1) into  s_{t}^* = [0, 1, 2, 4, 5] , capturing all relevant executed ac-
+
+where the average is taken over frames from  st_t  to  ed_t .                                      tions. Finally, PAPB identifies the valid next actions  C_t  by
+                                                                                                   extracting the child nodes of  s_{t}^*  in  G :
+
+3.4. Potential Action Prediction Block                                                                           C_t = (\bigcup _{a \in s_{t}^*} A[a]) \setminus s_{t}^*, \vspace {-0.2cm}                                                                                                                                                                                       (4)
+In procedural tasks, multiple valid actions may follow a
+
+given execution sequence. To address this, our Potential Ac-                                       where  \bigcup _{a \in s_{t}^*} A[a]  aggregates all successors of nodes in  s_{t}^* 
+tion Prediction Block (PAPB) identifies all valid next steps
+using a predefined task graph  G  that encodes task-specific                                       from the adjacency list A of task graph G, and  \setminus s_{t}^*  excludes
+action sequences. PAPB maps the current action sequence                                            already executed actions. For instance, in Fig. 5, the child
+ s_t = \{y_1, y_2, \dots , y_{t-1}\} , where each  y_i  represents an exe-                         nodes of  s_{t}^*  include nodes 6 and 7,  C_t = [6, 7] . This pro-
+cuted action label, onto  G  to determine the set of logically                                     cess ensures  C_t  robustly represents all potential valid next
+valid next actions.                                                                                actions, enhancing error detection in complex procedural
+                                                                                                   workflows. More details can be found in supplementary.
+   To handle potential inaccuracies of action segmentation
+
+label, such as mislabeled or omitted actions, PAPB employs 3.5. Representation Reconstruction Block
+dynamic programm  \resiziebonx {0.9g\linewi(dth D}{!}{$ \Ptext {)subseqt}[io] = \becgin {ocasesm} \text {psubseuq}[j]t \ceup \{y_ is\_}{,t }&^ *\ te,xt {itf }h \texte {dp}[jf] +i 1 l> \ttexet {drp}[ie], \\d \text s{subuseq}[ib] \cu-p (\text {subseq}[j] \cup \{y_i\}), & \text {if } \text {dp}[j] + 1 = \text {dp}[i], \end {cases} $} \vspace {-0.2cm} 
+sequence of  s_t  that aligns with  G , as illustrated in part (a) We propose the Representation Reconstruction Block
+of Fig. 2 and Fig. 5. For example, given an executed se- (RRB) to generate normal action representations for valid
+quence  s_t = [0, 1, 8, 2, 5, 4, 5] . Using DP, PAPB identi- next actions, as shown in part (b) of Fig. 2. Starting with
+                                                                                                   frame-wise features  F_{1:ed_{t-1}} = \{ f_i \}_{i=1}^{ed_{t-1}}  up to time  t , we
+fies the longest common subsequences (lcs) that form non-
+branching paths in  G . It maintains two arrays:  \text {dp}[i] , track- apply dilated convolution to capture long-range dependen-
+                                                                                                   cies, yielding  F_{1:ed_{t-1}}^{\text {conv}}  .
+ing the length of the longest non-branching subsequence
+
+ending at index  i , and  \text {subseq}[i] , storing the corresponding                            Then, we use local cross-attention to align the valid ac-
+
+subsequence. Updates occur as follows:                                                             tions with the temporal context. Here,  C_t  serves as the
+
+                                                                                                   query, while  F_{1:ed_{t-1}}^{\text {conv}}  provides the keys and values. This
+
+  \text {dp}[i] = \max (\text {dp}[i], \text {dp}[j] + 1), \vspace {-0.4cm}                  (2) mechanism generates a contextual feature for each valid ac-
+
+                                                                                                   tion  y_{t,i} \in C_t . To enhance robustness, we adopt a cluster-
+
+                                                                                                       residual prediction approach. Specifically, for each valid
+                                                                                             (3) action  y_{t,i} , we predict a residual  r_{t,i}  that refines the cluster
+
+where a non-branching subsequence is a continuous path in                                          center  c_{t,i}  of the corresponding action class. The normal
+ G  without splits (e.g., [0, 1, 2] in the task graph).                                            action representation  f_{t,i}^{\text {normal}}  is then computed as:
+
+Next, PAPB merges these subsequences into a unified                                                           r_{t,i} = \mathcal {E}_{\text {res}}(y_{t,i}, F_{1:ed_{t-1}}^{\text {conv}}), \vspace {-0.4cm}                                                                                                                                                                     (5)
+
+subgraph, as shown in part (a) of Fig. 2 and Fig. 5. Since
+
+node 0 is shared between  \text {lcs}_1  and  \text {lcs}_2 , they are merged                                    f_{t,i}^{\text {normal}} = c_{t,i} + r_{t,i}, \vspace {-0.1cm}                                                                                                                                                                                                  (6)
+where  \mathcal {E}_{\text {res}}  denotes the residual prediction operation via                                                                       S_{\text {filtered}} = \begin {cases} 0, & \text {if } R_{\text {overlap}} < \tau \quad \text {(exclude)}, \\ 1, & \text {if } R_{\text {overlap}} \geq \tau \quad \text {(retain)}. \end {cases} \vspace {-0.2cm}   (11)
+cross-attention, and  c_{t,i}  is the precomputed cluster center
+for action class  y_{t,i} , derived from normal training sam-                                                                                           For retained segments, the assigned label may still need
+ples. The resulting set of representation}}sla,mrdone{ ntxeot\t{e^td_f                                                                               refinement. We assign each action segment a representative
+                                                                                                                                                     label  y_t^*  by selecting the most frequently occurring ground
+                                 {_}\ }}lamron{ txet\{^}i,t{_f {\ =                                                                                  truth label within the frames of the segment. Let
+
+               ,}|et_nC|{c^}a1=pi sulates all valid next actions:
+
+  f_t^{\text {normal}} = \mathcal {E}(C_t, F_{1:ed_{t-1}}), \vspace {-0.2cm}                                                                   (7)
+
+where  \mathcal {E}  integrates all operations within this block. This ap-                                                                             L_t = \{ y_i^{\text {GT}} \mid i \in \text {segment} \}, \vspace {-0.2cm}                                                                                                                                            (12)
+proach leverages the cluster center as a stable baseline while
+adapting to context-specific variations through the residual.                                                                                        where  y_i^{\text {GT}}  is the ground truth label for the  i -th frame within
+                                                                                                                                                     the segment. Then, we define  y_t^*  as:
+
+3.6. Normal Action Representation Alignment and                                                                                                        y_t^* = \arg \max _{y} \text {count}(y, L_t), \vspace {-0.2cm}                                                                                                                                                       (13)
+      Conformity Assessment
+                                                                                                                                                     where  \arg \max  identifies the label  y  that appears most fre-
+
+To assess action conformity and detect potential errors, we                                                                                          quently in  L_t .
+                                                                                                                                                        Since each training sample video corresponds to a sin-
+propose the Representation Matching Block (RMB), as il-
+                                                                                                                                                     gle target action at time  t  in  C_t , we omit the Potential Ac-
+lustrated in part (c) of Fig. 2. This component measures the                                                                                         tion Prediction Block (PAPB) and set the query size of the
+
+deviation between normal action representations  f_t^{\text {normal}}  and                                                                           Representation Reconstruction Block (RRB) to one during
+ongoing action features  f_t^{\text {action}}  . Specifically, RMB evaluates
+the alignment between the ongoing action feature  f_t^{\text {action}}  and                                                                          training. Using features from Sec. 3.3, we obtain frame-
+each potential normal action representation feature  f_{t,i}^{\text {normal}} 
+for valid next actions. We calculate the Euclidean distance                                                                                          wise features  F_{1:ed_{t-1}} = \{ f_i \}_{i=1}^{ed_{t-1}}  up to time  t , as well
+                                                                                                                                                     as the action feature  f_t^{\text {action}}  . Based on  C_t  and  F_{1:ed_{t-1}}  , our
+ d_{t,i}  as follows:                                                                                                                                method then predicts an normal action representation vector
+
+  d_{t,i} = \| f_t^{\text {action}} - f_{t,i}^{\text {normal}} \|_2. \vspace {-0.2cm}                                                          (8)    f_t^{\text {normal}}  for the action at time  t :
+
+To identify the best alignment, we select the smallest of                                                                                              f_t^{\text {normal}} = \mathcal {E}(C_t, F_{1:ed_{t-1}}), \vspace {-0.2cm}                                                                                                                                           (14)
+these distances (i.e.,  d_t^{\text {min}} = \min _{i} d_{t,i} ) as the top matching
+of ongoing action to any normal action representation.                                                                                               where  \mathcal {E}  represents the operations within the Representation
+
+                                                                                                                                                     Reconstruction Block (Sec. 3.3).
+
+Error Detection Criterion. To determine if an ongoing                                                                                                   Since  C_t  contains only one action during training,  f_t^{\text {normal}} 
+action deviates from all potential normal action represen-                                                                                           includes only one expected representation,  f_{t,1}^{\text {normal}}  . Our op-
+tations, we apply a threshold  \theta (y_t)  specific to each action                                                                                 timization objective then minimizes the distance between
+class  y_t , based on the distribution of alignment distances in
+normal samples. An action is flagged as an error if:                                                                                                 this normal action representation and the actual action fea-
+
+                                                                                                                                                     ture  f_t^{\text {action}}  , as shown below:
+
+                                                                                                                                                       \mathcal {L}_{\text {normal}} = \left \| f_{t,1}^{\text {normal}} - f_t^{\text {action}} \right \|^2. \vspace {-0.2cm}                                                                                               (15)
+
+  \text {Error} = \begin {cases} 1, & \text {if } d_t^{\text {min}} > \theta (y_t), \\ 0, & \text {otherwise}. \end {cases} \vspace {-0.2cm}   (9)   4. Experiments
+
+If  d_t^{\text {min}}  exceeds  \theta (y_t) , this indicates that the ongoing action                                                                In this section, we first introduce our experimental setup
+at time  t  does not conform to any normal action representa-                                                                                        in Sec. 4.1, followed by the evaluation metrics used to as-
+tion, thereby identifying it as an error. If it remains within                                                                                       sess the performance of our method in Sec. 4.2. Finally,
+the threshold, the ongoing action is considered to conform                                                                                           we conduct ablation studies in Sec. 4.3 to demonstrate the
+to an expected, normal action.                                                                                                                       effectiveness of our proposed AMNAR framework.
+
+3.7. Training Strategy and Objective Function                                                                                                        4.1. Experimental Setup
+
+In this section, we outline the model training process and                                                                                           Datasets. We conduct experiments on the EgoPER [16],
+our objective function.                                                                                                                              HoloAssist [38] and CaptainCook4D[28] datasets. The
+                                                                                                                                                     EgoPER dataset is an egocentric video dataset with five
+   During training, segments predicted by the Action Seg-                                                                                            cooking tasks (i.e., Quesadilla, Qatmeal, Pinwheel, Cof-
+mentation Model may include inaccuracies, such as incom-                                                                                             fee and Tea). It includes 386 videos (28 hours) with both
+plete or incorrect boundaries. To filter these samples, we                                                                                           normal and erroneous executions, together with frame-level
+calculate an overlap ratio  R_{\text {overlap}}  between each predicted                                                                              action and error annotations. The HoloAssist dataset fea-
+segment  S_{\text {pred}}  and its closest ground truth segment  S_{\text {GT}} . The                                                                tures 166 hours of video from 350 instructor-performer
+overlap ratio  R_{\text {overlap}}  is defined as:                                                                                                   pairs completing real-world tasks (e.g., furniture assembly,
+                                                                                                                                                     device operation). The CaptainCook4D dataset is an ego-
+  R_{\text {overlap}} = \frac {| S_{\text {pred}} \cap S_{\text {GT}} |}{| S_{\text {pred}} |}. \vspace {-0.2cm}                               (10)  centric dataset of cooking activities, comprising 384 record-
+                                                                                                                                                     ings of 24 recipes. It captures both normal and error execu-
+   We filter the segment based on whether  R_{\text {overlap}}  meets a                                                                              tions, with step annotations and seven error types.
+predefined threshold  \tau  :
+Table 1. Comparison with existing methods on the EgoPER dataset for each task and the average over all tasks.
+
+Methods                   Quesadilla    Oatmeal                            Pinwheel     Coffee       Tea         All
+                         EDA AUC      EDA AUC                            EDA AUC     EDA AUC    EDA AUC    EDA AUC
+Random
+HF2-VAD [24]             19.9 50.0    11.8 50.0                          15.7 50.0   8.20 50.0  17.0 50.0  14.5 50.0
+HF2-VAD + SSPCAB [30]    34.5 62.6    25.4 62.3                          29.1 52.7   10.0 59.6  36.6 62.1  27.1 59.9
+S3R [40]                 30.4 60.9    25.3 61.9                          33.9 51.7   10.0 60.1  35.4 63.2  27.0 59.6
+EgoPED[16]               52.6 51.8    47.8 61.6                          50.5 52.4   16.3 51.0  47.8 57.9  43.0 54.9
+                         62.7 65.6    51.4 65.1                          59.6 55.6   55.3 58.3  56.0 66.0  57.0 62.0
+AMNAR (Ours)
+                         61.4 71.9    65.0 75.4                          65.0 65.4   73.5 67.8  57.0 61.9  64.4 68.5
+
+Table 2. Comparison on HoloAssist dataset. Lacking action seg-           outperform all methods, with AMNAR achieving an aver-
+mentation annotations, we train with fine-grained noun and verb          age 7.4% improvement in EDA and 6.5% in AUC over
+labels. “Noun” and “Verb” denote ASM training with only noun             EgoPED [16]. For the HoloAssist dataset (Tab. 2), AMNAR
+or verb annotations, respectively; “All” averages both results.          improves EDA by 3.7% and AUC by 1.3%. On the Cap-
+                                                                         tainCook4D dataset (Tab. 3), AMNAR surpasses EgoPED
+Methods           Noun        Verb          All                          with improvements of 10.3% in Precision, 2.5% in EDA,
+              EDA AUC    EDA AUC      EDA AUC                            and 5.3% in AUC, demonstrating robustness across diverse
+Random                                                                   procedural tasks with complex action sequences.
+EgoPED[16]    48.3 52.4  49.8 48.7    49.0 50.6
+AMNAR (Ours)  65.2 56.1  67.2 54.3    66.2 55.2                          4.3. Ablation Studies
+
+              67.2 56.8  72.6 56.2    69.9 56.5                          In this section, we conduct a series of ablation studies on
+                                                                         the EgoPER dataset [16] to evaluate the contributions of
+Table 3. Comparison on the CaptainCook4D dataset.                        each component in our AMNAR framework.
+                                                                         Potential Action Prediction Block (PAPB). The PAPB
+Methods       Precision  EDA          AUC                                identifies valid next actions in procedural tasks, enabling
+                                                                         AMNAR to model multiple normal action representations
+Random          49.9     49.7         51.2                               post-sequence, as outlined in the method section. We eval-
+EgoPED [16]     56.5     69.8         54.9                               uate its role by comparing “AMNAR” with “Random Se-
+                66.8     72.3         60.2                               lection”, a variant using random action selection instead of
+AMNAR (Ours)                                                             PAPB’s contextual prediction. As shown in Tab. 4, AM-
+                                                                         NAR with PAPB boosts EDA by 5.8% and AUC by 5.5%
+Evaluation Metrics. Following prior work [16], we eval-                  over the random variant, proving that task-informed predic-
+uate models with Error Detection Accuracy (EDA) and                      tion enhances error detection in complex workflows.
+Area Under the Curve (AUC). EDA measures the accu-
+racy in identifying both erroneous and normal segments, re-              Representation Reconstruction Block (RRB). The RRB
+flecting the model’s overall accuracy in error detection at              generates context-aware normal action representations for
+the segment level. AUC evaluates the ability of the model                PAPB-predicted actions, as described earlier. We test its im-
+to distinguish between errors and non-errors by comparing                pact by comparing “AMNAR” against “w/o PAPB & RRB”,
+true and false positive rates across varying thresholds.                 which omits RRB and uses past action features with self-
+                                                                         attention. Tab. 4 shows AMNAR with RRB improves EDA
+Implementation Details. Following EgoPED[16], we                         by 4.4% and AUC by 4.5% over this variant, confirming
+adopt I3D [1] for video feature extraction and ActionFormer              RRB’s role in enhancing error detection through tailored
+[46] for action segmentation, with the segmentation model                representations.
+pretrained before joint training with other components. For
+EgoPER, we use provided task graphs, while for HoloAssist                Action Representation Types. AMNAR uses cluster-
+and CaptainCook4D, we construct task graphs from train-                  centered action representations to model the diversity of
+ing sequences. In the Representation Reconstruction Block                valid next actions by dynamically capturing their average
+(Sec. 3.5), actions in  C_t  are represented by their class clus-        distribution within each action class. Compared to text-
+ter centers. The error detection threshold  \theta (y_t)  (Sec. 3.6) is  based embeddings (e.g., BERT [3]), our ablation study
+set at the 0.85 quantile of the distance distribution from nor-          (Tab. 5 (a)) shows superior performance, likely due to better
+mal training instances, with an overlap threshold  \tau = 0.6 .          alignment with the model’s feature space, enhancing robust-
+More details are in the supplementary.                                   ness to subtle execution errors.
+
+4.2. Comparisons with SoTA Methods                                       Prediction Methods. We compare direct prediction, which
+                                                                         generates full features from context, with residual-based
+We compare our AMNAR with SoTA error detec-
+tion approaches [16, 24, 30, 40] on the EgoPER[16],
+HoloAssist[38] and CaptainCook4D[28] datasets.
+
+   As shown in Tab. 1, our results on the EgoPER dataset
+Table 4. Ablation studies on the Potential Action Prediction Block (PAPB) and the Representation Reconstruction Block (RRB).
+“w/o PAPB & RRB” excludes both PAPB and RRB, using only previously executed action features with a local self-attention mechanism.
+“Random Selection” indicates a variant where candidate actions are randomly selected instead of using PAPB to predict valid next actions.
+
+Variants           Components     Quesadilla    Oatmeal           Pinwheel     Coffee       Tea                   All
+                   PAPB RRB      EDA AUC      EDA AUC           EDA AUC     EDA AUC    EDA AUC              EDA AUC
+w/o PAPB & RRB
+Random Selection   ✗     ✗       58.7 68.7    58.9 68.4         55.5 56.6   67.6 64.7  59.5 61.5            60.0 64.0
+AMNAR                            56.9 67.2    60.1 72.5         50.2 56.2   71.7 61.7  54.1 57.3            58.6 63.0
+                   ✗     ✓       61.4 71.9    65.0 75.4         65.0 65.4   73.5 67.8  57.0 61.9            64.4 68.5
+
+                   ✓     ✓
+
+Table 5. Ablation studies across six configurations: action representation types, prediction methods, video features, distance metrics,
+training sample selection strategies, task graph construction. The highlighted rows indicate our default implementation.
+
+(a) Action Representation Types               (b) Prediction Methods                   (c) Visual Features
+
+Variants           EDA   AUC     Variants                       EDA   AUC   Variants            EDA         AUC
+
+Text-Based         65.6  64.1    Direct Prediction              64.2  62.2  DINOv2 Feature      71.0        69.2
+Cluster-Centered   64.4  68.5    Cluster Center Residual        64.4  68.5  I3D Feature         64.4        68.5
+
+(d) Distance Metrics             (e) Training Sample Selection Strategies   (f) Task Graph Construction
+
+Variants           EDA   AUC     Variants                       EDA   AUC   Variants            EDA         AUC
+
+L1 Norm            62.4  63.9    Training on GT Segments        69.3  51.4  Training Set Graph  66.6        66.1
+Cosine Similarity  63.2  62.9    Training on ASM Output         65.1  65.0  Predefined Graph    64.4        68.5
+Euclidean          64.4  68.5    Hybrid Training                64.4  68.5
+
+prediction, where the model predicts deviations from a clus-    the I3D with DINOv2, and the results are in Tab. 5 (c).
+ter center for each intention-aligned action class. Per Tab. 5
+(b), the residual method boosts EDA by 0.2% and AUC by          Task Graph Construction. Following the previ-
+6.3%. It enhances the learning of action-context relation-      ous works[4, 16, 33], AMNAR uses predefined task
+ships and sensitivity to subtle deviations from normal action   graphs.Note that we can also construct task graphs from
+distributions.                                                  the training set. Tab. 5 (f) shows that the impact of con-
+                                                                structing the graph from the training set is mild. Also,
+Distance Metrics. We compare L_1-norm, cosine similarity,       experiments on HoloAssist (Tab. 2) and CaptainCook4D
+and Euclidean distance for feature alignment. As shown in       (Tab. 3) utilize task graphs constructed from the training set
+Tab. 5 (d), Euclidean distance outperforms others, achiev-      and gain significant performance improvement.
+ing an EDA of 64.4% and AUC of 68.5%, against cosine
+similarity (63.2% EDA, 62.9% AUC) and L_1-norm (62.4%           4.4. Influence of Previous Errors
+EDA, 63.9% AUC). Its sensitivity to magnitude and direc-
+tion offers the best balance for error detection in complex     In procedural tasks, errors can accumulate over time. Since
+procedural tasks.                                               our method relies on temporal context from previous ac-
+                                                                tions, a natural question could be raised: How do errors in
+Training Sample Selection Strategies. Effective training        previous actions affect the future reconstruction of subse-
+samples are key to robust error detection. We assess three      quent normal action representations?
+approaches: (1) GT Segments, using ground-truth data for
+high accuracy but less resilience to ASM noise; (2) ASM            To address this, we conduct an ablation study to evaluate
+Output, leveraging unfiltered ASM predictions for deploy-       the robustness of AMNAR when prior errors are present in
+ment alignment, risking label errors; and (3) Hybrid Train-     the action sequence. As shown in Tab. 6, we divide the test
+ing (Sec. 3.7), filtering ASM segments by an overlap thresh-    samples into two groups: the “w/o previous errors” group,
+old (\tau  ) with GT, balancing accuracy and ASM consistency.   which includes the first error in a sequence along with prior
+Per Tab. 5 (e), Hybrid achieves the best AUC (68.5%) with       normal actions, and the “w previous errors” group, which
+a solid EDA (64.4%), optimizing robustness and precision.       covers actions following one or more prior errors. The re-
+                                                                sults indicate that multiple prior errors cause a mild reduc-
+Visual Features. Our AMNAR utilizes clip-level features         tion in error detection performance. The “w/o previous er-
+from I3D for fair comparisons with existing works[16]. Be-      rors” group achieves a higher EDA (70.8%) compared to
+sides, Fig.S3 (2nd row, rightest) of Supplementary shows        the “w previous errors” group (64.3%), likely due to fewer
+that AMNAR can detect fine-grained errors with I3D fea-         distortions in the temporal context. However, the AUC re-
+tures. Moreover, using more robust feature representations      mains comparable (67.3% vs. 68.0%), suggesting that AM-
+further helps error detection. To highlight this, we replace    NAR retains reasonable robustness even when prior errors
+                                                                are present. This demonstrates that, while prior errors intro-
+                  Ground Truth:                                  Misclassification                                                                                          AMNAR
+                  ASM Results:
+                                                                                                                                                                      Closest Deviation
+                             EgoPED                                                                                                                                   Under Threshold
+
+                                           Deviation
+                                           Over Threshold
+                  Deviation
+                                                                                                                                                           Deviation
+
+                  Static Prototypes                        Predicted Action - Discard paper filter and coffee ground                                                  action 1 action 2 action3 action4
+                                                           Ground Truth Action - Grind coffee for 20 second
+                                                                                                                                                                        MultipleValid Actions
+
+Figure 4. Error detection when the Action Segmentation Model (ASM) misclassifies an action. AMNAR correctly identifies the action as
+normal. In contrast, the EgoPED framework incorrectly detects a false positive.
+
+Table 6. Influence of previous errors. Previous errors cause only                Table 8. Analysis of Action Segmentation Module. Left:
+a mild reduction in error detection performance.                                 Our AMNAR outperforms EgoPED on action segmentation task.
+                                                                                 Right: EgoPED under-performs our AMNAR even if used with
+                  Variants             EDA                 AUC                   action segmentation results of AMNAR (noted it by *).
+
+                  w/o previous errors  70.8                67.3                  Methods IoU Edit F1@0.5 Acc Methods Avg. EDA Avg. AUC
+                  w previous errors    64.3                68.0
+                                                                                 EgoPED 44.6 61.3 47.5 68.5 EgoPED*                                                                                      63.1  61.9
+
+Table 7. EDA of non-deterministic actions in EgoPER dataset.                     AMNAR 56.3 69.4 57.3 75.3 AMNAR                                                                                         64.4  68.5
+AMNAR consistently outperforms baselines, excelling in han-
+dling complex, non-deterministic action sequences.                               whereas AMNAR uses them as input for reconstruction.
+                                                                                 Notably, even when EgoPED leverages AMNAR’s segmen-
+Methods&Variants        Quesadilla Oatmeal Pinwheel Coffee Tea All               tation results (denoted as EgoPED* in Tab. 8), it still under-
+                                                                                 performs in Error Detection (ED). This demonstrates that
+EgoPED[16]              74.0           65.5                56.5  65.3 64.8 65.2  AMNAR’s superior ED performance stems from its inno-
+                                                                                 vative design, beyond mere improvements in AS.
+AMNAR (w/o PAPB & RRB)  60.2           61.4                61.3  72.5 63.4 63.8
+
+AMNAR (Random)          57.9           63.8                61.7  71.5 57.6 62.5
+
+AMNAR                   73.8           75.5                66.8  76.7 75.6 73.7
+
+duce some challenges, our adaptive representation strategy                       4.7. Visualization
+mitigates their impact effectively.
+                                                                                 As shown in Fig. 7, a “coffee” task sample demonstrates
+4.5. Ability of Handling Multiple Valid Next Actions                             resilience of AMNAR to ASM misclassification. The
+                                                                                 ground truth action, “Grind coffee for 20 seconds,” is er-
+We provide more discussions about our AMNAR on the                               roneously labeled by ASM as “Discard paper filter and cof-
+ability of handling multiple valid next actions. On the one                      fee grounds.” EgoPED, hindered by an incorrect prototype,
+hand, on the task of “coffee”, which contains the most com-                      misclassifies it as an error. In contrast, AMNAR employs
+plex action branching patterns, our AMNAR achieves sig-                          multiple normal action representations, selecting the top
+nificant performance improvement of EDA by 18.2% and                             matching one to accurately classify the action as normal.
+AUC by 9.5% according to Tab. 1.                                                 This underscores robustness of AMNAR in handling label
+                                                                                 ambiguity and varied action sequences. More visualization
+   On the other hand, we conduct an evaluation on those                          samples are in Section C of supplementary material.
+non-deterministic actions, which are preceded by actions
+with multiple valid next options. Results in Tab. 7 demon-                       5. Conclusion
+strate AMNAR achieves a top EDA of 73.7% overall
+and 76.7% for “coffee”, outperforming EgoPED and its                             In this work, we uncover a critical limitation in existing
+variants, underscoring its strength in managing complex,                         error detection approaches: their inability to effectively
+non-deterministic sequences. Details of frequency anal-                          handle scenarios of multiple valid next actions. To ad-
+ysis of multiple valid next actions and definition of non-                       dress this, we develop the Adaptive Multiple Normal Action
+deterministic actions are in Supplementary B.4 & B.5.                            Representation (AMNAR) framework, which dynamically
+                                                                                 predicts and reconstructs representations for all valid next
+4.6. Discussions on Action Segmentation Module                                   actions. Through comprehensive experiments—including
+                                                                                 comparative analyses, ablation studies, and evaluations of
+We further present the Action Segmentation (AS) results.                         non-deterministic actions across three datasets—we con-
+Although AMNAR and EgoPED employ the same AS mod-                                firm the effectiveness of AMNAR. We believe this adap-
+ule for fair comparison, AMNAR consistently outperforms                          tive, multi-representation strategy could improve error de-
+EgoPED, as shown in Tab. 8. This performance gap arises                          tection and contribute to advancements in broader action
+due to differences in feature utilization—EgoPED modi-                           understanding fields.
+fies features through clustering and contrastive learning,
+Acknowledgement                                                     [11] Kristen Grauman, Andrew Westbury, Lorenzo Torresani,
+                                                                          Kris Kitani, Jitendra Malik, Triantafyllos Afouras, Kumar
+This work was supported partially by NSFC(92470202,                       Ashutosh, Vijay Baiyya, Siddhant Bansal, Bikram Boote,
+U21A20471), National Key Research and Development                         et al. Ego-exo4d: Understanding skilled human activity
+Program of China (2023YFA1008503), Guangdong NSF                          from first-and third-person perspectives. In Proceedings of
+Project (No. 2023B1515040025). The authors thank anony-                   the IEEE/CVF Conference on Computer Vision and Pattern
+mous reviewers and ACs for their constructive suggestions.                Recognition, pages 19383–19400, 2024. 1, 2
+
+References                                                          [12] Hongji Guo, Nakul Agarwal, Shao-Yuan Lo, Kwonjoon
+                                                                          Lee, and Qiang Ji. Uncertainty-aware action decoupling
+ [1] Joao Carreira and Andrew Zisserman. Quo vadis, action                transformer for action anticipation. In Proceedings of the
+      recognition? a new model and the kinetics dataset. In pro-          IEEE/CVF Conference on Computer Vision and Pattern
+      ceedings of the IEEE Conference on Computer Vision and              Recognition, pages 18644–18654, 2024. 1
+      Pattern Recognition, pages 6299–6308, 2017. 1, 4, 6
+                                                                    [13] Yuto Haneji, Taichi Nishimura, Hirotaka Kameko, Keisuke
+ [2] Yu Cheng, Quanfu Fan, Sharath Pankanti, and Alok Choud-              Shirai, Tomoya Yoshida, Keiya Kajimura, Koki Yamamoto,
+      hary. Temporal sequence modeling for video event detection.         Taiyu Cui, Tomohiro Nishimoto, and Shinsuke Mori.
+      In Proceedings of the IEEE conference on computer vision            Egooops: A dataset for mistake action detection from
+      and pattern recognition, pages 2227–2234, 2014. 1                   egocentric videos with procedural texts. arXiv preprint
+                                                                          arXiv:2410.05343, 2024. 2
+ [3] Jacob Devlin. Bert: Pre-training of deep bidirectional
+      transformers for language understanding. arXiv preprint       [14] Youngkyoon Jang, Brian Sullivan, Casimir Ludwig, Iain
+      arXiv:1810.04805, 2018. 6                                           Gilchrist, Dima Damen, and Walterio Mayol-Cuevas. Epic-
+                                                                          tent: An egocentric video dataset for camping tent assembly.
+ [4] Guodong Ding, Fadime Sener, Shugao Ma, and Angela                    In Proceedings of the IEEE/CVF International Conference
+      Yao. Every mistake counts in assembly. arXiv preprint               on Computer Vision Workshops, pages 0–0, 2019. 2
+      arXiv:2307.16453, 2023. 1, 2, 7
+                                                                    [15] Colin Lea, Michael D Flynn, Rene Vidal, Austin Reiter, and
+ [5] Jiafei Duan, Wilbert Pumacay, Nishanth Kumar, Yi Ru                  Gregory D Hager. Temporal convolutional networks for ac-
+      Wang, Shulin Tian, Wentao Yuan, Ranjay Krishna, Dieter              tion segmentation and detection. In proceedings of the IEEE
+      Fox, Ajay Mandlekar, and Yijie Guo. Aha: A vision-                  Conference on Computer Vision and Pattern Recognition,
+      language-model for detecting and reasoning over failures            pages 156–165, 2017. 1
+      in robotic manipulation. arXiv preprint arXiv:2410.00371,
+      2024. 1                                                       [16] Shih-Po Lee, Zijia Lu, Zekun Zhang, Minh Hoai, and Ehsan
+                                                                          Elhamifar. Error detection in egocentric procedural task
+ [6] Yazan Abu Farha and Jurgen Gall. Ms-tcn: Multi-stage tem-            videos. In Proceedings of the IEEE/CVF Conference on
+      poral convolutional network for action segmentation. In Pro-        Computer Vision and Pattern Recognition, pages 18655–
+      ceedings of the IEEE/CVF conference on computer vision              18666, 2024. 2, 3, 5, 6, 7, 8, 14, 16
+      and pattern recognition, pages 3575–3584, 2019. 1
+                                                                    [17] Shijie Li, Yazan Abu Farha, Yun Liu, Ming-Ming Cheng,
+ [7] Alessandro Flaborea, Guido Maria D’Amely di Melen-                   and Juergen Gall. Ms-tcn++: Multi-stage temporal convolu-
+      dugno, Leonardo Plini, Luca Scofano, Edoardo De Mat-                tional network for action segmentation. IEEE transactions
+      teis, Antonino Furnari, Giovanni Maria Farinella, and Fabio         on pattern analysis and machine intelligence, 45(6):6647–
+      Galasso. Prego: online mistake detection in procedural ego-         6658, 2020. 1
+      centric videos. In Proceedings of the IEEE/CVF Conference
+      on Computer Vision and Pattern Recognition, pages 18483–      [18] Yuan-Ming Li, Wei-Jin Huang, An-Lan Wang, Ling-An
+      18492, 2024. 1, 2                                                   Zeng, Jing-Ke Meng, and Wei-Shi Zheng. Egoexo-fitness:
+                                                                          Towards egocentric and exocentric full-body action under-
+ [8] Reza Ghoddoosian, Isht Dwivedi, Nakul Agarwal, and Be-               standing. In European Conference on Computer Vision,
+      hzad Dariush. Weakly-supervised action segmentation and             2024. 2
+      unseen error detection in anomalous instructional videos. In
+      Proceedings of the IEEE/CVF International Conference on       [19] Yuan-Ming Li, An-Lan Wang, Kun-Yu Lin, Yu-Ming Tang,
+      Computer Vision, pages 10128–10138, 2023. 2                         Ling-An Zeng, Jian-Fang Hu, and Wei-Shi Zheng. Tech-
+                                                                          coach: Towards technical keypoint-aware descriptive action
+ [9] Dong Gong, Lingqiao Liu, Vuong Le, Budhaditya Saha,                  coaching. arXiv preprint arXiv:2411.17130, 2024. 1
+      Moussa Reda Mansour, Svetha Venkatesh, and Anton
+      van den Hengel. Memorizing normality to detect anomaly:       [20] Yuan-Ming Li, Ling-An Zeng, Jing-Ke Meng, and Wei-
+      Memory-augmented deep autoencoder for unsupervised                  Shi Zheng. Continual action assessment via task-consistent
+      anomaly detection. In Proceedings of the IEEE/CVF inter-            score-discriminative feature distribution modeling. IEEE
+      national conference on computer vision, pages 1705–1714,            Transactions on Circuits and Systems for Video Technology,
+      2019. 3                                                             2024.
+
+[10] Dayoung Gong, Joonseok Lee, Manjin Kim, Seong Jong Ha,         [21] Kun-Yu Lin, Jia-Run Du, Yipeng Gao, Jiaming Zhou, and
+      and Minsu Cho. Future transformer for long-term action              Wei-Shi Zheng. Diversifying spatial-temporal perception for
+      anticipation. In Proceedings of the IEEE/CVF Conference             video domain generalization. Advances in Neural Informa-
+      on Computer Vision and Pattern Recognition, pages 3052–             tion Processing Systems, 36:56012–56026, 2023.
+      3061, 2022. 1
+                                                                    [22] Kun-Yu Lin, Henghui Ding, Jiaming Zhou, Yu-Ming Tang,
+                                                                          Yi-Xing Peng, Zhilin Zhao, Chen Change Loy, and Wei-
+      Shi Zheng. Rethinking clip-based video learners in cross-             tivity representation and online mistake detection from ego-
+      domain open-vocabulary action recognition. arXiv preprint             centric videos. arXiv preprint arXiv:2406.01486, 2024. 1, 2,
+      arXiv:2403.01560, 2024.                                               7
+                                                                      [34] Fadime Sener, Dibyadip Chatterjee, Daniel Shelepov, Kun
+[23] Kun-Yu Lin, Jiaming Zhou, and Wei-Shi Zheng. Human-                    He, Dipika Singhania, Robert Wang, and Angela Yao. As-
+      centric transformer for domain adaptive action recognition.           sembly101: A large-scale multi-view video dataset for un-
+      IEEE Transactions on Pattern Analysis and Machine Intelli-            derstanding procedural activities. In Proceedings of the
+      gence, 2024. 1                                                        IEEE/CVF Conference on Computer Vision and Pattern
+                                                                            Recognition, pages 21096–21106, 2022. 2
+[24] Zhian Liu, Yongwei Nie, Chengjiang Long, Qing Zhang, and         [35] An-Lan Wang, Kun-Yu Lin, Jia-Run Du, Jingke Meng, and
+      Guiqing Li. A hybrid video anomaly detection framework                Wei-Shi Zheng. Event-guided procedure planning from in-
+      via memory-augmented flow reconstruction and flow-guided              structional videos with text supervision. In Proceedings of
+      frame prediction. In Proceedings of the IEEE/CVF interna-             the IEEE/CVF International Conference on Computer Vi-
+      tional conference on computer vision, pages 13588–13597,              sion, pages 13565–13575, 2023. 1
+      2021. 3, 6                                                      [36] An-Lan Wang, Nuo Chen, Kun-Yu Lin, Yuan-Ming Li, and
+                                                                            Wei-Shi Zheng. Task-oriented 6-dof grasp pose detection in
+[25] Michele Mazzamuto, Antonino Furnari, and Giovanni Maria                clutters. arXiv preprint arXiv:2502.16976, 2025. 1
+      Farinella. Eyes wide unshut: Unsupervised mistake detec-        [37] Xiaolong Wang, Ross Girshick, Abhinav Gupta, and Kaim-
+      tion in egocentric video by detecting unpredictable gaze.             ing He. Non-local neural networks. In Proceedings of the
+      arXiv preprint arXiv:2406.08379, 2024. 2                              IEEE conference on computer vision and pattern recogni-
+                                                                            tion, pages 7794–7803, 2018. 1
+[26] Himangi Mittal, Nakul Agarwal, Shao-Yuan Lo, and Kwon-           [38] Xin Wang, Taein Kwon, Mahdi Rad, Bowen Pan, Ishani
+      joon Lee. Can’t make an omelette without breaking                     Chakraborty, Sean Andrist, Dan Bohus, Ashley Feniello, Bu-
+      some eggs: Plausible action anticipation using large video-           gra Tekin, Felipe Vieira Frujeri, et al. Holoassist: an egocen-
+      language models. In Proceedings of the IEEE/CVF Con-                  tric human interaction dataset for interactive ai assistants in
+      ference on Computer Vision and Pattern Recognition, pages             the real world. In Proceedings of the IEEE/CVF Interna-
+      18580–18590, 2024. 1                                                  tional Conference on Computer Vision, pages 20270–20281,
+                                                                            2023. 1, 2, 5, 6, 14
+[27] Rohith Peddi, Shivvrat Arya, Bharath Challa, Likhitha Pal-       [39] Zejia Weng, Xitong Yang, Ang Li, Zuxuan Wu, and Yu-Gang
+      lapothula, Akshay Vyas, Qifan Zhang, Jikai Wang, Vasund-              Jiang. Open-vclip: Transforming clip to an open-vocabulary
+      hara Komaragiri, Nicholas Ruozzi, Eric Ragan, et al. Put on           video model via interpolated weight optimization. In In-
+      your detective hat: What’s wrong in this video? 2                     ternational Conference on Machine Learning, pages 36978–
+                                                                            36989. PMLR, 2023. 1
+[28] Rohith Peddi, Shivvrat Arya, Bharath Challa, Likhitha Pal-       [40] Jhih-Ciang Wu, He-Yen Hsieh, Ding-Jie Chen, Chiou-Shann
+      lapothula, Akshay Vyas, Jikai Wang, Qifan Zhang, Vasund-              Fuh, and Tyng-Luh Liu. Self-supervised sparse representa-
+      hara Komaragiri, Eric Ragan, Nicholas Ruozzi, et al. Cap-             tion for video anomaly detection. In European Conference
+      taincook4d: A dataset for understanding errors in procedural          on Computer Vision, pages 729–745. Springer, 2022. 6
+      activities. arXiv preprint arXiv:2312.14556, 2023. 2, 5, 6,     [41] Angchi Xu, Ling-An Zeng, and Wei-Shi Zheng. Likert scor-
+      14                                                                    ing with grade decoupling for long-term action assessment.
+                                                                            In Proceedings of the IEEE/CVF Conference on Computer
+[29] Alexander Richard and Juergen Gall. Temporal action de-                Vision and Pattern Recognition, pages 3232–3241, 2022. 1
+      tection using a statistical language model. In Proceedings of   [42] Zhiwei Yang, Jing Liu, Zhaoyang Wu, Peng Wu, and Xiaotao
+      the IEEE conference on computer vision and pattern recog-             Liu. Video event restoration based on keyframes for video
+      nition, pages 3131–3140, 2016. 1                                      anomaly detection. In Proceedings of the IEEE/CVF Con-
+                                                                            ference on Computer Vision and Pattern Recognition, pages
+[30] Nicolae-Ca˘ta˘lin Ristea, Neelu Madan, Radu Tudor Ionescu,             14592–14601, 2023. 3
+      Kamal Nasrollahi, Fahad Shahbaz Khan, Thomas B Moes-            [43] Fangqiu Yi, Hongyu Wen, and Tingting Jiang. As-
+      lund, and Mubarak Shah. Self-supervised predictive convo-             former: Transformer for action segmentation. arXiv preprint
+      lutional attentive block for anomaly detection. In Proceed-           arXiv:2110.08568, 2021. 1
+      ings of the IEEE/CVF conference on computer vision and          [44] Ling-An Zeng and Wei-Shi Zheng. Multimodal action qual-
+      pattern recognition, pages 13576–13586, 2022. 3, 6                    ity assessment. IEEE Transactions on Image Processing,
+                                                                            2024. 1
+[31] Nicolae-C Ristea, Florinel-Alin Croitoru, Radu Tudor             [45] Ling-An Zeng, Fa-Ting Hong, Wei-Shi Zheng, Qi-Zhi Yu,
+      Ionescu, Marius Popescu, Fahad Shahbaz Khan, Mubarak                  Wei Zeng, Yao-Wei Wang, and Jian-Huang Lai. Hybrid
+      Shah, et al. Self-distilled masked auto-encoders are efficient        dynamic-static context-aware attention network for action
+      video anomaly detectors. In Proceedings of the IEEE/CVF               assessment in long videos. In Proceedings of the 28th ACM
+      Conference on Computer Vision and Pattern Recognition,                international conference on multimedia, pages 2526–2534,
+      pages 15984–15995, 2024. 3                                            2020. 1
+
+[32] Tim J Schoonbeek, Tim Houben, Hans Onvlee, Fons Van der
+      Sommen, et al. Industreal: A dataset for procedure step
+      recognition handling execution errors in egocentric videos in
+      an industrial-like setting. In Proceedings of the IEEE/CVF
+      Winter Conference on Applications of Computer Vision,
+      pages 4365–4374, 2024. 2
+
+[33] Luigi Seminara, Giovanni Maria Farinella, and Antonino
+      Furnari. Differentiable task graph learning: Procedural ac-
+[46] Chen-Lin Zhang, Jianxin Wu, and Yin Li. Actionformer: Lo-
+      calizing moments of actions with transformers. In European
+      Conference on Computer Vision, pages 492–510. Springer,
+      2022. 1, 6
+
+[47] Dian Zheng, Xiao-Ming Wu, Shuzhou Yang, Jian Zhang,
+      Jian-Fang Hu, and Wei-Shi Zheng. Selective hourglass
+      mapping for universal image restoration based on diffusion
+      model. In CVPR, 2024. 1
+
+[48] Dian Zheng, Xiao-Ming Wu, Zuhao Liu, Jingke Meng, and
+      Wei-shi Zheng. Diffuvolume: Diffusion model for volume
+      based stereo matching. IJCV, 2025. 1
+
+[49] Jiaming Zhou, Junwei Liang, Kun-Yu Lin, Jinrui Yang, and
+      Wei-Shi Zheng. Actionhub: a large-scale action video de-
+      scription dataset for zero-shot action recognition. arXiv
+      preprint arXiv:2401.11654, 2024. 1
+
+[50] Jiaming Zhou, Teli Ma, Kun-Yu Lin, Zifan Wang, Ronghe
+      Qiu, and Junwei Liang. Mitigating the human-robot domain
+      discrepancy in visual pre-training for robotic manipulation.
+      arXiv preprint arXiv:2406.14235, 2024. 1
+Overview                                                                        0                    s = [0 1 8 2 5 4 5]
+
+In this supplementary material, we provide the following                     1     4                            PD
+sections:
+• Appendix A: More details about our proposed Adap-                                   7
+
+  tive Multiple Normal Action Representation (AMNAR)                                      𝑙𝑐𝑠 = [0 1 2] 𝑙𝑐𝑠 = [0 4 5] 𝑙𝑐𝑠 = [8]
+  framework.
+• Appendix B: More details about the experiment setups.                      2     5                Merge
+• Appendix C: More visualizations for further demonstra-                                    s∗= [0 1 2 4 5]
+  tion on the effectiveness of the proposed AMNAR.                              6
+
+A. More Details about AMNAR                                                              8  Child Nodes
+A.1. Potential Action Prediction Block                                                      𝐶 = [6 7]
+                                                                             Task Graph
+
+The Potential Action Prediction Block (PAPB) is a key com-                   Figure 5. The Potential Action Prediction Block (PAPB) derives
+ponent designed to predict all potential next actions based                  the longest matching subsequence from the executed sequence us-
+on the task graph  G  and the executed action sequence  s .                  ing the task graph. This subsequence is then used to identify all
+The variable-definition reference table and pseudocode for                   reachable nodes, representing valid next actions. This figure is re-
+PAPB are shown in Tab. 9 and Algorithm 1, respectively.                      produced from the main text for reference.
+
+Adjacency List Construction. PAPB begins by converting
+the task graph  G  into an adjacency list  A , where each node
+in the graph links to its direct successors.
+
+Longest Subsequen c \reseizebox I{0.9d\lineweidthn }{!}{t$ \itexft {isubcseq}a[i] =t \beigion {canses} \.text {suPbseqA}[j] \cPup \{yB_i\}, & \teext m{if } \tpext {ldp}o[j] +y 1 > s\text {d dp}[iy], \\- \text {subseq}[i] \cup (\ctext o{subsneq}[js] \ciup d\{y_ie\}),r & \etextd {if } \tcext o{dp}[nj] + n1 = \etext c{dp}t[i]e. \ednd {casest} $o}   L , and its nodes are merged into
+namic programming to find the longest subsequence  s^* in  L . This merging process ensures that  L  includes all nodes
+ s  that adheres to the relationships defined by  G . The al- relevant to the executed actions, resulting in the complete
+gorithm maintains two tables:  \text {subseq}[i] , which stores the merged sequence  s^* , which accurately reflects all executed
+longest non-branching subsequence ending at index  i , and actions within the task graph.
+ \text {dp}[i] , which stores the  \text {subseq}[i] . A non-branching subse-
+
+quence is defined as a sequence of nodes that form a contin-                 Next Action Prioritization. Based on  s^* , PAPB computes
+uous path in the task graph  G , where all nodes are connected
+
+sequentially without any splits or branches (e.g., [0, 1, 2] in the set of potential next actions  PA  as:
+
+Fig. 5).
+
+For each action  y_i  in  s , the algorithm iterates over all
+
+previous actions  y_j  (where  j < i ) and checks whether  y_i 
+
+and  y_j  are connected in the task graph  G . If this condition                              PA = (\bigcup _{a \in \text {$s^*$}} A[a]) \setminus \text {$s^*$}.   (18)
+is met,  \text {dp}[i]  and  \text {subseq}[i]  are updated as follows:
+
+            \text {dp}[i] = \max (\text {dp}[i], \text {dp}[j] + 1),   (16)
+
+                                                                  (17)       In this formula,  A[a]  represents the set of direct successors
+   After processing  s , the algorithm identifies the maxi-                  of node  a  in the task graph  G , as derived from the adjacency
+mum value in  \text {dp} , locating the index  k  with the longest non-      list. By iterating over all \bni odes  a  in the longest merged sub-
+branching subsequence L.                                                     sequence  s^* , the union gcup _{a \in \text {$s^*$}} A[a]  aggregates the succes-
+                                                                             sors of all nodes in  s^* . The subtraction  \setminus \text {$s^*$}  ensures that
+Merging Connected Nodes. While the longest subse-                            only actions not already included in  s^*  are retained in  PA .
+quence identified in dynamic programming represents a                        This guarantees that  PA  contains all valid next actions that
+non-branching path (e.g., [0, 1, 2] in Fig. 5), it may not                   can logically follow the executed actions, without duplica-
+capture all executed actions in scenarios where multiple                     tion.
+branches exist in the task graph. To address this, PAPB iter-
+atively examines each subsequence. For each subsequence,                        PAPB efficiently combines dynamic programming and
+if any of its nodes matches a node in  L , the subsequence is                graph traversal to provide actionable insights from  s  and  G .
+                                                                             For detailed implementation, refer to Algorithm 1.
+Algorithm 1 Potential Action Prediction Block (PAPB)                   𝑓,
+
+   Input: Task graph G, Executed action sequence s              Local Cross Attention
+   Output: Prioritized list of next actions P A
+   # Build Adjacency Lists:                                     Key and Value         Query
+   Initialize A[u] = ∅ for all u ∈ G
+   for each edge (u, v) in G do                                 Dilated Conv
+
+      A[u] ← A[u] ∪ {v}                                             …
+   end for
+   # DP Process:                                                𝐹:                    𝑓,
+   Initialize dp[i] ← 1 and subseq[i] ← {yi} for all i
+   for i ← 1 to n do                                            Figure 6. Architecture of the Representation Reconstruction Block
+                                                                (RRB). The RRB reconstructs the i-th normal action representa-
+      for j ← 1 to i − 1 do                                     tion  f_{t,i}^{\text {normal}}  for time  t  by combining the frame-wise refined features
+         if yi ∈ A[yj] or yj ∈ A[yi] then                        F_{1:ed_{t-1}}  (key and value) and the action class embedding  f_{t,i}^{\text {class-emb}} 
+            if dp[j] + 1 > dp[i] then                           (query).
+               dp[i] ← dp[j] + 1
+               subseq[i] ← subseq[j] ∪ {yi}                     A.2. Representation Reconstruction Block
+            else if dp[j] + 1 == dp[i] then
+               subseq[i] ← subseq[i] ∪ subseq[j] ∪ {yi}         The Representation Reconstruction Block (RRB) is de-
+            end if                                              signed to reconstruct multiple normal action representations
+         end if                                                 at time  t  using the frame-wise features of executed actions
+                                                                and the embedding of the  t -th action. The RRB consists
+      end for                                                   of two key components: a dilated convolutional layer and a
+   end for                                                      local cross-attention module, as illustrated in Fig. 6.
+   # Collect Max-Length Subsequences:
+   k ← max(dp[1], dp[2], . . . , dp[n])                            To ensure temporal causality, all modules within the
+   L ← {subseq[i] | dp[i] = k}                                  RRB are implemented in a causal manner. Specifically,
+   # Merge Connected Nodes in L:                                when reconstructing the normal action representations at
+   Initialize s∗ ← L                                            time  t , the frame-wise features corresponding to time  t  and
+   for each node in L do                                        any future frames are not accessible, thereby adhering to the
+                                                                sequential nature of the task.
+      for each neighbor ∈ A[node] do
+         if neighbor ∈ L then                                   Dilated Convolutional Layer. The dilated convolutional
+            s∗ ← s∗ ∪ {neighbor}                                layer employs a kernel size of 3 and consists of 5 layers.
+         end if                                                 The dilation rate of the first layer is set to 1, while the subse-
+                                                                quent layers follow an exponential growth pattern. Specif-
+      end for                                                   ically, the dilation rate  d_i  for the  i -th layer is defined as:
+   end for
+   # Collect Potential Next Actions:
+   P A ← ( a∈s∗ A[a]) \ s∗
+   Return P A
+
+           Table 9. Variable Definitions of PAPB
+
+Variable   Definition                                                    d_i = 3^i.          (19)
+
+G          Task graph                                           This design allows the receptive field to expand exponen-
+s          Executed action sequence                             tially with depth.
+s∗         The longest matching subsequence
+A          Adjacency list of G                                  Local Cross Attention. The local cross attention module
+A[a]       The set of direct successors of node  a              consists of a single attention layer with a local window
+subseq[i]  Longest non-branching subsequence ending at index i  length of 32 and 2 attention heads. Depthwise convolu-
+dp[i]      Length of subseq[i]                                  tions project the query, key, and value features, with causal
+k          Index with the maximum dp[k]                         padding ensuring only past and current time steps are acces-
+L          Longest non-branching subsequence                    sible, preserving temporal causality.
+PA         Final potential next actions
+Action Class Embedding. As mentioned in Section 3.3                                                                                     Table 10. Duration of Training and Validation Sets for HoloAssist
+of the main text,  F_{1:ed_{t-1}}  represents the frame-wise re-                                                                        Tasks (in minutes)
+fined visual features extracted from the Action Segmenta-
+tion Model up to frame  ed_{t-1} . The  f^{\text {class-emb}}(y)  represents                                                            Task Name              Train (min)  Val (min)
+the class embedding for action class  y , computed as the
+mean feature of all action samples belonging to this class.                                                                             atv                        84.63      12.37
+Formally, it is defined as:                                                                                                             circuitbreaker             45.30       8.62
+                                                                                                                                        coffee                    137.17      16.38
+                                     f^{\text {class-emb}}(y) = \frac {\sum _{t \in \mathcal {I}_y} f^{\text {action}}_t}{N_y},   (20)  computer                  226.43      38.95
+                                                                                                                                        dslr                      289.22      38.15
+where  \mathcal {I}_y  is the set of indices for samples belonging to class                                                             gladom assemble           320.95      50.60
+                                                                                                                                        gladom disassemble        211.03      29.02
+ y ,  N_y = |\mathcal {I}_y|  is the total number of samples in this class,                                                             gopro                     561.58      78.18
+                                                                                                                                        knarrevik assemble        843.08     114.08
+and  f^{\text {action}}_t  represents the feature of the  t -th action sample.                                                          knarrevik disassemble     465.00      71.63
+This class embedding serves as a representative feature for                                                                             marius assemble           357.58      52.28
+                                                                                                                                        marius disassemble        208.38      36.83
+action class  y .                                                                                                                       navvis                    122.65      21.25
+                                                                                                                                        nespresso                 225.47      28.47
+The  f^{\text {class-emb}}_{t,i}   represents the class embedding for the i-th                                                          printer big               162.15      26.87
+                                                                                                                                        printer small             295.05      42.32
+potential action class corresponding to the  t -th action. It is                                                                        rashult assemble          942.42     128.90
+                                                                                                                                        rashult disassemble       545.65      68.47
+used as the query input in the Local Cross Attention module                                                                             switch                    469.07      70.82
+
+(see Fig. 6), where it interacts with the key and value fea-
+
+tures derived from the frame-wise refined features  F_{1:ed_{t-1}} 
+
+after processing through the dilated convolution layer.
+
+B. More Experimental Setups                                                                                                                Moreover, some action classes appear only in the vali-
+                                                                                                                                        dation set and are absent from the training set. To main-
+In this section, we provide comprehensive details about the                                                                             tain consistency during inference, we classify these unseen
+experimental setup to complement the descriptions in the                                                                                classes as background actions. For task graph construction,
+main text. Specifically, we elaborate on the preprocessing                                                                              since HoloAssist lacks predefined task graphs, we generate
+and usage of the HoloAssist[38] datasets, frequency analy-                                                                              them by analyzing all training sequences.
+sis of multiple valid next actions, as well as the experimen-
+tal environment and hyperparameter settings.                                                                                               We also introduce a random baseline for HoloAssist ex-
+                                                                                                                                        periments. This baseline employs the same ASM trained
+B.1. HoloAssist Dataset                                                                                                                 with the aforementioned strategy and, during inference, ran-
+                                                                                                                                        domly classifies each action segment as either normal or er-
+Since the official release of the HoloAssist dataset lacks a                                                                            roneous.
+designated test set, we train our AMNAR and EgoPED [16]
+frameworks on the training set, compute thresholds using                                                                                B.2. CaptainCook4D Dataset
+the training set, and evaluate performance on the validation
+set. The tasks used for training and validation, along with                                                                             The CaptainCook4D dataset [28] is a large-scale egocentric
+their respective durations, are summarized in Table 10. To                                                                              4D dataset designed for understanding errors in procedu-
+train the Action Segmentation Model (ASM), we utilize the                                                                               ral cooking activities. It comprises 384 recordings (94.5
+fine-grained action annotations, specifically either verb or                                                                            hours) of individuals performing 24 different recipes in real
+noun labels, as segment labels.                                                                                                         kitchen environments. The dataset includes videos of par-
+                                                                                                                                        ticipants correctly following recipe instructions as well as
+   The HoloAssist training set includes both normal and er-                                                                             instances where they deviate and introduce errors. It pro-
+roneous actions. To ensure accurate learning of normal ac-                                                                              vides 5.3K step annotations and 10K fine-grained action an-
+tion representations, we train AMNAR exclusively on nor-                                                                                notations, with errors categorized into seven distinct types.
+mal actions, excluding erroneous ones during training. For                                                                              Data modalities include RGB video, depth, 3D hand joint
+HoloAssist experiments, due to the absence of an official                                                                               tracking, and IMU data, captured using a head-mounted Go-
+test set, we follow a standard split by training on the pro-                                                                            Pro and HoloLens2.
+vided training set (approximately 166 hours of video from
+350 instructor-performer pairs) and evaluating on the vali-                                                                                For our experiments, since CaptainCook4D lacks prede-
+dation set. Additionally, we exclude the “Belt” task from                                                                               fined task graphs, we generate them by analyzing all train-
+final evaluations, as it contains only one error-free sample,                                                                           ing sequences, similar to the approach used for HoloAs-
+which could skew performance metrics.
+Algorithm 2 Task Graph Generation                              logical action transitions while maintaining an acyclic struc-
+                                                               ture, suitable for procedural task analysis.
+   Input: Action sequences S
+   Output: Task graph G as a list of edges                     B.4. Frequency Analysis of Multiple Valid Next Ac-
+   # Compute Transition Weights:                                      tions
+   Initialize T [(u, v)] ← 0 for all possible (u, v)
+   for each seq ∈ S do                                         In Section 4.4 of the main text, we compare average im-
+                                                               provements across tasks, noting that the coffee task has the
+      for i ← 0 to len(seq) − 2 do                             highest occurrence of multiple valid next actions. This
+         for j ← i + 1 to len(seq) − 1 do                      observation stems from a frequency analysis of multi-
+            T [(seq[i], seq[j])] ← T [(seq[i], seq[j])] + 1    ple valid next actions using the following metrics: non-
+         end for                                               deterministic action ratio, average number of valid next
+                                                               actions and average maximum transfer probability.
+      end for
+   end for                                                        A non-deterministic action is defined as an action
+   # Sort Transitions by Weight:                               whose preceding action has more than one potential next
+   P ← sort(T.items(), key = weight, descending)               action. As illustrated in Figure 5, consider action a1, which
+   # Build Maximum-Weight DAG:                                 follows action a0. Since action a0 has multiple potential
+   Initialize G ← ∅                                            next actions (actions a1, a4, a7), action a1 is considered a
+   for (u, v) in P do                                          non-deterministic action (as are a4 and a7).
+
+      if adding (u, v) to G keeps G acyclic then                  The non-deterministic action ratio refers to the propor-
+         G ← G ∪ {(u, v)}                                      tion of non-deterministic actions among all actions within
+                                                               a task. A higher ratio indicates a greater prevalence of
+      end if                                                   multiple valid next actions, contributing to task complex-
+   end for                                                     ity. As shown in Table 11, the tasks tea, coffee, and oat-
+   Return G                                                    meal have notably high non-deterministic action ratios of
+                                                               75.00%, 70.59%, and 69.23%, respectively.
+sist. To focus on execution-related errors, we exclude the
+“Missing Step” and “Ordering” error types during evalua-          The average number of valid next actions represents
+tion, as these sequence-level anomalies are beyond the pri-    the mean count of potential valid next actions for each ac-
+mary scope of AMNAR.                                           tion in a task. For instance, if action a0 has potential next
+                                                               actions a1, a2, and a3, the number of valid next actions is 3.
+B.3. Task Graph Generation for Procedural Task                 A higher average indicates that actions generally have more
+       Modeling                                                possible subsequent actions, increasing the task’s complex-
+                                                               ity. In terms of this metric, the coffee task stands out with a
+To better model procedural tasks in both HoloAssist and        value of 2.82, higher than those of other tasks.
+CaptainCook4D, we derive task graphs from action se-
+quences, as these datasets do not provide predefined graphs.      The average maximum transfer probability is the av-
+Each task graph is represented as a Directed Acyclic Graph     erage of the highest probabilities with which actions transi-
+(DAG) that captures valid action transitions based on ob-      tion to their next actions. For example, if action a0 tran-
+served sequences.                                              sitions to a1, a2, and a3 with probabilities of 20.00%,
+                                                               25.00%, and 55.00%, the maximum transfer probability for
+   The graph construction consists of three steps: 1. Ex-      a0 is 55.00%. A lower average maximum transfer probabil-
+tract Action Sequences: Identify non-background action         ity indicates greater uncertainty in transitioning to a specific
+sequences from the recordings and insert a start state (e.g.,  next action, reflecting higher diversity in valid next steps.
+background) at the beginning of each sequence. 2. Com-         As shown in Table 11, the coffee and oatmeal tasks have
+pute Transition Weights: Measure the co-occurrence fre-        lower average maximum transfer probabilities of 67.27%
+quency of each action pair across all sequences to form a      and 67.09%, respectively.
+weighted transition matrix. 3. Build a Maximum-Weight
+DAG: Use a greedy algorithm to select the highest-weight          The coffee task stands out across all three metrics, indi-
+edges while disallowing cycles, preserving only acyclic        cating a high frequency of multiple valid next actions. This
+paths.                                                         complexity makes it the most suitable task for demonstrat-
+                                                               ing the effectiveness of our Adaptive Multiple Normal Ac-
+   This procedure ensures that frequent, logically coherent    tion Representation (AMNAR) framework. Consistent with
+transitions are included in the final task graph, providing    our frequency analysis, AMNAR achieves the most sub-
+a reliable structure for analyzing procedural tasks. For the   stantial improvement in error detection accuracy for the cof-
+complete pseudocode of this task graph generation process,     fee task, as evidenced in Table 1 of the main text. This cor-
+please refer to Algorithm 2.                                   relation underscores the advantage of AMNAR in handling
+
+   This approach ensures the task graph reflects frequent,
+tasks with diverse and multiple valid action sequences.
+
+Table 11. Metrics for Task Transition Matrices Across Five Tasks.
+Higher non-deterministic ratios (\delimiter "3222378 ) indicate greater complexity
+due to multiple valid next actions. Higher average numbers of
+valid next actions (\delimiter "3222378 ) suggest increased complexity of a task.
+Lower average maximum transfer probabilities (\delimiter "3223379 ) indicate greater
+uncertainty in action transitions.
+
+Metric                                             Tea   Coffee  Pinwheels  Oatmeal  Quesadilla
+
+Non-deterministic Ratio (%) \delimiter "3222378   75.00  70.59      26.67     69.23     40.00
+Avg. Valid Next Actions \delimiter "3222378       1.75    2.82      1.13      1.85       1.20
+Avg. Max Transfer Prob. (%) \delimiter "3223379   74.02  67.27      88.15     67.09     75.00
+
+B.5. EDA of non-deterministic actions
+
+In Sec. 4.4 of the main paper, we evaluate the Error De-
+tection Accuracy (EDA) of non-deterministic actions. This
+experiment measures the average frame-wise accuracy of
+non-deterministic actions in error detection.
+
+B.6. Experimental Environment and Hyperparam-
+       eters
+
+All experiments are conducted on an Nvidia Tesla V100
+GPU with 32GB of VRAM. The training process uses a
+batch size of 8 and runs for 200 epochs. The learning rate is
+initialized to 0.001 and adjusted dynamically using a cosine
+annealing schedule.
+
+C. Visualization Examples
+
+Fig. 7 presents additional visualization examples of error
+detection using the AMNAR framework on the EgoPER
+dataset [16]. These examples highlight how AMNAR effec-
+tively identifies various types of errors in procedural tasks,
+demonstrating its robustness and adaptability in complex
+scenarios.
+
+   As shown in Fig. 8, the AMNAR framework accurately
+detects errors even when they occur within actions sharing
+the same label, effectively distinguishing between normal
+and erroneous executions.
+                                           Sample: oatmeal_u1_a3_error_017                             normal erroneous
+
+Ground Truth:
+   Prediction:
+
+Action label: Measure 4 Tablespoons of quick-cook oats  Action label: # Additional action
+Error: Directly pour quick oats into bowl               Error: Weigh bowl containing oats using scale
+
+                                           Sample: oatmeal_u1_a4_error_013                             normal erroneous
+
+Ground Truth:
+
+Prediction:
+
+Action label: Measure 4 Tablespoons of quick-cook oats Action label: # Additional action               Action label: Stir using spoon
+
+Error: Directly pour quick oats into bowl               Error: Clean spoon after stirring using paper towel Error: Stir using knife
+
+                                           Sample: quesadilla_u1_a5_error_002                          normal erroneous
+
+Ground Truth:
+
+Prediction:
+
+Action label: Place tortilla on cutting board Action label: Place tortilla on cutting board  Action label: # Additional action
+                                                                                             Error: Add a handful of raisins to tortilla
+Error: Drop tortilla                       Error: Discard tortilla and place a new one
+
+Figure 7. Visualization examples from the EgoPER dataset using the AMNAR framework. In the top sample, two errors are detected: a
+misoperation—quick oats are poured directly into the bowl without measuring, and an additional action. The middle sample also contains
+three errors: a misoperation, an additional action, and using the wrong tool—stirring with a knife instead of a spoon. The bottom sample
+illustrates a sequence of errors: an accidental error—dropping the tortilla to the ground, followed by a corrective action—replacing the
+dropped tortilla with a new one, and finally an additional action—adding an incorrect ingredient.
+             Action label: Stir using spoon                             Action label: Stir using spoon
+             Error Detection Result: √                                  Error Detection Result: √
+
+Segments: …                                                             …
+
+                                             sharing same action label
+
+             Action label: Stir using spoon                             Action label: Stir using spoon
+             Error Detection Result: √                                  Error Detection Result: ×
+                                                                        Using Knife instead of Spoon
+
+Figure 8. In this example, the AMNAR framework encounters two actions sharing the same label: one is a correctly executed action
+(normal), and the other is an erroneous action. Despite the shared label, AMNAR successfully detects the error in the second action (using
+a knife instead of a spoon) while correctly identifying the first action as normal, avoiding any false positives.
+

@@ -1,0 +1,550 @@
+                                        CausalTrace: A Neurosymbolic Causal Analysis Agent for Smart Manufacturing
+
+                                                 Chathurangi Shyalika1, Aryaman Sharma1, Fadi El Kalach2, Utkarshani Jaimini3*,
+                                                                           Cory Henson4, Ramy Harik2, Amit Sheth1
+
+                                                                             1Artificial Intelligence Institute, University of South Carolina
+                                                                             2Department of Automotive Engineering, Clemson University
+
+                                                                                      3Stride Lab, University of Michigan, Dearborn
+                                                                                   4Bosch Center for Artificial Intelligence, Pittsburgh
+
+arXiv:2510.12033v1 [cs.AI] 14 Oct 2025                                Abstract                                of shop-floor operators and subject matter experts (SMEs),
+                                                                                                              who require not only accurate predictions but also actionable
+                                           Modern manufacturing environments demand not only ac-              and understandable insights into system behavior (Singh,
+                                           curate predictions but also interpretable insights to process      Goyat, and Panwar 2024). This has fueled the demand for
+                                           anomalies, root causes, and potential interventions. Exist-        AI systems that can explain why events occur, identify un-
+                                           ing AI systems often function as isolated black boxes, lack-       derlying causes, and offer counterfactual reasoning to sup-
+                                           ing the seamless integration of prediction, explanation, and       port ’what if’ analysis. These capabilities are essential for
+                                           causal reasoning required for a unified decision-support so-       real-time decision-making, proactive maintenance, and ef-
+                                           lution. This fragmentation limits their trustworthiness and        fective human-machine collaboration in production work-
+                                           practical utility in high-stakes industrial environments. In this  flows (Acharya, Kuppan, and Divya 2025; Boskabadi et al.
+                                           work, we present CausalTrace, a neurosymbolic causal anal-         2025). Yet, existing AI solutions rarely integrate these func-
+                                           ysis module integrated into the SmartPilot industrial CoPilot.     tionalities into a unified, deployable framework, limiting
+                                           CausalTrace performs data-driven causal analysis enriched          their utility in live industrial environments.
+                                           by industrial ontologies and knowledge graphs, including ad-
+                                           vanced functions such as causal discovery, counterfactual rea-        To address this gap, we present CausalTrace, a
+                                           soning, and root cause analysis (RCA). It supports real-time       neurosymbolic causal analysis agent embedded in our
+                                           operator interaction and is designed to complement existing        prior work, SmartPilot1 industrial CoPilot (Shyalika
+                                           agents by offering transparent, explainable decision support.      et al. 2025a,b). SmartPilot builds on the vision of
+                                           We conducted a comprehensive evaluation of CausalTrace             C3AN—Custom, Compact, Composite AI with Neurosym-
+                                           using multiple causal assessment methods and the C3AN              bolic Integration (Sheth et al. 2025)— an AI paradigm
+                                           framework (i.e. Custom, Compact, Composite AI with Neu-            emphasizing robustness, intelligence, and trust of AI sys-
+                                           rosymbolic Integration), which spans principles of robust-         tems. Custom in C3AN refers to domain-specific data and
+                                           ness, intelligence, and trustworthiness. In an academic rocket     workflows and Compact refers to efficient models deploy-
+                                           assembly testbed, CausalTrace achieved substantial agree-          able across infrastructures, including edge devices. Com-
+                                           ment with domain experts (ROUGE-1: 0.91 in ontology QA)            posite refers to the modular orchestration of specialized AI
+                                           and strong RCA performance (MAP@3: 94%, PR@2: 97%,                 components- neural, symbolic, and decision modules- into
+                                           MRR: 0.92, Jaccard: 0.92). It also attained 4.59/5 in the          a unified system. Neurosymbolic denotes the integration of
+                                           C3AN evaluation, demonstrating precision and reliability for       neural learning and symbolic reasoning within each mod-
+                                           live deployment.                                                   ule, enabling transparent, knowledge-aligned, and explain-
+                                                                                                              able decision-making. Key contributions of this work are:
+                                                              Introduction
+                                                                                                               • Design and implement CausalTrace, a neurosymbolic
+                                        Manufacturing is entering an era of hyperautonomous op-                  causal analysis agent capable of real-time causal discov-
+                                        erations, powered by advances in AI-enabled sensing, con-                ery, root cause analysis (RCA), causal effect estimation,
+                                        trol, and decision support (Hasan et al. 2026). As produc-               and counterfactual reasoning.
+                                        tion systems grow in complexity, there is an urgent need
+                                        for solutions that integrate causal reasoning with human-              • Integrate data-driven causal methods with structured
+                                        interpretable decision support to ensure adaptive and trust-             knowledge (ontologies, knowledge graphs), semantic
+                                        worthy operation in safety-critical environments.                        user interfaces, and evaluation pipelines into neurosym-
+                                                                                                                 bolic agent workflows, enabling human-interpretable
+                                           While machine learning models have demonstrated im-                   reasoning and a deployable decision-support system.
+                                        pressive results in demand forecasting and anomaly detec-
+                                        tion, their lack of interpretability remains a significant bar-        • Develop a comprehensive evaluation methodology
+                                        rier to adoption in high-stakes industrial settings. These               grounded in the C3AN framework, incorporating a suite
+                                        black-box models often fail to meet the practical needs                  of techniques to ensure robustness, intelligence, and
+
+                                            *Work done while at University of South Carolina                      1Code: https://github.com/ChathurangiShyalika/SmartPilot,
+                                        Copyright © 2026, Association for the Advancement of Artificial       Demo: https://smartpilot.my.canva.site
+                                        Intelligence (www.aaai.org). All rights reserved.
+   trustworthiness. Conduct causal assessments including              Time             Images           Manuf.         Time           Text
+   counterfactual effect estimation, RCA validation, and             series                             process       series
+   comparisons with baseline and ablation variants.                                     Efficient       ontologies                    RAG           Manufacturing
+                                                                         LSTM               NET                      LSTM                                  manuals
+ • Demonstrate the deployment and practical utility of          Autoencoder                             Structured
+   CausalTrace on an academic rocket assembly testbed,                                                 knowledge
+   highlighting its readiness for real-world manufacturing                     Fusion                                                    Retrieve
+   environments.                                                               model                     sources                          relevant
+                                                                                                                                      information
+                     Related Work                                                                  Knowledge
+                                                                                                       infusion
+Causal Reasoning in Industrial AI Research on causal
+reasoning in industrial settings spans both symbolic and                                     User   InfoGuide                                    Root
+data-driven approaches. Early systems employ causal mod-                               questions                                               Cause
+els rooted in qualitative physics and control theory to sup-                                       (Conversational                           Analysis
+port fault localization and diagnostic reasoning (Bandekar                                         query interface)           Causal                    Time
+1989). Other efforts introduce planning-based frameworks                                                                       Trace           Casual  series
+that embed causal reasoning into multi-robot coordination                                             Response                              Discovery
+and factory automation, enabling optimal plan reuse and
+failure diagnosis in dynamic production environments (Er-              Figure 1: Multi-agent architecture of SmartPilot
+dem et al. 2012). More recently, causal discovery techniques
+such as nonparametric entropy methods and information-          holistically. By fusing causality, neurosymbolic methods,
+geometric inference have been used to reconstruct causal        and agentic AI, it lays a practical and extensible foundation
+networks directly from process data, guiding performance        for intelligent manufacturing.
+prediction and process optimization in complex industrial
+workflows (Sun et al. 2024).                                                        System Design
+
+Neurosymbolic and Knowledge-Infused Systems In                  SmartPilot Architecture
+safety-critical domains like manufacturing and cybersecu-       The earlier version of the SmartPilot system adopts a multi-
+rity, neurosymbolic systems have shown promise in improv-       agent architecture, comprising three specialized agents that
+ing explainability and behavior under uncertainty by com-       collectively support predictive analytics and operator assis-
+bining neural networks with explicit knowledge graphs (Pi-      tance. The algorithmic details of these agents are available
+plai et al. 2023). In scientific domains such as geochemistry,  at (Shyalika et al. 2025c,a,b). PredictX agent specializes
+symbolic rules extracted from expert literature via LLMs        in anomaly prediction using multimodal sensor data (time
+have been integrated with learning models to guide predic-      series and images). It leverages decision-level fusion en-
+tions and improve domain alignment (Chen et al. 2025).          hanced by transfer learning and knowledge-infused learning
+                                                                (via process ontologies) in predicting anomalies. ForeSight
+Agentic AI and Multiagent Architectures in Industry             agent employs a Knowledge-Infused LSTM (KIL-LSTM)
+Agentic AI represents a paradigm shift toward autonomous        model to predict throughput across production cycles. It in-
+systems capable of goal-driven, adaptive decision-making.       tegrates time series data with domain priors to improve long-
+Surveys of Agentic AI emphasize its core attributes: au-        term forecasting. InfoGuide is a question-answering agent
+tonomy, proactivity, learning, and reactivity as enablers for   that provides real-time responses to operational, safety,
+complex real-world applications (Acharya, Kuppan, and Di-       maintenance, and troubleshooting queries. It uses retrieval-
+vya 2025). Agentic systems have been integrated with dig-       augmented generation over curated manufacturing manuals
+ital twins to support real-time monitoring and control of       and integrates with other agents to address questions related
+nonlinear systems (Kusiak 2025; Boskabadi et al. 2025).         to anomaly detection, production forecasting, and causal
+Recent frameworks such as Intelligent Design 4.0 (Jiang         reasoning. SmartPilot’s natural language understanding and
+et al. 2025), intent-based industrial automation (Romero and    explanation are powered by LLaMA3-70B-8192 model.
+Suyama 2025), and multi-agent coordination architectures
+(Panigrahy 2025) propose layered systems where LLM-             Integrating the CausalTrace Agent
+powered agents decompose high-level goals and orchestrate
+downstream execution across various functions.                  The CausalTrace agent extends SmartPilot’s capabilities be-
+                                                                yond prediction to include explanation, attribution, and sim-
+Summary and Motivation While prior work in causal               ulation needed for efficient RCA. This agent is tightly cou-
+reasoning, neurosymbolic AI, and agentic systems has made       pled into SmartPilot (Figure 1) and supports real-time and
+meaningful strides, current solutions often fall short in in-   historical data analysis through an interactive interface. The
+tegration, interactivity, and operational readiness. Symbolic   causal analysis pipeline (Figure 2) includes the following
+methods struggle to scale; neural models lack transparency;     components and features.
+and agentic systems lack semantic grounding and are not
+designed for operator-in-the-loop decision support. These       Data Loader and Feature Selector. SmartPilot’s Data
+gaps hinder adoption in complex industrial environments         Loader supports two modes of data ingestion: direct con-
+where explainability, adaptability, and human collaboration     nection to Programmable Logic Controllers (PLCs) for real-
+are critical. SmartPilot is built to address these limitations  time streaming, or batch upload of historical sensor data for
+                                                                offline analysis. Once data is ingested, the Feature Selector
+                                                                enables the selection of data-driven feature selection meth-
+                                                                ods or manual selection based on domain expertise, allowing
+                                                                operators to prioritize variables most relevant to the analysis.
+
+                                                                Causal Discovery Engine. The engine supports Inde-
+                                                                pendent Component Analysis–based Linear Non-Gaussian
+                                                                Acyclic Model (ICA-based LiNGAM) (Shimizu et al. 2006)
+           InfoGuide                 Data                       Feature                                                                           b)
+
+a) query interface) (Conversational                                                Causal
+
+                                     Loader                     Selector           Trace
+
+Predicted
+anomalies
+
+Forecasted                           Neurosymbolic integration        Causal   Semantic Feature Interpretation
+demand                               Smart Manufacturing          Discovery    Edge Stability Scoring
+                                                                               Interactive Graph Modification
+                                       Knowledge Graph                Engine
+                                                                              Counterfactual Evaluation
+                                       Dynamic Process          Root          RCA Evaluation
+                                             Ontology           Cause         Baseline and Ablation
+                                                                Analysis      Comparison
+                                         Causal Graph
+                                        Prompt Injection             Causal
+                                                                 Evaluator
+
+                                                                              C3AN Evaluation
+
+                                                                Memory
+                                                                 Module
+
+Figure 2: (a) Architecture of CausalTrace agent: PredictX provides predicted anomalies, ForeSight offers forecasted demand,
+both feeding into InfoGuide. Data flows through Data Loader and Feature Selector before entering the Causal Discovery Engine.
+Discovered causal graphs support Root Cause Analysis. Causal graphs and RCA results are validated in the Causal Evaluator.
+InfoGuide responses are enhanced via neurosymbolic integration, combining a manufacturing knowledge graph, process on-
+tology, and causal graph prompts. Final results are stored in the Memory Module. (b) Interactive User Interface: Causal graph
+visualization and allows causal graph editing. Enhances graphs with ontology-derived descriptions, types, and units. Tooltip
+metadata is enriched using a smart manufacturing knowledge graph.
+
+and Differentiable Causal Discovery with Attention (Dif-                      Algorithm 1: Bootstrap-Based Edge Stability Analysis
+fAN) (Sanchez et al. 2022) to construct Directed Acyclic
+Graphs (DAGs) from multivariate sensor data. To en-                           Input: Dataset D, number of bootstrap samples N , causal
+hance reliability, we integrate bootstrap-based edge stabil-                  discovery method M
+ity analysis (Algorithm 1) directly into the discovery work-                  Output: Stability score s for each edge A → B
+flow. Causal graphs are repeatedly estimated on bootstrap-
+resampled datasets, and edge stability scores computed from                   1: Initialize list WA → B = [] for each A → B
+their occurrence frequency are used to down-weight or re-
+move low-confidence edges (Algorithm 1). This yields more                     2: for i = 1 to N do
+trustworthy graphs while preserving meaningful causal
+structure. For each retained edge, the total causal effect is                 3: Resample dataset D(i) with replacement from D
+computed (Algorithm 2) to quantify both direct and indirect
+influences between variables, and results are visualized in                   4: Run M on D(i) to estimate causal graph G(i)
+the user interface for interactive exploration.
+                                                                              5: for each directed edge A → B in G(i) do
+Root Cause Analysis. For each anomaly, the RCA mod-
+ule combines expert-defined, cycle-aware sensor tolerance                     6:               Record causal strength wi of A → B
+ranges with the learned causal topology to generate a ranked
+list of candidate root causes, based on causal path effect                    7:               Append wi to WA → B
+strengths and sensor deviation analysis.
+                                                                              8: end for
+Neurosymbolic Integration. SmartPilot adopts a multi-
+layered neurosymbolic integration framework that tightly                      9: end for
+couples structured knowledge with data-driven reasoning.
+The system leverages a smart manufacturing knowledge                          10: for each edge A → B with samples WA → B =
+graph encoded in RDF to represent entities such as sen-
+sors, machines, parts, and anomalies. This knowledge is in-                                    w1, . . . , wN do                             1    i = 1N wi
+jected into the reasoning layer using rdflib, enriching In-                                                                                  N
+foGuide’s responses with semantic context. A dynamic pro-                     11:              Compute             mean  strength:    w¯  =
+cess ontology2, implemented in Neo4j, encodes process se-
+mantics, variable relationships, and operational constraints.                 12: Compute standard deviation:
+Real-time Cypher queries enable on-demand retrieval of
+explanations, tolerance ranges, and sensor-function map-                                       σ=               1  i=1 N (wi − w¯)2
+pings. The causal graph prompt injection mechanism serial-                                                      N
+
+    2https://github.com/revathyramanan/Dynamic-Process-                       13:              Compute             stability  score:  s  =     1
+Ontology                                                                                                                                     1+σ
+
+                                                                              14: end for
+
+                                                                              15: Edge Interpretation:
+
+                                                                                               • s ≥ 0.9: Very strong and stable
+                                                                                               • 0.8 ≤ s < 0.9: Reliable
+                                                                                               • 0.6 ≤ s < 0.8: Moderately stable (use with caution)
+                                                                                               • s < 0.6: Unstable (typically excluded)
+
+                                                                              16: Retain edges with s ≥ 0.6 for the final causal graph
+
+                                                                              izes the total causal effect matrix from the causal discovery
+                                                                              step and passes it into LLM prompts. This allows the system
+                                                                              to generate explanations and reasoning that are grounded in
+                                                                              the structure of the causal graph.
+Algorithm 2: Total Causal Effect Computation                        Causal Graph Structure
+
+Input: Causal effect matrix B, identity matrix I                 C  – Is there a causal relation between A and B?
+Output: Total causal effect matrix T = (I − B)−1
+                                                                    – What are the causal parents of C?
+ 1: Start with a structural equation model (SEM): X =
+     BX + ε, where X is a vector of observed variables and          Causal Reasoning
+     ε is noise.
+                                                                    – If the value of A is set to value x, what would be
+ 2: Rearranged to: (I − B)X = ε
+ 3: Solve for X using: X = (I − B)−1ε.                              its effect on B?
+ 4: Therefore, the total effect matrix is: T = (I − B)−1.
+ 5: Each entry Tij captures total effect of variable j on vari-  B  – What is the strength of the causal relation between
+
+     able i                                                         B and C?
+ 6: This can be decomposed as T = I+B+B2 +B3 +· · · .
+ 7: Interpretation:                                              D Root Cause Analysis
+                                                                                           – What is the strongest cause of the anomalous value
+      • I: Self influence (identity effect),
+      • B: Direct effects (1-hop causal influence),                 of variable B?
+      • Bk: Indirect effects through k-hop paths.
+                                                                 A  – Why is D not likely a root cause of B?
+ 8: Series expansion valid when graph is acyclic or spectral
+     radius of B < 1                                             Figure 3: Illustration of a structured causal graph with cate-
+                                                                 gorized query types: structure, reasoning, and RCA.
+ 9: ⇒ Total causal effect aggregates all direct and mediated
+     influences                                                  sampled at 1.95 Hz over 30 hours, covering 285 complete
+                                                                 rocket assembly–disassembly cycles. Each cycle is seg-
+Interactive User Interface. The interface visualizes             mented into 21 distinct operational states. The dataset in-
+causal graphs with rich semantic metadata derived from the       cludes time-series measurements from potentiometers, load
+process ontology and the knowledge graph. Each node is           cells, drive temperatures, and robot kinematics. The anno-
+annotated with descriptions, types, units, and anomaly rel-      tated version used in this work (Shyalika et al. 2025c)3 in-
+evance, and tool tips display this semantic information for      cludes cycle state labels along with ground-truth anomaly
+interactive exploration. CausalTrace is integrated with In-      types. These anomalies indicate missing rocket components
+foGuide’s conversational query interface, enabling opera-        and include six types, such as NoNose, NoBody2, and
+tors to ask natural language questions about graph structure,    combined cases like NoBody2,NoBody1. In the evalu-
+causal reasoning, and root cause analysis. Example queries       ation, causal discovery was performed using ICA-based
+are shown in Figure 3, with a complete set of competency         LiNGAM and DiffAN on eight key variables identified
+questions provided in Appendix A. Users can also interac-        through XGBoost feature selection and validated by domain
+tively modify the discovered causal graph by adding or re-       experts. LiNGAM produced 20 directed causal edges, while
+moving nodes and edges; all edits are validated against the      DiffAN yielded 15. The subsections below detail the evalu-
+ontology to ensure semantic consistency, allowing domain         ation methods conducted on these causal graphs.
+experts to refine and adapt the graph in real time.
+                                                                 Counterfactual Effect Computation. CausalTrace pro-
+Memory Module. This enables persistent, context-aware            vides an interactive module for validating causal links via
+reasoning by storing and retrieving information across ses-      counterfactual effect computation. From the user interface,
+sions. It consists of three components: episodic memory,         users can select an edge A → B, apply an intervention on
+which logs time-stamped interactions such as causal discov-      A, and compare the predicted change in B (from the learned
+ery and RCA runs for longitudinal tracking; semantic mem-        total effect; Algorithm 3) with observed changes in held-out
+ory, which stores structured annotations of sensors and en-      data. This enables direct plausibility checks and graph re-
+tities to support enriched, context-aware explanations; and      finement based on domain knowledge.
+procedural memory, which retains user preferences (e.g.,
+chosen algorithms or display settings) to enable personal-       Root Cause Analysis Evaluation. We evaluated the RCA
+ized interactions. These memory traces are stored in JSON        module on anomaly events from the FF dataset with known
+format and are injected into InfoGuide’s natural language        fault cases. For each anomaly, CausalTrace produced a
+responses to ensure continuity and context-aware dialogue.       ranked list of candidate root causes using causal path sig-
+                                                                 nificance and sensor deviation analysis. Here, K denotes the
+               Evaluation and Results                            cut-off rank that is, the number of top predictions considered
+                                                                 when computing the metrics. Results showed close agree-
+Dataset Description. We use the publicly available man-          ment with expert-defined causes, achieving Mean Average
+ufacturing dataset generated by the Future Factories (FF)        Precision@K (MAP@3) of 94%, Precision@K (PR@2) of
+Lab at the McNair Aerospace Research Center, University          97%, Mean Reciprocal Rank (MRR) of 0.92 and a Jaccard
+of South Carolina (Harik et al. 2024). This dataset cap-         index of 0.92.
+tures synchronized sensor and image data from a prototype
+rocket assembly pipeline designed to emulate industrial-         Comparison with Baseline and Ablation Variants
+grade manufacturing processes. It contains 166K records          To assess CausalTrace, we compared it against: (1)
+                                                                 a correlation-based root cause ranking, which iden-
+                                                                 tifies candidate causes based on Pearson correlation
+                                                                 with the anomalies, and (2) a CausalTrace variant
+                                                                 without KG and ontology grounding, which omits
+
+                                                                     3https://github.com/ChathurangiShyalika/NSF-MAP
+Algorithm 3:Counterfactual Validation of Causal Effects        per principle using expert guidelines and industry best prac-
+                                                               tices. The ground truth answers were obtained from two
+Input: Dataset D, total effect matrix τ , tolerance ϵ, effect  sources: (1) domain experts familiar with the manufactur-
+threshold δ                                                    ing processes, and (2) official manufacturing manuals and
+Output: Validation table with                                  documentation. The ground truth answer was also modeled
+(A, B, τA→B, ∆Bpred, ∆Bobs, Error) for each valid causal       keeping the C3AN principle in focus4.
+pair A → B
+ 1: for each variable pair (A, B) where A̸ = B and                To evaluate the system based on the questionnaire, we
+                                                               implemented an LLM-as-a-Judge pipeline. The pipeline
+     |τA→B| > δ do                                             consists of state-of-the-art LLMs (GPT-4o-mini and
+ 2: Estimate baseline (a1) and intervention (a2) values. If    LLaMA3-70B-8192), each provided with three inputs: the
+                                                               question, ground truth, and the CausalTrace-generated an-
+        unspecified, compute:                                  swer. Using these inputs as the context, the LLM is prompted
+                                                               to evaluate the generated answer based on the ground truth
+        a1 = Q1(A) (1st quartile), a2 = Q3(A) (3rd quartile)   and provide an integer score from 1 to 5, where 1 signifies
+                                                               complete misalignment with the ground truth and 5 denotes
+ 3: Compute predicted change using total effect:               maximum alignment. The LLM is also prompted to explain
+                       ∆Bpred = (a2 − a1) · τA→B               its score. This enables the model to use more tokens, im-
+                                                               proving judgment accuracy and reducing bias. The LLM-
+ 4: Extract subsets of D:                                      as-a-Judge framework enabled efficient, low-bias evalua-
+        - Baseline group: rows where A ≈ a1 within ϵ           tion of system responses. However, since it lacks special
+        - Counterfactual group: rows where A ≈ a2 within ϵ     domain knowledge, CausalTrace was also assessed by six
+                                                               human evaluators-three experts in the manufacturing sec-
+ 5: Compute observed change in B:                              tor and three computer scientists. These evaluators scored
+              ∆Bobs = E[B | A ≈ a2] − E[B | A ≈ a1]            responses on a scale of 1–5 based on alignment with the
+                                                               ground truth, following the same rubric. (Table 2).
+ 6: Compute absolute error: Error = |∆Bpred − ∆Bobs|
+ 7: Record result: (A, B, τA→B, ∆Bpred, ∆Bobs, Error)             The results in Table 3, indicate that GPT-4o-mini was
+ 8: end for                                                    slightly more conservative in its scoring (Weighted Cohen’s
+ 9: Compile results into a table for global causal graph as-   Kappa (κ) mean = 4.19) than LLaMA3-70B-8192 (mean
+                                                               = 4.32). In contrast, human evaluators rated more favor-
+     sessment                                                  ably, with an average score of 4.59. The κ values fur-
+10: Interpretation:                                            ther validated the consistency and reliability of these eval-
+                                                               uations. Agreement was generally higher within evaluator
+      • Small error ⇒ Causal effect from A to B is well-       groups than across them. Specifically, GPT-4o-mini and
+         supported by data                                     LLaMA3-70B-8192 demonstrated substantial inter-model
+                                                               agreement (κ = 0.56), whereas their agreement with human
+      • Large error ⇒ Possible misspecification or unob-       evaluators was notably lower (κ = 0.52 for GPT-4o-mini
+         served confounding                                    and κ = 0.58 for LLaMA3-70B-8192). Human evaluators
+                                                               exhibited moderate internal agreement (κ = 0.58). These
+Method              ROUGE-1  Jaccard  MAP@3  PR@2  MRR         findings suggest that both LLMs and humans tend to align
+RCA baseline             –    0.33      44%   51%   0.5        more closely with members of their own group when assess-
+CausalTrace                     –         –          –         ing responses against the ground truth.
+(no KG ontology)       0.56                     –
+CausalTrace (full)            0.92      94%        0.92                      Pathway To Deployment
+                       0.91                  97%
+                                                               CausalTrace is integrated as a core agent in SmartPilot,
+Table 1: Comparison of CausalTrace and baselines               which is currently under deployment in the FF Lab. The full
+                                                               deployment pipeline proceeds through two primary phases:
+semantic tool tips, concept filtering, and knowledge-          virtual and real-world deployment (Figure 4). In the initial
+informed edge validation. Results show that the corre-         phase, SmartPilot is virtually deployed using the Testbed as
+lation baseline yields high false positives due to spu-        a Service (TaaS) framework (McCormick and Wuest 2025),
+rious associations and fails to capture causal direction-      which emulates the robotic assembly line operations. TaaS
+ality (Jaccard:0.33,MAP@3:44%,PR@2:51%,MRR:0.50).              functions as a data replay mechanism, publishing data from
+The ontology-ablated variant degrades interpretability and     a pre-existing dataset one timestamp at a time, mimicking
+occasionally yields invalid causal paths. In contrast, full    the behavior of live data streams. In this setting, SmartPilot
+CausalTrace achieves higher agreement with expert annota-      subscribes to specific MQTT (Message Queuing Telemetry
+tions and generates explanations rated as more trustworthy     Transport) topics defined by TaaS and processes the incom-
+by domain evaluators, with a ROUGE-1 score of 0.91 com-        ing data streams as if operating in a live production envi-
+pared to 0.56 for the variant without ontology (Table 1).      ronment. This virtual prototyping setup offers a controlled
+
+C3AN Principles Evaluation. We assessed CausalTrace                4Questions and results available at: https://shorturl.at/pKWr2
+using the C3AN framework, which defines 14 principles
+for robust, intelligent, and trustworthy AI systems. A sub-
+set of 10 principles was selected based on operational rel-
+evance, assessability, and alignment with CausalTrace’s ca-
+pabilities, as in Table 2. To evaluate the system against the
+C3AN principles, we manually crafted 10 targeted questions
+    C3AN Principle, Category and                         LLM1 LLM2 Human                                InfoGuide
+         Evaluation Description                           Avg. Avg. Avg.                             Conversational
+                                                           Sc. Sc. Sc.                               Query Interface
+
+Reliability[R]: Tested for hallucinations in responses.  4 4.5 4.2              Causal
+                                                                                 Trace
+
+Consistency [R]: Assessed stability using paraphrased    3.5 4.5 4.4
+queries and comparing output similarity.
+
+Abstraction[I]: Evaluated how low-level data are mapped 4   3.3 4.6                                                   Knowledge Sources                     API
+to high-level concepts in knowledge graph and ontology                                                                                                  Endpoints
+                                                                          Causal                     Dynamic Process  Smart
+                                                                          Graphs                     Ontology         Manufacturing                     Local Data
+                                                                                                                      Knowledge Graph                   Propagation
+Causality[I]: Tested via causal discovery, total         4.9 4.4 4.7
+effects, root cause analysis, and counterfactuals.
+                                                                                        Internal Data Processing
+
+Reasoning[I]: Measured the system’s ability to           3.8 4.5 4.6
+logically infer conclusions.
+                                                                                        MQTT Client  OPC UA Client                                      USB
+
+Planning[I]: Evaluated multi-agent workflows from        4  5  4.6                      Data Flow                     Data Flow
+data input to final output.
+
+                                                                          TaaS          MQTT Broker      OPC UA Server                   Assembly Line
+
+Grounding[T]: Checked if answers used context            4.4 4.6 4.6                                                                                    Cameras
+from knowledge graph and ontology.
+                                                                          Virtual Deployment                          Physical Deployment
+
+Attribution[T]: Verified traceability of decisions       4.5 4.5 4.2      Figure 4: End-to-end deployment pipeline of SmartPilot
+using agent logs and contextual sources.                                  with virtual and real-world integration
+
+Interpretability[T]: Users could inspect model           4 3.3 4.5        erate in real time to perform anomaly detection, produc-
+settings, selected features, and causal graphs.                           tion forecasting, question answering, and causal analysis.
+                                                                          The current deployment architecture is optimized for min-
+Explainability[T]: Judged clarity of explanations        5  5  5          imal latency in data acquisition and processing, as demon-
+for and causal outputs.                                                   strated in (El Kalach et al. 2025). However, its centralized
+                                                                          nature presents scalability limitations as system complexity
+Table 2: Average performance on selected C3AN prin-                       increases. To address this, future iterations of the system will
+ciples, evaluated by two LLMs (GPT-4o-mini and                            transition to a decentralized processing model. Furthermore,
+LLaMA3-70B-8192) and six human evaluators. Cate-                          the direct connection to cameras imposes spatial constraints,
+gories: R= Robustness, I= Intelligence, T= Trustworthiness.               as the system responsible for image ingestion must remain
+                                                                          within the physical range of the camera cabling.
+    LLM1 LLM2 E1 E2 E3 E4 E5 E6
+                                                                             In the second iteration of the deployment, the OPC UA
+LLM1 1                                                                    Server and direct camera connections are to be replaced by
+                                                                          a public MQTT broker, enabling SmartPilot to be hosted in
+LLM2 0.61 1                                                               a publicly accessible environment. This revised architecture
+                                                                          introduces an additional layer beneath the data processing
+E1  0.68 0.68 1                                                           stage: a data publishing module that streams data from the
+                                                                          local servers and cameras to the MQTT broker. SmartPilot
+E2  0.48 0.56 0.56 1                                                      is also publicly hosted5 to enable community access, lever-
+                                                                          aging both in-house and community-driven abstractions for
+E3  0.50 0.45 0.61 0.53 1                                                 interfacing with its back-end services. This setup enables
+                                                                          global real-time access, improving scalability and accessi-
+E4  0.61 0.59 0.64 0.86 0.58 1                                            bility, but it introduces latency, which we plan to address
+                                                                          with edge computing and asynchronous communication.
+E5  0.33 0.66 0.52 0.57 0.54 0.52 1
+
+E6  0.52 0.46 0.51 0.57 0.86 0.49 0.37 1
+
+Table 3: Inter-annotator agreements (κ) (range: –1 to 1).                           Conclusion and Further Work
+Green: perfect agreement, yellow: moderate, red: low.
+LLM1: GPT-4o-mini, LLM2: LLaMA3-70B-8192,                                 We introduced CausalTrace, a neurosymbolic causal anal-
+E1–E6: Human evaluators.                                                  ysis agent for intelligent manufacturing. Integrated with
+                                                                          knowledge sources, it supports interpretable and trustworthy
+and repeatable environment for evaluating system behavior                 reasoning over complex industrial data. Evaluated via the
+under a range of operational conditions.                                  C3AN framework, CausalTrace demonstrates strong align-
+                                                                          ment with robustness, intelligence, and trustworthiness. Its
+   Following successful virtual validation, SmartPilot pro-               phased deployment from controlled virtual prototyping to
+gresses to real-world deployment. The process begins with                 ongoing live integration shows practical viability and scal-
+configuring the OPC UA Server at the assembly line level.                 ability potential. Future work will extend capabilities such
+Subsequently, analog sensor data is streamed via the OPC                  as intervention planning, continual causal graph learning,
+UA Server, while image data is acquired directly from cam-                and safety-aware, instruction-following features. These en-
+eras positioned in the lab. This phase encompasses inter-                 hancements aim to further optimize performance and adapt-
+nal data processing tasks, including structuring raw inputs               ability in diverse operational environments.
+and developing a robust data ingestion pipeline. Next, the
+knowledge graph, dynamic process ontology, and previ-                     5https://aiisc.ai/smartpilot/
+ously generated in-memory causal graphs are instantiated
+via Neo4j, RDF, and HTTP SSE, respectively, and integrated
+with the data infrastructure. Finally, leveraging the ingested
+timeseries signals, visual data, and semantic insights from
+knowledge sources, SmartPilot’s four specialized agents op-
+                  Acknowledgment                                Romero, M. L.; and Suyama, R. 2025. Agentic AI
+                                                                for Intent-Based Industrial Automation. arXiv preprint
+This work was supported in part by NSF grant #2119654,          arXiv:2506.04980.
+“RII Track 2 FEC: Enabling Factory to Factory (F2F) Net-
+working for Future Manufacturing”.                              Sanchez, P.; Liu, X.; O’Neil, A. Q.; and Tsaftaris, S. A.
+                                                                2022. Diffusion models for causal discovery via topologi-
+                       References                               cal ordering. arXiv preprint arXiv:2210.06201.
+
+Acharya, D. B.; Kuppan, K.; and Divya, B. 2025. Agentic         Sheth, A. P.; Roy, K.; Venkataramanan, R.; Nadimuthu, V.;
+AI: Autonomous Intelligence for Complex Goals–A Com-            and Shyalika, C. 2025. Composite AI With Custom, Com-
+prehensive Survey. IEEE Access, 18912 – 18936.                  pact, Neurosymbolic Models: The Emergent Enterprise Ar-
+                                                                tificial Intelligence Paradigm. IEEE Internet Computing,
+Bandekar, V. R. 1989. Causal models for diagnostic reason-      29(2): 37–49.
+ing. Artificial Intelligence in Engineering, 4(2): 79–91.
+                                                                Shimizu, S.; Hoyer, P. O.; Hyva¨rinen, A.; Kerminen, A.; and
+Boskabadi, M. R.; Cao, Y.; Khadem, B.; Clements, W.;            Jordan, M. 2006. A linear non-Gaussian acyclic model for
+Gerek, Z. N.; Reuthe, E.; Sivaram, A.; Savoie, C. J.; and       causal discovery. Journal of Machine Learning Research,
+Mansouri, S. S. 2025. Industrial Agentic AI and generative      7(10).
+modeling in complex systems. Current Opinion in Chemical
+Engineering, 48: 101150.                                        Shyalika, C.; Prasad, R.; Al Ghazo, A.; Eswaramoorthi,
+                                                                D. L.; Shree Muthuselvam, S.; and Sheth, A. 2025a. Smart-
+Chen, W.; Zhang, J.; Li, W.; Que, X.; Li, C.; and Ma,           Pilot: Agent-Based CoPilot for Intelligent Manufacturing. In
+X. 2025. Integrating Neuro-Symbolic AI and Knowledge            Proc. of the 24th International Conference on Autonomous
+Graph for Enhanced Geochemical Prediction in Copper De-         Agents and Multiagent Systems, 3053–3055.
+posits. Applied Computing and Geosciences, 100259.
+                                                                Shyalika, C.; Prasad, R.; Ghazo, A. A.; Eswaramoorthi, D.;
+El Kalach, F.; Farahani, M.; Wuest, T.; and Harik, R. 2025.     Kaur, H.; Muthuselvam, S. S.; and Sheth, A. 2025b. Smart-
+Real-time defect detection and classification in robotic as-    Pilot: A Multiagent CoPilot for Adaptive and Intelligent
+sembly lines: a machine learning framework. Robotics and        Manufacturing. In Proc. of the IEEE Conference on Arti-
+Computer-Integrated Manufacturing, 95: 103011.                  ficial Intelligence.
+
+Erdem, E.; Haspalamutgil, K.; Patoglu, V.; and Uras, T.         Shyalika, C.; Prasad, R.; Kalach, F. E.; Venkataramanan, R.;
+2012. Causality-based planning and diagnostic reasoning         Zand, R.; Harik, R.; and Sheth, A. 2025c. NSF-MAP: Neu-
+for cognitive factories. In Proceedings of 2012 IEEE 17th       rosymbolic Multimodal Fusion for Robust and Interpretable
+International Conference on Emerging Technologies & Fac-        Anomaly Prediction in Assembly Pipelines. arXiv preprint
+tory Automation (ETFA 2012), 1–8. IEEE.                         arXiv:2505.06333.
+
+Harik, R.; Kalach, F. E.; Samaha, J.; Clark, D.; Sander, D.;    Singh, M.; Goyat, R.; and Panwar, R. 2024. Fundamental
+Samaha, P.; Burns, L.; Yousif, I.; Gadow, V.; Tarekegne,        pillars for industry 4.0 development: implementation frame-
+T.; et al. 2024. Analog and Multi-modal Manufacturing           work and challenges in manufacturing environment. The
+Datasets Acquired on the Future Factories Platform. arXiv       TQM Journal, 36(1): 288–309.
+preprint arXiv:2401.15544.
+                                                                Sun, Y.-N.; Pan, Y.-J.; Liu, L.-L.; Gao, Z.-G.; and Qin, W.
+Hasan, M. K.; Latif, Z.; Hlali, A.; Xunping, L.; and Aka, S.    2024. Reconstructing causal networks from data for the
+A. B. 2026. Hyperautomation: The Next Frontier in Sup-          analysis, prediction, and optimization of complex industrial
+ply Chain (SC) and Manufacturing. In Emerging Trends in         processes. Engineering Applications of Artificial Intelli-
+Smart Logistics Technologies, 1–44. IGI Global Scientific       gence, 138: 109494.
+Publishing.
+
+Jiang, S.; Xie, M.; Chen, F. Y.; Ma, J.; and Luo, J. 2025. In-
+telligent Design 4.0: Paradigm Evolution Toward the Agen-
+tic AI Era. arXiv preprint arXiv:2506.09755.
+
+Kusiak, A. 2025. Agentic Manufacturing System = Digital
+Twin + Manufacturing. Journal of Intelligent Manufactur-
+ing, 36: 2221–2222.
+
+McCormick, M.; and Wuest, T. 2025. Testbed as a Service
+(TaaS): A Scalable Ecosystem for Smart Manufacturing and
+Industry 4.0 Collaboration.
+
+Panigrahy, S. 2025. Multi-Agentic AI Systems: A Compre-
+hensive Framework for Enterprise Digital Transformation.
+Journal of Computer Science and Technology Studies, 7(6):
+86–96.
+
+Piplai, A.; Kotal, A.; Mohseni, S.; Gaur, M.; Mittal,
+S.; and Joshi, A. 2023. Knowledge-enhanced Neuro-
+Symbolic AI for Cybersecurity and Privacy. arXiv preprint
+arXiv:2308.02031.
+                                                         Appendix
+                               Appendix A: CausalTrace Competency Questions
+
+This section presents a structured set of competency questions designed to evaluate the capabilities of the CausalTrace across
+key reasoning dimensions. These questions are grounded in the example causal graph G = {A → B, B → C, D → B},
+which is assumed to be generated by the CausalTrace and span four core categories: (1) Causal Graph Structure, (2) Causal
+Reasoning, (3) Root Cause Analysis, and (4) Causal Discovery. The goal is to assess the agent’s ability to interpret, reason over,
+and explain causal relationships in response to natural language queries.
+
+Questions about Causal Graph Structure
+1. Does A cause B?
+2. Does B cause A?
+3. Does A cause C?
+4. Is there a causal relation between A and B (or between B and A)?
+5. Is there a causal relation between A and D?
+6. What variables have a direct causal effect on B (i.e., causal parents of B)?
+7. Is there a causal relation between A and Z?
+
+Questions about Causal Reasoning
+1. What is the strength of the causal relation between A and B?
+2. Which variable has the strongest causal effect on B?
+3. If the value of A were set to x, what would be the effect on B?
+
+Questions about Root Cause Analysis
+1. What is the most likely root cause of the anomalous value of variable B?
+2. What are the three most likely root causes of the anomalous value of variable B, ranked in descending order?
+3. Is A a likely root cause of the anomalous value of variable B?
+4. Which is more likely to be the root cause: A or D?
+5. Why is D not considered a likely root cause of the anomalous value of variable B?
+
+Questions about Causal Discovery
+1. What algorithm was used to learn the causal graph?
+2. What is the stability score of the edge A → B?
+3. Which edges in the graph are considered the least reliable?
+4. How many bootstrap iterations were used during causal discovery?
+

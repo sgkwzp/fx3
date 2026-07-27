@@ -1,0 +1,469 @@
+2025 IEEE International Conference on Multimedia and Expo (ICME) | 979-8-3315-9495-4/25/$31.00 ©2025 IEEE | DOI: 10.1109/ICME59968.2025.11209124    Probabilistic Embeddings with Causal Constraint
+                                                                                                                                                  for Error Detection in Egocentric Procedural Videos
+
+                                                                                                                                                                      Tong Hou1, Shenshen Li1, Xun Jiang1, Zheng Wang2,3, Fumin Shen1, Xing Xu1,2∗
+                                                                                                                                                         1School of Computer Science and Engineering, University of Electronic Science and Technology of China, China
+
+                                                                                                                                                                                       2School of Computer Science and Technology, Tongji University
+                                                                                                                                                                          3Institute of Electronic and Information Engineering of UESTC in Guangdong, China
+
+                                                                                                                                                     Abstract—Error detection in egocentric procedural task videos        Action1                        Action1           Action3
+                                                                                                                                                  aims to identify deviations to support intelligent monitoring and      Prototype
+                                                                                                                                                  task automation. Despite making significant progress, existing
+                                                                                                                                                  methods that leverage prototypes for egocentric error detection                 Hard to differentiate
+                                                                                                                                                  have two drawbacks: (1) The neglect of inherent data traits,
+                                                                                                                                                  i.e., large intra-class variance and minimal inter-class distinction.   Action2                        Action2           Action4     Ambiguous
+                                                                                                                                                  (2) The absence of causal consistency in temporal modeling. To         Prototype                                                     Prototype
+                                                                                                                                                  address these challenges, we introduce a novel framework termed
+                                                                                                                                                  Probabilistic Embeddings with Causal Constraint (PECC) for error                (a) Large intra-class variance and small inter-class variance
+                                                                                                                                                  detection in egocentric procedural videos. Specifically, we first
+                                                                                                                                                  integrated a causal dilated convolution module in temporal action      Normal               EgoPED              Action1  Compare to         Error
+                                                                                                                                                  segmentation model to capture temporal causal consistency.             segment    Without Causal Mechanism                Prototype
+                                                                                                                                                  We then train Gaussian Mixture Models (GMMs) for each                                                           Action2                   Normal
+                                                                                                                                                  action class to get frame-level probabilistic embeddings. Finally,                                               TAS                       Error
+                                                                                                                                                  We evaluate test frames using log-likelihood values to detect                                                                            Detection
+                                                                                                                                                  erroneous actions. Extensive experiments conducted on EgoPER
+                                                                                                                                                  and HoloAssist demonstrate that our method achieves state-of-                                                                   Normal actions are detected as errors
+                                                                                                                                                  the-art performance, significantly surpassing existing methods         (b) Absence of causal consistency lead to wrong outputs in the model
+                                                                                                                                                  in error detection. Our code is available at https://github.com/
+                                                                                                                                                  HouTong-s/PECC-for-Error-Detection-in-Egocentric-Videos.               Fig. 1. Illustration of the limitations of EgoPED [7], highlighting key
+                                                                                                                                                                                                                         challenges: (a) significant intra-class variance coupled with minimal inter-class
+                                                                                                                                                     Index Terms—Probabilistic Distribution Pepresentation, Gaus-        variance, making distinction difficult, and (b) a lack of causal consistency,
+                                                                                                                                                  sian Mixture Model, Egocentric, Error Detection                        underscoring critical areas for improvement and innovation.
+
+                                                                                                                                                                            I. INTRODUCTION                              challenges: (1) They failed to consider inherent data charac-
+                                                                                                                                                                                                                         teristics, such as considerable intra-class variation and weak
+                                                                                                                                                     Driven by the need for intelligent monitoring, accurately           inter-class separation. (2) The temporal modeling process lacks
+                                                                                                                                                  detecting operational mistakes in egocentric videos has be-            causality consistency. As illustrated in Fig. 1(a), previous
+                                                                                                                                                  come a focal challenge. Traditional methods, typically based           methods overlook critical data characteristics, resulting in
+                                                                                                                                                  on anomaly detection, focus on frame-level analysis by learn-          prototypes with significant intra-class variance and limited
+                                                                                                                                                  ing normal behavior patterns and identifying deviations as             inter-class distinction, making them prone to ambiguities.
+                                                                                                                                                  anomalies. While these methods have shown effectiveness in             Moreover, the close positioning of prototypes from different
+                                                                                                                                                  controlled environments, they encounter difficulties in model-         classes in the embedding space further increases the likeli-
+                                                                                                                                                  ing the complex temporal dynamics and diverse action patterns          hood of incorrect error detection due to overlapping feature
+                                                                                                                                                  characteristic of egocentric video streams. As a result, learning      representations. Secondly, as shown in Fig. 1(b), the TAS
+                                                                                                                                                  an appropriate probabilistic distribution to represent normal          backbone employed in EgoPED [7] lacks temporal causal
+                                                                                                                                                  behavior has become a critical problem.                                consistency, which is crucial for procedural tasks in egocentric
+                                                                                                                                                                                                                         procedural task videos, leading to potential misclassifications
+                                                                                                                                                     To address this problem, existing methods [7] employ a              of action segments. This, in turn, propagates errors in the
+                                                                                                                                                  Temporal Action Segmentation (TAS) backbone for action                 detection process associated with these segments, undermining
+                                                                                                                                                  segmentation, followed by a prototype learning module using            the robustness of the overall error detection framework.
+                                                                                                                                                  K-means clustering. This approach allows the framework to
+                                                                                                                                                  learn multiple prototypes for each action class, serving as               To address these challenges, as illustrated in Fig. 2, we pro-
+                                                                                                                                                  references for detecting deviations from normal task execution.        pose a novel framework termed Probabilistic Embeddings with
+                                                                                                                                                  As the first study to tackle this problem, it laid a foundational      Causal Constraint (PECC) for error detection in egocentric
+                                                                                                                                                  framework for detecting procedural errors in egocentric videos.        procedural task videos. This innovative approach strategically
+                                                                                                                                                                                                                         leverages causal mechanisms within the TAS model to improve
+                                                                                                                                                     Despite existing methods achieving remarkable improve-              the model’s sensitivity to causal consistency. Furthermore,
+                                                                                                                                                  ments over traditional methods, they still face two major              Gaussian Mixture Models (GMMs) are employed to model
+                                                                                                                                                                                                                         the probabilistic distribution of each normal action.
+                                                                                                                                                     ∗Corresponding Author
+                                                                                                                                                                                                                            Specially, we first introduce a Causal Dilated Convolution
+                                                                                                                                                                                                                         (CDC) module into the TAS model to address the lack of
+
+                                                                                                                                                  Authorized licensed use limited to: Ningbo University. Downloaded on July 24,2026 at 14:44:57 UTC from IEEE Xplore. Restrictions apply.
+𝒙𝒕                                           GMM                    𝒛ො𝒕                                  normal error
+                                             Model                                                           threshold
+                                                                         Gaussian-Based time
+                                             GMM                       Probabilistic Model
+                                             Model
+       Action
+                                             GMM
+       Segmentation                          Model
+       Backbone 𝒛𝒕
+                                        𝒛ො𝒕  GMM
+                                             Model
+                                                                                               filter
+
+       Temporal Action                                              GMM model  Segment-Level   Gaussian    Smoothed
+        Segmentation                                                           Log-Likelihood  Smooth    Log-Likelihood
+             Model      Causal Dilated                                                         Module
+Video                    Convolution
+
+                        Training Stage                                         Inference Stage
+
+Fig. 2. We integrate a Causal Dilated Convolution module into the Temporal Action Segmentation (TAS) model to effectively capture the temporal consistency
+inherent in procedural task videos. After training the TAS model, we further train a distinct Gaussian Mixture Model (GMM) for each action class to capture
+its respective probabilistic distribution. For inference, we utilize the trained GMM for each segment to generate Log-Likelihood embeddings corresponding
+to its action class. Then we smooth the Segment-Level Log-likelihood and compare it to Log-likelihood thresholds for error detection.
+
+causal consistency in egocentric procedural task videos. The        EgoPED, a framework that uses Contrastive Step Prototype
+CDC module effectively captures temporal causal consistency         Learning (CSPL) for error detection in procedural tasks. They
+in videos, enhancing the model’s ability to utilize causality.      also introduced the EgoPER dataset, specifically designed for
+Second, we introduce a Gaussian-Based Probabilistic Model,          this task, which includes multimodal data from cooking tasks
+wherein a separate Gaussian Mixture Model (GMM) is inde-            with both normal and erroneous steps. Similarly, Flaborea
+pendently learned for each action class to capture the unique       et al. [3] introduced the PREGO model, a pioneering online
+underlying statistical characteristics of error-free actions. Dur-  error detection model tailored for open-set scenarios. PREGO
+ing inference, log-likelihood scores computed by the GMMs           integrates online action recognition and large language mod-
+serve as Probabilistic Embeddings, identifying frames that          els (LLMs) for symbolic reasoning to detect online errors.
+deviate significantly from the learned distributions. Finally,      In contrast, our method focuses on offline error detection,
+we introduce a Gaussian Smoothing Module, which utilizes            which inherently differs from the online approach of PREGO.
+a one-dimensional Gaussian filter, to smooth the raw log-           Furthermore, the Assembly101 [14] dataset, containing multi-
+likelihood scores generated by the GMM. This smoothing              view videos and action annotations, offers valuable resources
+step reduces noisy fluctuations, producing more consistent          for error identification research in assembly tasks.
+and coherent segment-level mistake assessments. The resulting
+refinement enhances the robustness of the framework, enabling       Probability Distribution Representation. In computer vision
+it to handle complex action sequences with higher accuracy          and multimodal learning [6], [9], [10], probabilistic repre-
+and reliability. Our proposed method achieves state-of-the-art      sentations are extensively used to capture data uncertainty
+results on the EgoPER and HoloAssist datasets.                      and variability. Unlike deterministic models, probability dis-
+                                                                    tribution representations provide a richer characterization of
+   Overall, our contributions can be summarized as follows:         intrinsic data variation, which strengthens model robustness
+                                                                    and generalization. For example, [8], [17] proposed the Prob-
+   • We integrate a causal dilated convolution module into the      abilistic Cross-modal Embedding framework, which represents
+      TAS model to model temporal dependencies and causal           images and texts as probability distributions within a shared
+      relations effectively, improving temporal consistency.        embedding space, effectively addressing the one-to-many cor-
+                                                                    respondence problem between images and text. Ji et al. [5]
+   • We propose a GMM-based framework for error recogni-            introduced the MAP model, which employs a probabilistic
+      tion in egocentric video analysis, leveraging probabilistic   distribution encoder to improve multimodal data handling and
+      log-likelihood evaluation to achieve enhanced robustness.     uncertainty management. In another advancement, Ahmine et
+                                                                    al. [1] presented PNeRF, a probabilistic neural scene rep-
+   • We introduce a smoothing technique using Gaussian              resentation model capable of generating high-quality image
+      filters on GMM log-likelihood scores, enabling coherent       renderings and accurate geometric reconstructions. Inspired by
+      and accurate segment-level error detection.                   these works, we introduce probabilistic distribution representa-
+                                                                    tions into the task of error detection in egocentric procedural
+                         II. RELATED WORK                           videos, modeling normal action distributions to enhance the
+                                                                    differentiation between normal and erroneous behaviors.
+Error Detection in Egocentric Procedural Task Videos.
+Error detection in procedural tasks seeks to identify mistakes      Causal Mechanism. Causal dilated convolution has been
+that occur during the execution of a specified sequence of          widely adopted for temporal sequence modeling, capturing
+steps. This task differs from conventional anomaly detection,       long-range dependencies and maintaining causality. Ding et
+which focuses on global deviations within the data, by instead      al. [2] proposed using causal convolution networks to cap-
+emphasizing the correctness of individual steps within a task.
+Recent advancements in procedural error detection include
+various novel methods. For instance, Lee et al. [7] proposed
+
+       Authorized licensed use limited to: Ningbo University. Downloaded on July 24,2026 at 14:44:57 UTC from IEEE Xplore. Restrictions apply.
+ture temporal dependencies, highlighting the role of causal       temporal modeling capabilities while ensuring the crucial
+relationships in mechanical system degradation. Shen et al.       causal relationships between actions in procedural task videos.
+[15] introduced the ProTAS framework for online action
+segmentation using causal dilated convolutions and causal            For a convolution kernel with size k and dilation rate d, the
+masking. We leverage CDC module for offline, embedding            receptive field of a CDC module is given by (k − 1) × d + 1,
+causality as part of the model’s learning process, not for real-  enabling the model to capture long-range causal relationships
+time prediction. Hamad et al. [4] employed dilated causal         while maintaining computational efficiency. The operation
+convolutions to preserve temporal order, leveraging causal        performed by the CDC module can be formalized as:
+mechanisms for more effective human activity recognition.
+Inspired by these advancements, we incorporate dilated causal                                                   k−1
+convolutions into our framework to model long-range temporal
+dependencies while maintaining the causality essential for              FCDC(zt) = wi · zt−i·d,                                                          (1)
+detecting procedural errors in egocentric videos.
+                                                                                                                i=0
+                     III. OUR PECC METHOD
+                                                                  where FCDC(zt) represents the output of the CDC module at
+A. Preliminary                                                    time t, wi denotes the convolutional kernel weights, and zt−i·d
+                                                                  is the input feature at the dilated position.
+   We adopt the task setup from the EgoPED framework [7],
+which originally proposed the procedural error detection task        By exponentially increasing d across layers (e.g., d =
+in egocentric videos of sequential tasks. The objective of this   1, 2, 4, . . .), the receptive field expands rapidly without a
+task is twofold: first, to segment the test video into task-      proportional increase in the number of parameters.
+related steps and background, and second, to identify frames
+containing procedural errors. A distinctive aspect of this task      Furthermore, the output from the CDC module is combined
+is that training is conducted using only normal (error-free)      with the backbone’s output through a residual connection. The
+videos, while testing involves both normal and erroneous          residual connection is defined as:
+videos. Formally, let the dataset consist of N videos, each
+represented as a sequence of frames with pre-extracted features                                  zˆt = zt + FCDC(zt),                                    (2)
+and corresponding step labels. For video n, the frame-wise
+features are denoted as Xn = {xn,1, xn,2, . . . } and their       C. Gaussian-Based Probabilistic Model
+ground-truth step labels as Yn = {yn,1, yn,2, . . . }, where
+xn,t ∈ Rd is the d-dimensional feature vector of the t-th            To model the probabilistic distribution within actions, we
+frame, and yn,t is its action label. The TAS model is trained     propose a Gaussian-Based Probabilistic Model. In this model,
+on normal videos using the action label sequence Y, enabling      Gaussian Mixture Models (GMMs) are employed as fun-
+the subsequent error detection process.                           damental components. The intermediate features zˆt from a
+                                                                  trained TAS model are used to train a GMM for each action
+B. Causal Dilated Convolution                                     class. The GMM models the probability distributions of frame
+                                                                  features, effectively capturing normal variations for each ac-
+   First, we focus on temporal action segmentation (TAS),         tion. We utilize its output to obtain probabilistic embeddings
+where the goal is to classify each frame of the video into        for each frame. Furthermore, these embeddings can be em-
+its corresponding action class. TAS typically consists of two     ployed for the purpose of error detection.
+main components: an action segmentation backbone and a
+classifier head. The backbone takes pre-extracted features           The GMM is a probabilistic model that assumes each data
+Xn = {xn,1, xn,2, . . . } as input and learns refined, holistic   point is generated from a mixture of Gaussian distributions,
+frame-wise features Zn = {zn,1, zn,2, . . . } by capturing long-  with K representing the total number of Gaussian components
+range temporal dependencies across frames, where zn,t ∈ Rd′       in the mixture, each associated with a weight. The proba-
+is a d′-dimensional feature vector representing the refined       bility density function of the GMM, defined over a multi-
+features of frame t in video n. The classifier head then assigns  dimensional vector x, is:
+a label to each frame based on its corresponding refined feature
+vector. For clarity, we omit the video index n in the subsequent                                           K
+formulas, focusing on the frame-wise features xt and their
+corresponding refined features zt for a single video.                   p(x|θ) = ωkN (x|µk, Σk),                                                         (3)
+
+   We incorporate a Causal Dilated Convolution (CDC) mod-                                                  k=1
+ule between the two main components of TAS. This CDC
+module is specifically designed to enhance the model’s capa-      where θ = {ωk, µk, Σk}Kk=1 represents the parameters of the
+bility to capture long-term dependencies and maintain tempo-      GMM: ωk is the weight of the k-th Gaussian component, µk
+ral causal consistency. The CDC module refines the temporal       is its mean vector, and Σk is its covariance matrix.
+features output by the backbone network. By sequentially
+processing frame features in temporal order, it enhances the      GMM Training via Expectation-Maximization (EM). The
+
+                                                                  EM algorithm optimizes the GMM parameters θ, by max-
+
+                                                                  imizing the total expected log-likelihood of the data. Let
+
+                                                                  Zˆ i  = {zˆi1, zˆi2, . . .  ,  zˆ  i  }  represent  all  intermediate         frame-wise
+                                                                                                     T
+
+                                                                  features for a specific action i ∈ {1, 2, . . . , S + 1}, where T
+
+                                                                  is the total number of frames for action i and S denotes the
+
+                                                                  total number of action classes, label S + 1 for the background
+
+                                                                  class. The expected log-likelihood is expressed as:
+
+                                                                                                     T          K
+
+                                                                        log L(θ | Zˆ i) = log                         ωk  N  (  zˆ  i  |  µk ,  Σk )  ,  (4)
+                                                                                                                                    t
+
+                                                                                                 t=1            k=1
+
+Authorized licensed use limited to: Ningbo University. Downloaded on July 24,2026 at 14:44:57 UTC from IEEE Xplore. Restrictions apply.
+The optimization alternates between the following two steps:                segment, which takes into account not only the current frame’s
+                                                                            likelihood but also the surrounding frames.
+   • E-Step: Computes the responsibility γt,k, which rep-
+      resents the posterior probability of the k-th Gaussian                   As illustrated on the right side of Fig. 2, the smoothed log-
+      component given zˆit:                                                 likelihood values are evaluated against a predefined threshold.
+                                                                            Given a threshold γ ∈ Γ, a frame is classified as normal if its
+                     ωk  N  (  zˆ  i  |  µk ,      Σk )                     log-likelihood value is greater than or equal to γ; otherwise,
+γt,k = K                           t                           ,     (5)    it is classified as an error.
+
+                     j=1  ωj   N      (  zˆ  i  |  µj ,  Σj )                  Finally, segment-level decisions are made using a majority
+                                             t                              voting mechanism:
+
+• M-Step: updates the parameters to maximize the ex-                           • If the majority of frames in a segment are classified as
+   pected log-likelihood:                                                         normal, the segment is considered normal.
+
+θ = arg max Eγ log L(θ | Zˆ i) ,                                     (6)       • Otherwise, the segment is classified as erroneous.
+                     θ
+                                                                            The detailed pseudocode of our framework is provided in the
+This yields the following updates:                                          supplementary materials.
+
+      1T                                           T              i                                   IV. EXPERIMENT
+                                                   t=1 γt,kzˆt
+ωk =         γt,k, µk = T                                            , (7)  A. Experimental Setup
+      T t=1                                         t=1 γt,k
+                                                                            Datasets. We evaluate our model on the EgoPER [7] and
+Σk =  T              γt,k (zˆit  −       µk )(zˆit    −  µk )T    ,  (8)    HoloAssist [16] datasets. The EgoPER dataset comprises five
+      t=1                                                                   independent tasks, each of which is trained and tested sepa-
+                                                                            rately. For each of these five tasks, we utilize RGB data and
+                               T                                            active object detection (AOD) information to train our model.
+                               t=1 γt,k                                     The HoloAssist dataset is a large-scale egocentric human
+                                                                            interaction dataset containing 2,221 egocentric videos, with
+   The algorithm iteratively alternates between these steps until           annotations provided for error detection tasks. We only use
+                                                                            RGB data for training in HoloAssist. Specially, we separately
+the parameters converge.                                                    train and evaluate the model using verbs or nouns as action
+                                                                            labels in HoloAssist. For EgoPER and HoloAssist, data is split
+Log-Likelihood for Error Detection. At inference stage,                     into 80% normal videos for training, 10% for validation, and
+                                                                            the remaining 10%, along with all error videos, for testing.
+through the TAS model, each test frame xt can be classi-                    Evaluation Metrics. We use multiple metrics to evaluate
+fied into a specific action class, denoted by j , where j ∈                 the performance of error detection and action segmentation.
+                                                                            For error detection, we first calculate the Segment-level Error
+{1, 2, . . . , S + 1}. Additionally, for each action class j, a             Detection Accuracy (EDA), defined as De/GT e, where De
+GMM is trained, denoted as θj = {πkj , ωkj , Σkj }k=1 K . Given             and GT e represent the number of correctly predicted segments
+the intermediate feature zˆt of frame xt belonging to class j,              and the total number of segments in all test videos, respec-
+the log-likelihood of zˆt under the GMM θj is computed as:                  tively. Additionally, we employ micro AUC based on frame-
+                                                                            level error predictions to assess frame-level error detection
+                         K                                                  capability; hereafter, AUC refers exclusively to micro AUC.
+                                                                            Implementation Details. We utilize the I3D model to extract
+log p(zˆt|θj) = log           ωkN (zˆt|µk, Σk) . (9)                        RGB features. Additionally, for the EgoPER dataset, we em-
+                                                                            ploy Graph Convolutional Networks (GCNs), as in EgoPED,
+                        k=1                                                 to extract active object detection (AOD) information. We use
+                                                                            ActionFormer [19] and MSTCN++ [11] as backbone models
+   This log-likelihood value is used to assess the likelihood that          for action segmentation, with CDC modules incorporated into
+the frame xt, follows the distribution of the action class j. By            each backbone. During training, we first train the TAS back-
+calculating this value for each frame, we can identify frames               bone. Subsequently, we train a Gaussian-Based Probabilistic
+that deviate significantly from the expected distributions, thus            Model by learning a separate GMM for each action class
+enabling error detection.                                                   using intermediate features extracted from all videos in the
+Log-Likelihood Thresholds. To classify frames as normal or                  training set. The log-likelihood of each frame in the training
+erroneous, we define 41 log-likelihood thresholds for each                  set is computed to establish appropriate thresholds for each
+action, denoted as the set Γ = {γ1, γ2, . . . , γ41}. These                 action class. During inference, these thresholds are used by
+thresholds are evenly sampled between the minimum and                       comparing them with the GMM predictions for each frame of
+median log-likelihood values from the training set. The choice              the test set videos to detect errors.
+of 41 aligns with the configuration of the EgoPED [7].
+
+D. Gaussian Smooth Module
+
+   We get log-likelihood values of every frame in inference
+stage for error detection. However, Frame-level log-likelihood
+values can fluctuate due to noise or transient inconsistencies,
+potentially leading to false positives or negatives. To mitigate
+this, we apply a Gaussian Smooth Module (GSM) using a one-
+dimensional Gaussian filter to smooth the log-likelihood values
+across each action segment. This smoothing is crucial because
+it aggregates frame-level errors into more stable segment-
+level assessments, ensuring that errors are detected more
+consistently over time. Specifically, we perform the smoothing
+by applying the Gaussian kernel across the frames within a
+
+Authorized licensed use limited to: Ningbo University. Downloaded on July 24,2026 at 14:44:57 UTC from IEEE Xplore. Restrictions apply.
+                                                                                 TABLE I
+ERROR DETECTION RESULTS OF DIFFERENT METHODS ON THE EGOPER DATASET FOR EACH TASK AND THE AVERAGE OVER ALL TASKS.
+
+           Method           Quesadilla     Oatmeal                   Pinwheel              Coffee        Tea                            Average
+                           EDA AUC      EDA AUC                    EDA AUC             EDA AUC     EDA AUC                           EDA AUC
+           Random          19.9 50.0    11.8 50.0                  15.7 50.0           8.20 50.0   17.0 50.0                         14.5 50.0
+HF2-VAD [12] (ICCV’21)     34.5 62.6    25.4 62.3                  29.1 52.7           10.0 59.6   36.6 62.1                         27.1 59.9
+SSPCAB [13] (CVPR’22)      30.4 60.9    25.3 61.9                  33.9 51.7           10.0 60.1   35.4 63.2                         27.0 59.6
+                           52.6 51.8    47.8 61.6                  50.5 52.4           16.3 51.0   47.8 57.9                         43.0 54.9
+   S3R [18] (ECCV’22)      62.7 65.6    51.4 65.1                  59.6 55.0           55.3 58.3   56.0 66.0                         57.0 62.0
+ EgoPED [7] (CVPR’24)      79.4 75.4    88.4 67.1                  77.8 63.7           83.1 64.5   77.1 66.6                         81.2 67.5
+
+        PECC (Ours)
+
+                            TABLE II                                                 ;ŐŽWZͿ                              
+THE RESULTS OF ERROR DETECTION ON HOLOASSIST.
+                                                                                       h;ŐŽWZͿ
+
+           Method            Verb       Noun                       3HUIRUPDQFH                              3HUIRUPDQFH  
+                        EDA AUC    EDA AUC
+           Random       11.2 50.0  13.0 50.0                                                                                     ;sĞƌďͿ
+HF2-VAD [12] (ICCV’21)  24.0 38.0  23.2 38.2
+SSPCAB [13] (CVPR’22)   23.7 38.0  22.9 39.1                                                                                    h;sĞƌďͿ
+                        51.2 48.6  51.6 49.5
+   S3R [18] (ECCV’22)   68.0 47.3  71.0 50.8                                                                                   
+ EgoPED [7] (CVPR’24)   93.1 54.7  77.1 55.0
+                                                                                                                               
+        PECC (Ours)                                                                        1XPEHURI&RPSRQHQWV                          1XPEHURI&RPSRQHQWV
+
+                               TABLE III
+ABLATION STUDY OF METHOD COMPONENTS ON EGOPER
+
+Method       GBP CDC GSM EDA AUC                                   Fig. 3. Error Detection metrics for different numbers of components in the
+                                                                   GMM on EgoPER (left) and HoloAssist (right), using verb as the class label.
+w/o GBP&GSM             ✓          66.1 63.5
+
+w/o CDC&GSM ✓                      73.1 64.0                                           EgoPER                    15 HoloAssist (Noun) 13.7 w/o CDC
+                                                                                         w/o CDC
+w/o CDC      ✓             ✓ 75.2 64.9
+
+w/o GSM      ✓          ✓          74.1 65.9                                       60  w/ CDC                                        w/ CDC
+
+PECC (Ours)  ✓          ✓  ✓ 81.2 67.5                                                 48.4 49.5 EgoPED 44.6 47.4 48.1 47.5 10              EgoPED 11.1
+
+B. Overall Comparsion Results                                      Metrics(%)      40 9.0                                            9.3
+
+Error Detection Results. Tables I and II demonstrate that                                                                                        7.5     7.7
+our method achieves state-of-the-art performance on both the
+EgoPED and HoloAssist datasets, consistently surpassing all                        20                            5
+baselines in EDA and AUC scores. For instance, our method
+achieves superior average EDA and AUC on EgoPED, signif-                           0 IOU (a) F1@0.5 0 IOU (b) F1@0.5
+icantly outperforming EgoPED and other traditional methods.
+Similarly, it achieves the highest scores on HoloAssist when       Fig. 4. Analysis of the CDC module on TAS metrics (IOU and F1@0.5) for
+using verbs or nouns as action class labels, further highlighting  EgoPER (left) and HoloAssist (right) using ActionFormer.
+its robustness and effectiveness. The superior performance
+of our method is attributable to the inclusion of the CDC          results underline the complementary roles of GBP, CDC, and
+module, which effectively captures the causal relationships in     GSM in improving both EDA and AUC metrics. We also
+action sequences. Additionally, the probabilistic representation   evaluated the impact of TAS backbone (ActionFormer [19]
+learned from the GMMs model enables the model to better            and MSTCN++ [11]) on framework performance.
+learn the distributional characteristics of action classes.        Analysis on Number of Components in GMM. As shown in
+                                                                   Fig. 3, the performance of the action error detection method
+C. Further Analysis                                                on both the EgoPER and HoloAssist datasets varies with
+                                                                   the number of components in the GMM. In general, using
+Ablation Studies. Table III shows the ablation study results       fewer components leads to better results, while increasing the
+for the key components of our method on EgoPER dataset.            components causes a decline in metrics. This suggests that
+Here, GBP refers to the Gaussian-Based Probabilistic Model         modeling the data distribution with fewer, more concentrated
+for error detection, while omitting GBP implies a prototype-       components helps capture the essential patterns more effec-
+based approach. CDC denotes the Causal Dilated Convolu-            tively, leading to improved error detection performance.
+tion module in the TAS backbone, and GSM represents the            Analysis on CDC Module for TAS. Here, we compare
+Gaussian Smooth Module. From the table, we observe that            the TAS performance of ActionFormer [19] under three con-
+the inclusion of each module contributes positively to the         figurations: (1) the original ActionFormer without the CDC
+overall performance. Notably, removing the CDC or GSM              module, (2) ActionFormer enhanced with the CDC module,
+modules results in a notable performance drop. Additionally,       and (3) the EgoPED method. As shown in Fig. 4, the results
+replacing GBP with a prototype-based approach leads to a           demonstrate that ActionFormer with the CDC module con-
+further decline in performance, indicating that the Gaussian-      sistently outperforms both ActionFormer (without CDC) and
+Based Probabilistic Model is more effective. Overall, these        EgoPED, highlighting the effectiveness of the CDC module
+
+Authorized licensed use limited to: Ningbo University. Downloaded on July 24,2026 at 14:44:57 UTC from IEEE Xplore. Restrictions apply.
+  Use knife                                                             Put banana        (No.62476201, 62222203 and 62306065) and the Guang-
+   to scoop                                                           slices on tortilla
+   Nutella                                                                                dong Basic and Applied Basic Research Foundation
+                                                                       Fold tortilla
+ Slice using                                                                              (2023A1515140104).
+     knife                                                             Background
+                                                                                                                       REFERENCES
+Place tortilla
+  wedges on                                                                                [1] Y. Ahmine, A. Dey, and A. I. Comport, “Pnerf: Probabilistic neural
+     plate                                                                                      scene representations for uncertain 3d visual mapping,” CoRR, vol.
+                                                                                                abs/2209.11677, 2022.
+                Place tortilla on  Spread Nutella  Sprinkle cinnamon
+                 cutting board      onto tortilla      onto tortilla                       [2] W. Ding, J. Li, W. Mao, Z. Meng, and Z. Shen, “Rolling bearing
+                                                                                                remaining useful life prediction based on dilated causal convolutional
+Fig. 5. Visualization of the 2D projections of the GMM distributions learned                    densenet and an exponential model,” Reliab. Eng. Syst. Saf., vol. 232,
+for each action in the quesadilla task from the EgoPED dataset.                                 p. 109072, 2023.
+
+Fig. 6. Comparison of error detection on tea, coffee, and pinwheels tasks in               [3] A. Flaborea, G. M. D. di Melendugno, L. Plini, L. Scofano, E. D.
+EgoPER. The first row represents the ground truth (GT) action segmentation.                     Matteis, A. Furnari, G. M. Farinella, and F. Galasso, “PREGO: online
+The second row visualizes several frames from the sequences.                                    mistake detection in procedural egocentric videos,” in CVPR, 2024, pp.
+                                                                                                18 483–18 492.
+in enhancing temporal action segmentation. While EgoPED
+generally outperforms the original ActionFormer, it occasion-                              [4] R. A. Hamad, M. Kimura, L. Yang, W. L. Woo, and B. Wei, “Dilated
+ally underperforms even the original version, indicating the                                    causal convolution with multi-head self attention for sensor human
+instability of CSPL compared to the CDC module.                                                 activity recognition,” Neural Comput. Appl., vol. 33, no. 20, pp. 13 705–
+Qualitative Analysis. As shown in Fig. 5, the projection of                                     13 722, 2021.
+the learned GMM distribution for each action in the 2D space
+demonstrates that each action corresponds to a distinct region.                            [5] Y. Ji, J. Wang, Y. Gong, L. Zhang, Y. Zhu, H. Wang, J. Zhang, T. Sakai,
+These well-separated regions facilitate effective error detec-                                  and Y. Yang, “MAP: multimodal uncertainty-aware vision-language pre-
+tion. The GMMs effectively capture the underlying data char-                                    training model,” in CVPR, 2023, pp. 23 262–23 271.
+acteristics, addressing the issue of large intra-class variance
+and small inter-class variance observed in EgoPED prototypes.                              [6] X. Jiang, X. Xu, J. Zhang, F. Shen, Z. Cao, and H. T. Shen, “Semi-
+As illustrated in Fig. 6, our proposed method demonstrates                                      supervised video paragraph grounding with contrastive encoder,” in
+superior error detection performance across the tea, coffee,                                    CVPR, 2022, pp. 2466–2475.
+and pinwheels tasks in the EgoPER dataset. Compared to
+EgoPED, our approach identifies erroneous segments with                                    [7] S. Lee, Z. Lu, Z. Zhang, M. Hoai, and E. Elhamifar, “Error detection in
+higher accuracy, significantly reducing false positives where                                   egocentric procedural task videos,” in CVPR, 2024, pp. 18 655–18 666.
+normal frames are incorrectly detected as errors.
+                                                                                           [8] S. Li, X. Xu, C. He, F. Shen, Y. Yang, and H. T. Shen, “Cross-
+                           V. CONCLUSION                                                        modal uncertainty modeling with diffusion-based refinement for text-
+                                                                                                based person retrieval,” IEEE TCSVT, vol. 35, no. 3, pp. 2881–2893,
+   In this paper, we proposed a probabilistic framework, Prob-                                  2025.
+abilistic Embeddings with Causal Constraint (PECC) for error
+detection. By leveraging a CDC module for temporal depen-                                  [9] S. Li, X. Xu, X. Jiang, F. Shen, X. Liu, and H. T. Shen, “Multi-
+dencies and learning GMMs for the probabilistic distributions                                   grained attention network with mutual exclusion for composed query-
+of normal actions, our method consistently outperformed other                                   based image retrieval,” IEEE TCSVT, vol. 34, no. 4, pp. 2959–2972,
+methods on the EgoPER and HoloAssist datasets. These                                            2024.
+results highlight the framework’s effectiveness and potential
+for accurate and robust error detection.                                                  [10] S. Li, X. Xu, Y. Yang, F. Shen, Y. Mo, Y. Li, and H. T. Shen, “DCEL:
+                                                                                                deep cross-modal evidential learning for text-based person retrieval,” in
+                        ACKNOWLEDGMENT                                                          ACM MM, 2023.
+
+   This work was supported in part by the National Nat-                                   [11] S. Li, Y. A. Farha, Y. Liu, M. Cheng, and J. Gall, “MS-TCN++: multi-
+ural Science Foundation of China under Grants, China                                            stage temporal convolutional network for action segmentation,” IEEE
+                                                                                                Trans. Pattern Anal. Mach. Intell., vol. 45, no. 6, pp. 6647–6658, 2023.
+
+                                                                                          [12] Z. Liu, Y. Nie, C. Long, and Q. Zhang, “A hybrid video anomaly
+                                                                                                detection framework via memory-augmented flow reconstruction and
+                                                                                                flow-guided frame prediction,” in ICCV. IEEE, 2021, pp. 13 568–
+                                                                                                13 577.
+
+                                                                                          [13] N. Ristea, N. Madan, R. T. Ionescu, and K. Nasrollahi, “Self-supervised
+                                                                                                predictive convolutional attentive block for anomaly detection,” in
+                                                                                                CVPR, 2022, pp. 13 566–13 576.
+
+                                                                                          [14] F. Sener, D. Chatterjee, D. Shelepov, and K. He, “Assembly101: A large-
+                                                                                                scale multi-view video dataset for understanding procedural activities,”
+                                                                                                in CVPR, 2022, pp. 21 064–21 074.
+
+                                                                                          [15] Y. Shen and E. Elhamifar, “Progress-aware online action segmentation
+                                                                                                for egocentric procedural task videos,” in IEEE/CVF Conference on
+                                                                                                Computer Vision and Pattern Recognition. IEEE, 2024, pp. 18 186–
+                                                                                                18 197.
+
+                                                                                          [16] X. Wang, T. Kwon, M. Rad, B. Pan, I. Chakraborty, S. Andrist,
+                                                                                                D. Bohus, A. Feniello, B. Tekin, F. V. Frujeri, N. Joshi, and M. Pollefeys,
+                                                                                                “Holoassist: an egocentric human interaction dataset for interactive AI
+                                                                                                assistants in the real world,” in ICCV, 2023, pp. 20 213–20 224.
+
+                                                                                          [17] Z. Wang, Z. Gao, K. Guo, Y. Yang, X. Wang, and H. T. Shen,
+                                                                                                “Multilateral semantic relations modeling for image text retrieval,” in
+                                                                                                CVPR, 2023, pp. 2830–2839.
+
+                                                                                          [18] J. Wu, H. Hsieh, D. Chen, C. Fuh, and T. Liu, “Self-supervised sparse
+                                                                                                representation for video anomaly detection,” in ECCV, ser. Lecture Notes
+                                                                                                in Computer Science, vol. 13673, 2022, pp. 729–745.
+
+                                                                                          [19] C. Zhang, J. Wu, and Y. Li, “Actionformer: Localizing moments of
+                                                                                                actions with transformers,” in ECCV, ser. Lecture Notes in Computer
+                                                                                                Science, S. Avidan, G. J. Brostow, M. Cisse´, G. M. Farinella, and
+                                                                                                T. Hassner, Eds., vol. 13664, 2022, pp. 492–510.
+
+                Authorized licensed use limited to: Ningbo University. Downloaded on July 24,2026 at 14:44:57 UTC from IEEE Xplore. Restrictions apply.
+

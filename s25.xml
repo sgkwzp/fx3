@@ -1,0 +1,86 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<feed xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/" xmlns:arxiv="http://arxiv.org/schemas/atom" xmlns="http://www.w3.org/2005/Atom">
+  <id>https://arxiv.org/api/w+kL1AJ/4qF6Iv5grFNQ5Xs94Bc</id>
+  <title>arXiv Query: search_query=abs:"mistake" AND abs:"anticipation" AND abs:"egocentric"&amp;id_list=&amp;start=0&amp;max_results=30</title>
+  <updated>2026-07-26T12:30:42Z</updated>
+  <link href="https://arxiv.org/api/query?search_query=abs:%22mistake%22+AND+(abs:%22anticipation%22+AND+abs:%22egocentric%22)&amp;start=0&amp;max_results=30&amp;id_list=" type="application/atom+xml"/>
+  <opensearch:itemsPerPage>30</opensearch:itemsPerPage>
+  <opensearch:totalResults>2</opensearch:totalResults>
+  <opensearch:startIndex>0</opensearch:startIndex>
+  <entry>
+    <id>http://arxiv.org/abs/2411.02570v3</id>
+    <title>TI-PREGO: Chain of Thought and In-Context Learning for Online Mistake Detection in PRocedural EGOcentric Videos</title>
+    <updated>2026-01-05T16:20:54Z</updated>
+    <link href="https://arxiv.org/abs/2411.02570v3" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2411.02570v3" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Identifying procedural errors online from egocentric videos is a critical yet challenging task across various domains, including manufacturing, healthcare, and skill-based training. The nature of such mistakes is inherently open-set, as unforeseen or novel errors may occur, necessitating robust detection systems that do not rely on prior examples of failure. Currently, however, no technique effectively detects open-set procedural mistakes online.
+  We propose a dual branch architecture to address this problem in an online fashion: one branch continuously performs step recognition from the input egocentric video, while the other anticipates future steps based on the recognition module's output. Mistakes are detected as mismatches between the currently recognized action and the action predicted by the anticipation module. The recognition branch takes input frames, predicts the current action, and aggregates frame-level results into action tokens. The anticipation branch, specifically, leverages the solid pattern-matching capabilities of Large Language Models (LLMs) to predict action tokens based on previously predicted ones.
+  Given the online nature of the task, we also thoroughly benchmark the difficulties associated with per-frame evaluations, particularly the need for accurate and timely predictions in dynamic online scenarios.
+  Extensive experiments on two procedural datasets demonstrate the challenges and opportunities of leveraging a dual-branch architecture for mistake detection, showcasing the effectiveness of our proposed approach. In a thorough evaluation including recognition and anticipation variants and state-of-the-art models, our method reveals its robustness and effectiveness in online applications.</summary>
+    <category term="cs.CV" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2024-11-04T20:03:06Z</published>
+    <arxiv:primary_category term="cs.CV"/>
+    <author>
+      <name>Leonardo Plini</name>
+    </author>
+    <author>
+      <name>Luca Scofano</name>
+    </author>
+    <author>
+      <name>Edoardo De Matteis</name>
+    </author>
+    <author>
+      <name>Guido Maria D'Amely di Melendugno</name>
+    </author>
+    <author>
+      <name>Alessandro Flaborea</name>
+    </author>
+    <author>
+      <name>Andrea Sanchietti</name>
+    </author>
+    <author>
+      <name>Giovanni Maria Farinella</name>
+    </author>
+    <author>
+      <name>Fabio Galasso</name>
+    </author>
+    <author>
+      <name>Antonino Furnari</name>
+    </author>
+    <arxiv:doi>10.1016/j.cviu.2025.104613</arxiv:doi>
+    <link rel="related" href="https://doi.org/10.1016/j.cviu.2025.104613" title="doi"/>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2203.14712v2</id>
+    <title>Assembly101: A Large-Scale Multi-View Video Dataset for Understanding Procedural Activities</title>
+    <updated>2022-05-01T14:49:02Z</updated>
+    <link href="https://arxiv.org/abs/2203.14712v2" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2203.14712v2" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Assembly101 is a new procedural activity dataset featuring 4321 videos of people assembling and disassembling 101 "take-apart" toy vehicles. Participants work without fixed instructions, and the sequences feature rich and natural variations in action ordering, mistakes, and corrections. Assembly101 is the first multi-view action dataset, with simultaneous static (8) and egocentric (4) recordings. Sequences are annotated with more than 100K coarse and 1M fine-grained action segments, and 18M 3D hand poses. We benchmark on three action understanding tasks: recognition, anticipation and temporal segmentation. Additionally, we propose a novel task of detecting mistakes. The unique recording format and rich set of annotations allow us to investigate generalization to new toys, cross-view transfer, long-tailed distributions, and pose vs. appearance. We envision that Assembly101 will serve as a new challenge to investigate various activity understanding problems.</summary>
+    <category term="cs.CV" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2022-03-28T12:59:50Z</published>
+    <arxiv:comment>CVPR 2022, https://assembly-101.github.io/</arxiv:comment>
+    <arxiv:primary_category term="cs.CV"/>
+    <author>
+      <name>Fadime Sener</name>
+    </author>
+    <author>
+      <name>Dibyadip Chatterjee</name>
+    </author>
+    <author>
+      <name>Daniel Shelepov</name>
+    </author>
+    <author>
+      <name>Kun He</name>
+    </author>
+    <author>
+      <name>Dipika Singhania</name>
+    </author>
+    <author>
+      <name>Robert Wang</name>
+    </author>
+    <author>
+      <name>Angela Yao</name>
+    </author>
+  </entry>
+</feed>

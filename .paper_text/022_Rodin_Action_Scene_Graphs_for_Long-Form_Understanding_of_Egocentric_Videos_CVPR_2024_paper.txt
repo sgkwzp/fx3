@@ -1,0 +1,871 @@
+                               This CVPR paper is the Open Access version, provided by the Computer Vision Foundation.
+                                                Except for this watermark, it is identical to the accepted version;
+
+                                         the final published version of the proceedings is available on IEEE Xplore.
+
+Action Scene Graphs for Long-Form Understanding of Egocentric Videos
+
+Ivan Rodin∗ 1 Antonino Furnari∗ 1 Kyle Min∗ 2 Subarna Tripathi2 Giovanni Maria Farinella1
+                                     1University of Catania 2Intel Labs
+
+   {ivan.rodin,antonino.furnari,giovanni.farinella}@unict.it {kyle.min,subarna.tripathi}@intel.com
+
+        PRE          action 1    POST                  PRE          action 2   POST                     PRE          action 3    POST
+                       PNR                                          PNR                                                PNR
+
+G(t=1)                 CW                      G(t=2)                 CW                        G(t=3)                 CW
+                     TAKES with                                     ADDS with                                        DROPS with
+             direct                                         direct                                           direct
+              obj.        from                                obj.       to                                   obj.
+                                                                    BOWL
+                                                            FLOUR                                              from
+                                                                                                             BOWL
+                     CONTAINER
+
+                                BOTH HANDS                               with  RIGHT HAND                                                           RIGHT HAND
+                                                                    DOUGH                                         DOUGH to
+             DOUGH
+                                                                                                                                            SCALE
+Camera wearer takes container with dough with  Camera wearer adds flour to bowl with dough  Camera wearer drops dough from the bowl to the scale
+both hands                                     with right hand                              with right hand
+
+Figure 1. Egocentric Action Scene Graphs are temporal dynamic graphs (G(t)) capturing the action verbs (nodes in blue), direct or active
+objects (nodes in green), and other objects (nodes in yellow) involved in the activity performed by a camera wearer (the orange CW node).
+Edges between nodes represent relationship between the verb and the objects or between object pairs. The graph evolves through time
+providing a long-from representation of the egocentric video (dashed lines). Objects of interaction are grounded with bounding boxes.
+
+                                Abstract                                       1. Introduction
+
+We present Egocentric Action Scene Graphs (EASGs), a                           Wearable devices allow to capture video of human activities
+new representation for long-form understanding of egocen-                      from an egocentric perspective. A proper analysis of such
+tric videos. EASGs extend standard manually-annotated                          video can enable a detailed understanding of how humans
+representations of egocentric videos, such as verb-noun                        interact with the environment, how they manipulate objects,
+action labels, by providing a temporally evolving graph-                       and, ultimately, what are their goals and intentions. Easily
+based description of the actions performed by the camera                       covering sequences of activities performed by the camera
+wearer, including interacted objects, their relationships,                     wearer in different physical locations, egocentric video is
+and how actions unfold in time. Through a novel annotation                     by its own nature long-form [48]. Hence, typical applica-
+procedure, we extend the Ego4D dataset adding manually                         tions of egocentric vision systems require algorithms able
+labeled Egocentric Action Scene Graphs which offer a                           to represent and process video over temporal spans that last
+rich set of annotations for long-from egocentric video                         in the order of minutes or hours. Examples of such applica-
+understanding. We hence define the EASG generation task                        tions are action anticipation [5, 12, 40], video summariza-
+and provide a baseline approach, establishing preliminary                      tion [8], and episodic memory retrieval [12]. Despite the
+benchmarks. Experiments on two downstream tasks, action                        relevance of such applications in the panorama of egocen-
+anticipation and activity summarization, highlight the                         tric vision [37], progress in this area has been hindered by
+effectiveness of EASGs for long-form egocentric video                          the lack of a comprehensive and long-form representation
+understanding. We will release the dataset and code to                         of videos that algorithms can rely on, with popular high-
+replicate experiments and annotations1 .                                       level human-gathered representations being in the form of
+                                                                               textual narrations [5], verb-noun action labels [9], tempo-
+     ∗These authors contributed equally to this work.                          ral bounds for action segments [5, 9, 22], object bounding
+     1The code is available at https://github.com/fpv-iplab/EASG               boxes [36], object state changes [12], and hand-object inter-
+
+                                                                    18622
+action states [7, 41], all short-range representations describ-  domain have focused on various methodologies to facilitate
+ing temporal spans lasting few seconds.                          the transition from raw visual data to structured graph repre-
+                                                                 sentations. For instance, graph structured data is leveraged
+   In this paper, we introduce a novel graph-based repre-        for image synthesis in [14, 17], learning video represen-
+sentation of actions performed by the camera wearer in an        tations in [47], detecting video objects in [54] and person
+egocentric video, which we term Egocentric Action Scene          re-identification in [49]. In [45], the Visual Context Tree
+Graph (EASG). The proposed representation builds on the          (VCTree) graph structure is built for the purpose of visual
+literature of scene graphs [15, 16, 38] to extend the classic    question answering. The work of [25] utilizes a transformer
+verb-noun action representation available in egocentric vi-      architecture to produce a scene graph of an image, while
+sion datasets [5, 6, 9, 12, 22] to a structured format in which  [4, 11, 21, 31] explores approaches to build dynamic scene
+a sequence of actions performed by the camera wearer is          graphs to describe the scene based on the video inputs.
+represented with a temporal dynamic graph encoding and
+grounding to the video the objects involved in the action,          Scene graph generation extends beyond being an end
+the action verb, and the main relationships between the con-     goal, as a powerful precursor for downstream applications
+sidered objects (see Figure 1). EASGs naturally model the        in computer vision, enabling enhanced performance in com-
+temporal evolution of egocentric actions, thus providing a       plex tasks. For instance, the works of [13] demonstrated
+rich representation to be exploited in a variety of tasks re-    how scene graph generation could be leveraged to improve
+quiring long-form video understanding.                           object detection and visual relationship detection, thus of-
+                                                                 fering a more contextual understanding of visual scenes.
+   We build on the Ego4D dataset [12], which provides ego-       Similarly, the works of [33, 52, 53] explored the utilization
+centric videos of individuals engaged in a range of activities   of scene graphs for image captioning, where the generated
+representative of human perception, and augment it with          graphs provided a structured semantic understanding that
+manually gathered egocentric action scene graph labels col-      enriched the descriptive quality of generated captions.
+lected through a novel annotation procedure involving dif-
+ferent labeling steps and a validation stage. As customary in       The works of [1, 15, 27, 38, 55] delved into employing
+the scene graph literature [15, 50], we benchmark the ego-       scene graphs for video understanding, showcasing that the
+centric action scene graph generation task both to provide       structured representations facilitated a more nuanced under-
+baseline results and as a means of investigating the feasibil-   standing of temporal actions and interactions within videos.
+ity of automatically recovering such rich human-annotated        These collective efforts accentuate the instrumental role of
+representations, a fundamental ability for downstream ap-        scene graph generation not just as a standalone objective
+plications. We hence show initial results highlighting the       but as a potent enabler for a spectrum of downstream tasks,
+effectiveness of the proposed EASG representation in tack-       amplifying the scope and efficacy of visual understanding.
+ling long-form video understanding tasks such as action an-
+ticipation and activity summarization.                              Building on previous investigations, in this work, we
+                                                                 propose a novel graph-based representation for actions in
+   The contributions of this paper are as follows: 1) We         egocentric videos. Our representation is shown to improve
+introduce Egocentric Action Scene Graphs, a novel repre-         long-from video understanding in the considered domain.
+sentation for long-form understanding of egocentric videos;
+2) We extend Ego4D with manually annotated EASG la-              Graph-based representations in Egocentric Vision Al-
+bels, which are gathered through a novel annotation proce-       though there has been substantial work in video scene graph
+dure; 3) We propose a EASG generation baseline and pro-          processing, only a limited number of studies have focused
+vide initial baseline results; 4) We present experiments that    on egocentric videos. The unique perspective offered by
+highlight the effectiveness of the EASG representation for       egocentric videos allows for a different approach to under-
+long-form egocentric video understanding. We will release        stand human interactions and activities. Scene graphs from
+the dataset and the code to replicate data annotation and the    the perspective of autonomous vehicles have been more ex-
+experiments.                                                     tensively researched by the community [19, 26] than the
+                                                                 human-centric view videos. However, there are a few pre-
+2. Related works                                                 vious works studying the applicability of scene graph rep-
+                                                                 resentation in egovision. In [28, 29], the authors show how
+Our work is related to previous research lines which are re-     the graph-based representation can be useful for the audio-
+vised in the following sections.                                 video diarization of egocentric videos. In [24], the authors
+Graph-based representations for video understanding              solve the problem of scene graph generation by compos-
+The exploration of graph-based representations in image          ing exo- and ego-centric view processing to construct scene
+and video analysis has burgeoned over recent years, offer-       graphs. In [44], egocentric scene graph representations
+ing a structured approach to encapsulate complex relation-       are used to perform downstream tasks of embodied naviga-
+ships and interactions among element of the scene inherent       tion. Ego-Topo [32] presents graphs derived from egocen-
+in visual data. Seminal works [14, 17, 47, 49, 54]i in this      tric videos, encoding the scene topology, thereby enhancing
+
+                                                                 18623
+G G(t)                      vcw(t)                                        G(t+1)                  vcw(t+1)
+
+                               e(vcw(t),vverb(t))                                                 e(vcw(t+1),vverb(t+1))
+
+                            r = action                                                            r = action
+
+        e(vverb(t), v1(t))   vverb(t)                 e(vverb(t), v2(t))  e(vverb(t+1), v3(t+1))  vverb(t+1)              e(vverb(t+1), v1(t+1))
+
+     r = direct object      take                   r = from               r = direct object       cut                     r = with
+
+...            v1(t)                               v2(t)                          v3(t+1)                                                         ...
+
+                cutter         node                table                          dough             node                   v1(t+1)
+                boxPRE      attributes             boxPRE                         boxPRE          attributes
+                boxPNR                             boxPNR                         boxPNR                                  cutter
+                boxPOST     groundings             boxPOST                        boxPOST         groundings              boxPRE
+                                                                                                                          boxPNR
+                                                            Same Object Instance                                          boxPOST
+
+        PRE                 PNR                    POST                           PRE             PNR                     POST
+                              t
+                                                                                                  t+1                     T
+
+Figure 2. An Egocentric Action Scene Graph (EASG) is a time-varying directed graph G(t) = (V (t), E(t)), where nodes V (t) represent
+either the camera wearer (vcw(t)), the action verb (vverb(t)), or the involved objects. Edges E(t) represent relationships e(vi(t), vj(t))
+between node pairs. Each node, except for the CW node, can have one or more attributes att(vj(t)) (indicated in blue). Each object has
+three grounding bounding boxes in the P RE, P N R and P OST frames (highlighted in orange). Nodes vj representing the same object
+instance maintain the same index across different timesteps (e.g., v1(t) and v1(t + 1) highlighted in red).
+
+long-term video understanding and egocentric action antici-               G(t) = (V (t), E(t)), where V (t) is the set of nodes at time
+pation. While these previous studies have shown the poten-                t and E(t) is the set of edges between such nodes (Fig-
+tial of extending scene graph generation techniques to ego-               ure 2). Each temporal realization of the graph G(t) corre-
+centric videos, in this paper, we propose a general graph-                sponds to an egocentric action spanning over a set of three
+based representation designed to be descriptive of human-                 frames defined as in [12]: the precondition (PRE), the point
+object interactions happening in egocentric videos to im-                 of no return (PNR) and the postcondition (POST) frames.
+prove long-form video understanding.                                      The graph G(t) is hence effectively associated to three
+Graph-based Image and Video Datasets Prominent                            frames: F (t) = {P REt, P N Rt, P OSTt}. G(t) has two
+datasets such as Action Genome [15] and Home Action                       fixed nodes: the camera wearer node vcw(t) representing
+Genome [38], in particular, have contributed by provid-                   the camera wearer, and the verb node vverb(t), describing
+ing rich graph structures that encode actions and interac-                the action performed by the camera wearer at time t. Each
+tions within videos. The Panoptic Scene Graph (PSG)                       graph G(t) also contains a set of object nodes Vobj(t) en-
+dataset [50] introduced enhanced annotations by replac-                   coding the objects involved in the actions. In this formula-
+ing bounding boxes with fine-grained object segmentation                  tion, the camera wearer’s hands will appear as object nodes.
+masks. The Visual Genome dataset [20] has significantly                   In sum, we have: V (t) = {vcw(t), vverb(t)} ∪ Vobj(t).
+contributed to the elucidation of relationships between ob-               Apart for the camera wear node, each other node is associ-
+jects and attributes through graph representations extracted              ated to one or more attributes through a function att. Hence,
+from images. We extend Ego4D [12] with the proposed                       for the camera wearer node, we define att(vcw(t)) =
+graph-based egocentric action annotations, to enhance long-               ∅. The verb node is associated to a verb class attribute:
+form video understanding and enable further investigations                att(vverb(t)) = verb. Noun nodes vi(t) are associated to
+on graph-based representations in egocentric vision.                      a noun class attribute noun and to three bounding box at-
+                                                                          tributes grounding the noun to the P RE(t), P N R(t) and
+3. Egocentric Action Scene Graphs                                         P OST (t) frames associated to the action taking place at
+                                                                          time t: att(vi(t)) = (noun, boxP RE, boxP NR, boxP OST ).
+Egocentric Action Scene Graphs (EASGs) provide anno-                      Note that two nodes indexed by the same subscript i are
+tations for a video clip in the form of a dynamic graph.                  related to the same physical object instance regardless of
+We formalize an EASG as a time-varying directed graph                     time t. For instance vi(t) and vi(t′) represent the same
+
+                                                                          18624
+physical objects even when t̸ = t′, but their associated                     current annotation. If the right or left hands are not visible
+bounding box attributes may not correspond as they are re-
+lated to different frames.                                                   in the scene, then either blh = ∅ or brh = ∅. We labeled an
+                                                                             independent EASG Gi(t) for each clip Ci. Each temporal
+   The edges in the graph describe the relationships be-
+tween nodes. Let vi(t) and vj(t) be two nodes in the                         realization of the graph, Gi(t) is seeded from the annota-
+graph. Then, we can define an edge (vi(t), vj(t)) ∈ E(t) if
+there is a relationship between the nodes vi(t) and vj(t)                                    i    i,P RE i,P N R i,P OST
+at time t. We represent the existence of an edge be-                         tion tuple at = (at , at , at                     ). The data an-
+tween nodes vi(t) and vj(t) using the function et, such that
+et(vi(t), vj(t)) = r, if there is a relationship r between                   notation is performed in two stages: 1) the graph annotation
+nodes vi(t) and vj(t); and et(vi(t), vj(t)) = ∅ otherwise.
+We require r ∈ R, where R is the set of possible relation-                   stage, and 2) the graph validation stage. These two stages
+ships between nodes. Relations between verb and object
+nodes can be of a direct object kind (e.g., puts – dobj –                    are detailed in the following sections. We used Amazon
+package), or a preposition (i.e., puts – in – fridge), while
+relationships between object nodes are characterized by the                  Mechanical Turk for both stages. After data graphs annota-
+prepositions only (i.e., package –with – carrot). Objects
+vi(t) which are in a direct object relation with the verb node               tion and validation, a temporal recollection stage allows to
+vverb(t) are also referred to as “direct objects”, while all
+other objects are referred to as “indirect objects”. There is                turn individual graphs into temporal dynamic graphs. The
+always an action relationship between vcw(t) and vverb(t),
+i.e., (vcw, vverb) ∈ E(t) ∧ r(vcw, vverb) = action.                          annotation process is discussed in the following sections.
+
+   Since our representation is centered on the action cur-                   We will release the code to collect annotations following
+rently executed by the camera wearer, we add only the ob-
+jects that are either direct objects (e.g., objects manipulated              the proposed procedure.
+by vcw(t)), or objects that have a direct relationship with
+either the verb node or any direct object nodes. For exam-                   4.1. Egocentric Action Scene Graph Annotation
+ple, if the camera wearer takes an apple from the table on
+which many other objects are located (e.g., a pear), only the                This stage aims to obtain initial EASG Gi(t) from annota-
+apple and table will appear as nodes of the EASG, whereas
+pear will not.                                                               tions  ai    ∈  Ci.  This  is  done  through  an  initialization  and  a
+
+                                                                                      t
+
+                                                                             refinement procedures.
+
+                                                                             Graph Initialization We add by default the camera wearer
+
+                                                                             node vcw(t), the verb node vverb(t), and set the default ac-
+
+                                                                             tion edge et(vcw(t), vverb(t)) = action. The verb attribute
+
+                                                                             of vverb(t) is set by extracting the verb belonging to the
+                                                                             narration r associated to the current annotation ait. We then
+
+                                                                             initialize a new object node nk(t) to represent the manipu-
+
+                                                                             lated object. We set the noun and box attributes of nk(t) as
+
+                                                                             the    noun  n  and  bounding  box   bo  annotations  included    in  ai
+
+                                                                                                                                                     t
+                                                                             (n, bo ∈ ait). We add a direct object edge between vverb(t)
+
+                                                                             and nk(t): et(vverb(t), nk(t)) = direct object.
+
+                                                                             Graph Refinement We ask three independent AMT anno-
+
+                                                                             tators to provide manual annotations in order to refine the
+
+                                                                             initial graph Gi(t). The annotation pipeline for this stage
+
+4. Ego4D-EASG Dataset                                                        is shown in the Figure 3. We first ask annotators to in-
+
+We build our EASG dataset, Ego4D-EASG, by annotating                         spect the provided verb-noun pair, the associated P RE,
+
+a subset of 221 Ego4D [12] clips sampled over 181 distinct                   P N R and P OST frames and a video clip of 5 seconds
+
+videos containing labels for the State Change Object De-                     sampled around the P N R frame. Initial verb-noun pairs
+
+tection benchmark (SCOD). These labels, together with the                    are obtained extracting the verb from the narration and the
+
+narrations available in Ego4D are used to seed the collec-                   noun from the SCOD annotation. Since the verbs are inher-
+
+tion of EASG annotations. Let C = {C1, . . . , CN } be the                   ited from narrations, it may occur that similar verbs have
+
+set of selected clips. Each clip Ci consists in a sequence of                different meanings (e.g. “pick tomato” (selecting) versus
+
+object state change annotations from the SCOD benchmark                      “pick up hammer” (lifting)), this allows the graph to keep
+
+Ci  =  {ait1  ,    i  ,  .  .  .  ,    i   },  where the generic annotation  the expressivity of natural language. At the same time,
+
+                 at2                 atmi                                    Ego4D taxonomies can be used to map verbs to “structured”
+
+i      i,P RE i,P N R i,P OST
+at = (at , at , at                             ) contains annotations for    categories, to reduce the number of classes and aggregate
+
+three salient frames related to an object-state change at time               the verbs with similar meanings (e.g., “take” may include
+
+t of the clip Ci: the precondition (PRE), the point of no re-                “pick” and “pick up”). Annotators then check if the verb-
+
+turn (PNR), and the postcondition (POST). Each annotation                    noun pair corresponds to the observed clip; if it does not,
+is defined as ati,x = (f, n, bo, blh, brh, r), where x is either
+                                                                             then the annotators provide a correct (verb, noun) pair and
+PRE, PNR or POST, f is the frame number, n and bo are
+                                                                             the current annotation is ended and marked for later review.
+
+the noun class and bounding box of the object of change                      We observe that narrations do not match in < 5% of the
+
+(the manipulated object), blh is the bounding box of the left                cases. These examples have been later manually checked
+
+hand, brh is the bounding box of the right hand, and r is a                  and re-labeled following the same procedure. We then ask
+
+corresponding free-form narration which is matched to the                    the annotators to specify and ground any additional objects
+
+                                                                             18625
+START     View current verb-noun pair        Is the verb-noun NO           Are there other NO           Indirect objects other NO  END
+       Inspect PRE, PNR, POST frames          pair incorrect?              objects to add?                    than hands?
+
+                Inspect clip sample
+
+                                             YES                                        YES                                  YES
+
+                                                                     Select role (preposition)          Annotate indirect objects
+                                                                    Add indirect object (noun)             with bounding boxes
+
+                                              Provide new                                                                          Mark for review
+                                             verb-noun pair
+
+Figure 3. The Ego4D-EASG annotation pipeline. The annotators first review the provided verb-noun pair, the P RE, P N R, P OST frames
+and a clip sampled around P N R. They then check the existing narration and add indirect objects and related groundings, if necessary.
+
+Validation procedure                         Example Questions (answers in red)                         Example Frame
+1. Filtering verb-noun pair                  Does CW take bowl or press dough? take bowl
+
+2. Selecting proper preposition in case of   Select the preposition which is more appropriate:
+multiple edges between two nodes             • CW takes bowl with left hand ✓
+                                             • CW takes bowl on left hand
+3. Selecting hand(s) if there are different
+hands with the same preposition              Does CW take bowl with right hand, with left hand or with
+                                             both hands? left hand
+4. Identifying spatial relations             Is the following statement correct:
+                                             • The bowl is with flour [Y/N] Y
+                                             • The bowl is from scale [Y/N] N
+
+Table 1. Examples of questions (with correct answers in red) asked to the annotators in the validation stage to resolve ambiguities between
+the labels provided in the annotation stage.
+
+which may be linked to the verb node vverb or any existing          tuple, we show the annotators the P RE, P N R, and P OST
+object nodes. Note that only indirect objects can be added          frames, the video clip sampled around the P N R and ask a
+in this stage. For each newly added object node vk, anno-           set of questions aiming to sort out inconsistencies across
+tators are also asked to specify the preposition linking this       the three graphs. We formulate up to four questions: 1) a
+object to the current graph (e.g., “the camera wearer takes         question aimed to select the correct verb-noun pair if there
+bowl with right hand”, where “right hand” is the new ob-            is disagreement in the three graphs; 2) a question aimed to
+ject and “with” is the specified preposition). We prompt the        disambiguate relations between pairs of nodes, if the three
+annotators with some likely objects which may appear in             graphs have disagreeing edges between the same node pairs;
+the frame and related prepositions, extracted from the nar-         3) a question aimed to identify the correct hand used to ma-
+ration r through part of speech tagging, but the annotators         nipulate objects; 4) a question aimed to disambiguate spa-
+were free to add any new objects from the taxonomy of 1610          tial relationships. The answers provided by the annotators
+objects mentioned in Ego4D narrations they may find rele-           to each of these questions allow to resolve ambiguities and
+vant in the observed video clip. For each of the added indi-        obtain a single graph Gi(t) for each clip Ci and each times-
+rect objects, annotators are also asked to ground them to the       tamp t. In our procedure, during the first stage, three anno-
+P RE, P N R, and P OST frames through bounding boxes.               tators agreed 84% of time, while the remaining G(t) were
+If the added objects correspond to the hands, the groundings        sent to validation stage and were validated by one annotator.
+are set to blh and brh as specified in the annotation aj. At        Table 1 reports example questions and correct answers for
+the end of this process, we obtain three graphs G1i (t), G2i (t),   an example annotation.
+G3i (t) as labeled by the three independent annotators.
+                                                                    4.3. Temporal Recollection
+4.2. Egocentric Action Scene Graph Validation
+                                                                    The graphs Gi(t) obtained through the annotation and val-
+The validation stage aggregates the data received from the          idation stages are static graphs, meaning that node indices
+three annotators and ensures the quality of the final anno-         at different timestamps do not necessarily indicate the same
+tations. In this stage, for each (G1i (t), G2i (t), G3i (t)) graph  object. For instance, the object “plate” may be identified by
+
+                                                                    18626
+                            Scenarios of Ego4D-EASG                                                                                                    Distribution of most common object nodes
+
+                          Carpenter            Vehicle Washing                 600
+                    Cooking
+Other: Gardening / Music /
+Cards / Pets / Hygiene                               Bike Mechanic             500
+
+                            6.3%3.6%5.9% 6.8%  6.8%                 Frequency  400
+
+Scooter Mechanic Baker
+                    13.1%                      7.7%                            300
+
+                            8.1% 11.3% Farmer 200
+                                               9.0%
+Cleaning / Laundry                                                             100
+                               11.3% 10.0%
+                                                     Crafting
+                                                                               0
+                    Household                                                  dough
+                                               Construction Jobs                table
+                                                                                  brush
+                                                                                    tray
+                                                                                     paper
+                                                                                       cardboard
+                                                                                         plate
+                                                                                          wood
+                                                                                            pot
+                                                                                              cloth
+                                                                                               cutter
+                                                                                                 wire
+                                                                                                   wrench
+                                                                                                     floor
+                                                                                                      screw
+                                                                                                        bowl
+                                                                                                          screwdriver
+                                                                                                           fabric
+                                                                                                             bucket
+                                                                                                               iron
+                                                                                                                cup
+
+                                                                                                                  car
+                                                                                                                    container
+
+                                                                                                                      card
+                                                                                                                       foam
+                                                                                                                         sponge
+                                                                                                                           plant
+                                                                                                                            bolt
+                                                                                                                              tap
+                                                                                                                                book
+                                                                                                                                 board
+                                                                                                                                   wheel
+                                                                                                                                     paintbrush
+                                                                                                                                      nut
+                                                                                                                                        hose
+                                                                                                                                          flour
+                                                                                                                                            bag
+                                                                                                                                             pan
+                                                                                                                                               short
+                                                                                                                                                 cable
+                                                                                                                                                  bottle
+                                                                                                                                                    paint
+                                                                                                                                                      water
+                                                                                                                                                       motorcycle
+                                                                                                                                                         shirt
+
+                                                                                                                                                           lid
+                                                                                                                                                             mat
+                                                                                                                                                              mixture
+                                                                                                                                                                machine
+                                                                                                                                                                  plank
+                                                                                                                                                                   soil
+                                                                                                                                                                     camera
+                                                                                                                                                                       sandpaper
+                                                                                                                                                                        potato
+                                                                                                                                                                          basket
+                                                                                                                                                                            pedal
+                                                                                                                                                                             drill
+                                                                                                                                                                               spoon
+                                                                                                                                                                                 knife
+                                                                                                                                                                                   box
+                                                                                                                                                                                    drawer
+                                                                                                                                                                                      cover
+                                                                                                                                                                                        mug
+                                                                                                                                                                                         oven
+                                                                                                                                                                                           ground
+                                                                                                                                                                                             lift
+                                                                                                                                                                                              wall
+                                                                                                                                                                                                handle
+                                                                                                                                                                                                  shelf
+                                                                                                                                                                                                    scissors
+                                                                                                                                                                                                     plier
+                                                                                                                                                                                                       tomato
+                                                                                                                                                                                                         ruler
+                                                                                                                                                                                                          trowel
+                                                                                                                                                                                                            can
+                                                                                                                                                                                                              tissue
+                                                                                                                                                                                                               engine
+                                                                                                                                                                                                                 scraper
+                                                                                                                                                                                                                   tape
+                                                                                                                                                                                                                    onion
+                                                                                                                                                                                                                      sink
+                                                                                                                                                                                                                        trolley
+                                                                                                                                                                                                                          carton
+                                                                                                                                                                                                                           seed
+
+                                                                                                               Distribution of most common verb nodes                                                                     Distribution of prepositions
+                                                                    800                                                                                                                              5000
+                                                                    600                                                                                                                              4000
+                                                                    400                                                                                                                              3000
+                                                                    200                                                                                                                              2000
+                                                                                                                                                                                                     1000
+                                                                      0
+                                                                    Frequency                                                                                                                           0
+                                                                                                                                                                                            Frequency
+
+                                                                    pick
+                                                                      other
+                                                                        drop
+                                                                          pick up
+                                                                            hold
+                                                                              carry
+                                                                                place
+
+                                                                                  put
+                                                                                    remove
+                                                                                      adjust
+
+                                                                                        move
+                                                                                          take
+                                                                                            cut
+                                                                                              touch
+                                                                                                 open
+                                                                                                   clean
+                                                                                                     pass
+                                                                                                       wash
+                                                                                                         pull
+                                                                                                           pour
+
+                                                                                                             lift
+                                                                                                               turn
+                                                                                                                 pull out
+                                                                                                                   dip
+                                                                                                                     close
+                                                                                                                       press
+                                                                                                                         paint
+                                                                                                                           tighten
+                                                                                                                              roll
+                                                                                                                                fold
+                                                                                                                                  scoop
+                                                                                                                                    detach
+                                                                                                                                      rinse
+                                                                                                                                        put down
+                                                                                                                                          take out
+                                                                                                                                            turn off
+                                                                                                                                              raise
+                                                                                                                                                insert
+                                                                                                                                                  knead
+                                                                                                                                                    attach
+                                                                                                                                                      twist
+
+                                                                                                                                                        fix
+                                                                                                                                                           arrange
+
+                                                                                                                                                             wipe
+                                                                                                                                                               dust
+                                                                                                                                                                 separate
+                                                                                                                                                                   peel
+                                                                                                                                                                     scrape
+                                                                                                                                                                       play
+                                                                                                                                                                         bring out
+                                                                                                                                                                           grab
+                                                                                                                                                                             loosen
+                                                                                                                                                                               mix
+                                                                                                                                                                                 push
+                                                                                                                                                                                   drill
+                                                                                                                                                                                     stir
+                                                                                                                                                                                        straighten
+                                                                                                                                                                                          unscrew
+                                                                                                                                                                                            check
+
+                                                                                                                                                                                              hit
+                                                                                                                                                                                                with
+
+                                                                                                                                                                                                         in
+                                                                                                                                                                                                                 from
+
+                                                                                                                                                                                                                         on
+                                                                                                                                                                                                                                 into
+
+                                                                                                                                                                                                                                          to
+                                                                                                                                                                                                                                                  other
+
+Figure 4. Left-to-right, top-to-bottom: Distributions of clips across scenarios, object nodes, temporal lengths T of graphs G, verb nodes,
+and relation categories (excluding action and direct object relations). Data is distributed across different scenarios related to egocentric
+perception, long-tailed object, verb distributions, and prepositions. The distribution of temporal length of graphs shows the long-form
+nature of our annotations, with most graphs having a length of up to 50 timesteps.
+
+ni(t) and nj(t′) with t̸ = t′. In this stage, we reason glob-                       R, please refer to the supplementary material. Figure 4 re-
+ally on the dynamic graph Gi(t), t = 1 . . . , T and re-assign                      ports statistics on the distribution of scenarios, nouns, verbs,
+node indices to make sure that object nodes representing the                        relations, and temporal graph lengths.
+same object instance are assigned the same index. At the
+end of this process, a “plate” object will be indexed with                          5. Egocentric Action Scene Graphs Generation
+the same subscript across timestamps: ni(t) and ni(t′) with
+t̸ = t′. This makes sure that Gi(t) can be interpreted as a                         Task Definition Unlike standard scene graph generation,
+dynamic graph across all timestamps.                                                EASG generation aims to predict the action verbs as well as
+                                                                                    objects and their relationships. We define three EASG gen-
+4.4. Dataset Statistics and Comparison with Other                                   eration tasks as follows: (1) Edge classification (Edge Cls)
+      Scene Graph Datasets                                                          is to predict verb-object and object-object relationships
+                                                                                    given visual features, the ground-truth action verb and ob-
+Table 2 reports statistics on the proposed Ego4D-EASG                               ject classes, (2) Scene Graph Classification (SG Cls) is
+dataset and compares it with existing video scene graph                             to predict both the object classes and the edge relation-
+datasets. The proposed dataset is the only one designed for                         ships given visual features and the ground-truth action
+long-form egocentric video understanding and it features                            verb, and (3) Egocentric Action Scene Graph Classification
+221 egocentric video sequences, 11.4 hours of video, com-                           (EASG Cls) is to predict all these three components, which
+prising an average labeled sequence length of 3.1 minutes,                          encompass action verbs, objects, and edge relationships.
+T = 28.3 graphs per video in average, 407 object classes,                           We follow [15] and report results for predicate (Edge Cls)
+219 verb classes, and 16 relation classes. As compared to                           and scene graph (SG Cls) classification, and extend it with
+previous datasets, ours is the only including verb nodes ex-                        EASG Cls to evaluate time-evolving graphs.
+plicitly encoding actions. As a result, the number of rela-                         Experimental Setting We design a baseline model for
+tions, which in previous datasets also encoded actions (e.g.,                       the novel EASG generation task consisting of task-specific
+“looking at”) is lower than in other datasets.                                      fully-connected layers working on top of pre-extracted vi-
+                                                                                    sual features. For Edge Cls, we use a single-layer model
+   Out of the all clips, 129 belong to the SCOD-train split                         to predict the edge relation from the clip-level features and
+and 92 to SCOD-val split. The dataset contains 30,478 and                           ROIAlign features of each object bounding box. For the
+19,342 bounding boxes as object groundings in train and                             clip-level features, we take the average of SlowFast [10]
+validation splits respectively. For an exhaustive enumera-                          features (pre-extracted and provided within the Ego4D
+tion of the sets of all verbs Vverb, objects Vobj, and relations                    dataset [12]) for the whole clip spanning from PRE to POST
+                                                                                    frames. We extract the ROIAlign features using the Faster-
+     We measure the length of each sequence from the timestamp of the
+G(1) : P RE frame to the timestamp of the G(T ) : P OST frame.
+
+                                                                                    18627
+Dataset             Dynamic     Egocentric    Sequences  Hours  Avg. Len. (seconds)    Avg. Graphs per Vid.       Obj Cls  Verb Cls  Rel Cls
+VidVRD [42]             ✗             ✗          1,000      3              11                     3.9*               35      25**      132
+VidOR [43]              ✗             ✗         10,000     99              35                                        80        42       50
+Action Genome [49]      ✓             ✗         10,000     82              30        8.8* action + 29.2* spatial     35         -       25
+PVSG [51]               ✗                         400       9              77                       5               126        44       57
+HOMAGE [38]             ✗      Partly (28%)      1,752     25              3                      382                86       453       29
+Ego4D-EASG (Ours)             paired ego-exo      221                     186                      3.8              407       219       16
+                        ✓                                 11.4
+                                     ✓                                                            28.3
+
+Table 2. Comparison with existing video scene graph datasets. Our Ego4D-EASG dataset is the only one explicitly designed for long-form
+egocentric video understanding, featuring egocentric videos, dynamic graphs, an average sequence length of 3.1 minutes and an average
+number of 28.3 graphs per sequence. *measured in object-relation-object triplets. **intransitive + transitive verb predicates.
+
+                              With Constraint                                        No Constraint
+
+Method              Edge Cls  SG Cls                     EASG Cls      Edge Cls      SG Cls                                EASG Cls
+
+        R@10 R@20 R@50 R@10 R@20 R@50 R@10 R@20 R@50 R@10 R@20 R@50 R@10 R@20 R@50 R@10 R@20 R@50
+
+Random Guess 8.0 8.0 8.0 0.2 0.4 1.0 0.0 0.0 0.0 36.5 72.6 99.9 0.3 0.5 1.0 0.0 0.0 0.0
+Baseline (Ours) 60.4 60.4 60.4 41.4 44.3 50.6 14.3 16.4 17.9 94.4 99.8 100 51.6 58.2 62.4 14.7 18.3 20.9
+
+        Table 3. Baseline results for three EASG generation tasks (i.e. Edge Cls, SG Cls, and EASG Cls) in terms of Recall@K.
+
+RCNN [39] pre-trained for the short-term action anticipa-          long-form activities, in comparison with the gold-standard
+tion benchmark [12]. For SG Cls, we add an additional              verb-noun action encoding, extensively adopted in previous
+fully-connected layer to predict the object classes from the       work [6, 12]. The exact prompts used in the experiments
+ROIAlign features. For EASG Cls, we add another addi-              and additional results are provided in the supplement.
+tional layer to predict the action verb from the clip-level
+features. Following the convention in the literature of scene      6.1. Action anticipation with EASGs
+graph generation, we evaluate this baseline under two dif-
+ferent setups: With Constraint and No Constraint. The for-         Experimental Setting For the action anticipation task,
+mer restricts each graph to have at most a single verb-object      we use the GPT3 [3] text-davinci-003 model. We prompt
+relationship, whereas the latter has no such restriction. The      the model to predict the future action from a sequence
+baseline model is trained for 10 epochs using the Adam op-         of length T ∈ {5, 20}. We compare two types of rep-
+timizer [18] with a learning rate of 10−3.                         resentations - EASG and sequences of verb-noun pairs.
+Results We report the baseline results for all different tasks     The input sequence of graphs can be represented as
+and setups in Table 3 using the standard metrics of Re-            sEASG = [G(t0), G(t0 + 1), ..., G(t0 + T − 1)], with
+call@K (R@K, K=[10, 20, 50]). Baseline results are com-            t0 + T − 1 ≥ 20. Each graph G(t) is represented as
+pared with random guess. We can observe that the scores of         a string of triplets, where each triplet encapsulates the
+EASG Cls are significantly lower than other results, indicat-      relationship between nodes (e.g., CW - verb - wash;
+ing that action verbs introduce another layer of difficulty to     wash - direct object - car; wash - with - sponge). As
+EASG understanding.                                                an output, we request to provide the future unobserved
+                                                                   scene graph G(t + T ) in the same triplet format. From
+6. Downstream long-from video understanding                        the predicted graph, we extract the action as the pair of
+    tasks with Egocentric Action Scene Graphs                      verb and direct object node class for evaluation. In the
+                                                                   verb-noun baseline, the input sequence is represented as
+In this section, we report experiments aimed to show the po-       svn = [svn(t0), svn(t0 + 1), ..., svn(t0 + T − 1)], with
+tential of the EASG representation in the downstream tasks         t0 + T − 1 ≥ 20. The generic term of the sequence is a
+of action anticipation and activity summarization. Both            (verb, noun) pair extracted from the EASG annotation,
+tasks require to perform long-form reasoning of egocentric         where noun is the noun class of the direct object. The
+video, processing long video sequences spanning over dif-          ground truth future action is svn(t0 + T ). Given the
+ferent timesteps. Following recent results showing the flex-       uncertainty in forecasting future events, we prompt the
+ibility of Large Language Models (LLMs) as symbolic rea-           LLM to output up to N = 5 predictions, a standard practice
+soning machines [30], we perform these experiments with            in anticipation [5, 12]. We evaluate results using top-k
+LLMs accessed via the OpenAI API [34]. The experiments             accuracy, with k ∈ {1, 5}, reported for verb, noun, and
+aim to examine the expressive power of the EASG repre-             actions. The sample size for this experiment is 3030.
+sentation and its usefulness for downstream applications.
+We show that EASG offers an expressive way of modeling             Results Table 4 reports the results of these experiments.
+                                                                   Best results are always achieved by EASG-based represen-
+
+                                                                18628
+                                                                         INPUT                                                                                    PREDICTION                                     GROUND TRUTH
+
+                  CW                         CW                          CW                                    CW                               CW                CW
+
+EASG              ATTACH                     PICK                                  ATTACH                     DROP                              TIGHTEN                          REMOVE
+                                                                       direct obj                                                                                   direct obj
+      direct obj          with   direct obj          with   from                             in   direct obj           on    width  direct obj           with                              with  from            drop spanner
+                                                           VICE   CONNECTOR                VICE                     TABLE                                         SPANNER                        VICE    t
+      RING                RIGHT  CONNECTOR         RIGHT                                          SCREWDRIVER              RIGHT    SCREW                SPANNER                         RIGHT
+                          HAND                     HAND                                                                    HAND                                                          HAND
+
+VN    attach ring                pick connector                   attach connector                drop screwdriver                  tighten screw                 check screw
+
+Figure 5. Qualitative example of input sequences and outputs produced using the EASG (top) and verb-noun (bottom) representations for
+action anticipation, along with the ground truth future action (right). The EASG prediction “remove spanner” is much more semantically
+aligned to the ground truth “drop spanner” action than “check screw”, the prediction based on the verb-noun representation.
+
+                                                           Verb              Noun                 Action                                        CIDEr    ROUGE-1  ROUGE-2  ROUGE-L               BLEU-1  BLEU-2  BLEU-3  BLEU-4  METEOR
+
+      Seq. length T              Avg. duration             Top-1 Top-5   Top-1 Top-5              Top-1 Top-5                       V-N          9.42       31.5     10.3     29.7                 35.7    18.6     7.6     3.9    26.09
+                                                                                                                                    EASG        13.79       33.3     10.7     31.4                 37.3    19.0     7.8     4.2    26.30
+V-N                   5                19s                 2.54   5.01   47.68             62.24  1.28             2.60             Narrations  19.99       37.7     14.0     34.4                 42.0    24.0    11.7     6.7    29.43
+                                       19s                 3.33   9.53   48.84             66.03  1.88             5.24
+EASG                  5                82s                 3.43   8.41   46.69             64.85  2.01             4.98
+                                       82s                 5.94   15.97  47.36             67.26  3.40             9.24
+V-N               20                                       +2.51  +7.56  +0.67             +2.41  +1.39            +4.26            Table 5. Results of activity summarization with EASGs and verb-
+                                                                                                                                    noun representations.
+EASG              20
+
+Improvement
+
+Table 4. Performance Comparison for the Action anticipation task.
+
+tations. As can be noted, even short EASG sequences (T =                                                                            NLG (ROUGE [23], BLEU [35], METEOR [2]).
+5) tend to outperform long V-N sequences (T = 20), high-
+lighting the higher representation power of EASG, when                                                                              Results Results reported in Table 5 indicate strong improve-
+compared to standard verb-noun representations. EASG                                                                                ment in CIDEr score over svn inputs, showing that mod-
+representations achieve the best results for long sequences                                                                         els which process EASG inputs capturing detailed object-
+(T = 20). For instance, Top-5 verb is equal to 15.97 for                                                                            action relationships, will generate more specific, informa-
+T = 20, as compared to 9.53 for T = 5. These results                                                                                tive sentences that align well with reference descriptions.
+further confirm the suitability of EASG for long-form un-                                                                           As expected, inputs based on narrations achieve the best
+derstanding of egocentric video. EASGs bring overall sig-                                                                           performance. It should be noted that, while EASG are
+nificant improvements of up to +7.56 with respect to the                                                                            not as expressive as narrations, they provide a much more
+best verb-noun based prediction across the different met-                                                                           structured representation which may be beneficial for the
+rics. Figure 5 reports a qualitative example.                                                                                       development of computer vision systems. All the NLG
+                                                                                                                                    metrics show improvements of sEASG over svn representa-
+6.2. Long-form activity summarization with EASGs                                                                                    tion, which indicates that indeed, Egocentric Action Scene
+                                                                                                                                    Graphs provide meaningful information that can improve
+Experimental Setting We select a subset of 147                                                                                      the quality of long-form video summarization.
+Ego4D-EASG clips containing human-annotated sum-
+maries describing the activities performed in the clip                                                                              7. Conclusion
+in 1-2 sentences from Ego4D [12]. We construct
+three types of input sequences: sequences of graphs                                                                                 Our paper reports four key contributions: Egocentric Action
+sEASG = [G(1), G(2), ..., G(Tmax)], sequences of verb-                                                                              Scene Graphs (EASG) as a novel representation for under-
+noun pairs svn = [svn(1), svn(2), ..., svn(Tmax)], and                                                                              standing long-form egocentric videos; A procedure for the
+sequences of original Ego4D narrations, matched with the                                                                            collection of such graphs and extended the Ego4D dataset
+EASG sequence. This last input is reported for reference, as                                                                        with manually annotated EASG labels: Initial baseline re-
+we expect summarization from narrations to bring the best                                                                           sults for EASG generation; The validation of the effective-
+performance, given the natural bias of language models                                                                              ness of the EASG representation in two downstream tasks,
+towards this representation. Each G(t) is represented as                                                                            aimed at long-form egocentric video understanding. We be-
+a sentence (e.g., CW wash car with sponge) to                                                                                       lieve that these contributions mark a step forward in long-
+decrease the number of tokens in the input and to align                                                                             form egocentric video understanding.
+with the natural language form of the predicted output.
+We select clips for which Tmax ≥ 5. We use the GPT-3.5                                                                              Acknowledgements. This research is supported
+Turbo LLM model for these experiments. We evaluate the                                                                              by Intel Corporation. Research at the University
+produced summaries using the CIDEr [46] metric, adopted                                                                             of Catania is supported in part by the project Fu-
+in the image captioning literature, and standard metrics for                                                                        ture Artificial Intelligence Research (FAIR) – PNRR
+                                                                                                                                    MUR Cod. PE0000013 - CUP: E63C22001940006.
+
+                                                                                                                           18629
+References                                                                 and Pattern Recognition, pages 18995–19012, 2022. 1, 2, 3,
+                                                                           4, 6, 7, 8
+ [1] Anurag Arnab, Chen Sun, and Cordelia Schmid. Uni-               [13] Tao He, Lianli Gao, Jingkuan Song, and Yuan-Fang Li. Ex-
+      fied graph structured models for video understanding. In             ploiting scene graphs for human-object interaction detection.
+      Proceedings of the IEEE/CVF International Conference on              In Proceedings of the IEEE/CVF International Conference
+      Computer Vision, pages 8117–8126, 2021. 2                            on Computer Vision, pages 15984–15993, 2021. 2
+                                                                     [14] Roei Herzig, Amir Bar, Huijuan Xu, Gal Chechik, Trevor
+ [2] Satanjeev Banerjee and Alon Lavie. Meteor: An automatic               Darrell, and Amir Globerson. Learning canonical represen-
+      metric for mt evaluation with improved correlation with hu-          tations for scene graph to image generation. In Proc. of the
+      man judgments. In Proceedings of the acl workshop on in-             European Conf. on Computer Vision (ECCV), 2020. 2
+      trinsic and extrinsic evaluation measures for machine trans-   [15] Jingwei Ji, Ranjay Krishna, Li Fei-Fei, and Juan Carlos
+      lation and/or summarization, pages 65–72, 2005. 8                    Niebles. Action genome: Actions as compositions of spatio-
+                                                                           temporal scene graphs. In Proceedings of the IEEE/CVF
+ [3] Tom Brown, Benjamin Mann, Nick Ryder, Melanie Sub-                    Conference on Computer Vision and Pattern Recognition,
+      biah, Jared D Kaplan, Prafulla Dhariwal, Arvind Neelakan-            pages 10236–10247, 2020. 2, 3, 6
+      tan, Pranav Shyam, Girish Sastry, Amanda Askell, et al. Lan-   [16] Justin Johnson, Ranjay Krishna, Michael Stark, Li-Jia Li,
+      guage models are few-shot learners. Advances in neural in-           David Shamma, Michael Bernstein, and Li Fei-Fei. Image
+      formation processing systems, 33:1877–1901, 2020. 7                  retrieval using scene graphs. In Proceedings of the IEEE con-
+                                                                           ference on computer vision and pattern recognition, pages
+ [4] Yuren Cong, Wentong Liao, Hanno Ackermann, Bodo                       3668–3678, 2015. 2
+      Rosenhahn, and Michael Ying Yang. Spatial-temporal trans-      [17] Justin Johnson, Agrim Gupta, and Li Fei-Fei. Image genera-
+      former for dynamic scene graph generation. In Proceedings            tion from scene graphs. In CVPR, 2018. 2
+      of the IEEE/CVF international conference on computer vi-       [18] Diederik P Kingma and Jimmy Ba. Adam: A method for
+      sion, pages 16372–16382, 2021. 2                                     stochastic optimization. arXiv preprint arXiv:1412.6980,
+                                                                           2014. 7
+ [5] Dima Damen, Hazel Doughty, Giovanni Maria Farinella,            [19] Pawit Kochakarn, Daniele De Martini, Daniel Omeiza, and
+      Sanja Fidler, Antonino Furnari, Evangelos Kazakos, Davide            Lars Kunze. Explainable action prediction through
+      Moltisanti, Jonathan Munro, Toby Perrett, Will Price, et al.         self-supervision on scene graphs. arXiv preprint
+      Scaling egocentric vision: The epic-kitchens dataset. In Pro-        arXiv:2302.03477, 2023. 2
+      ceedings of the European Conference on Computer Vision         [20] Ranjay Krishna, Yuke Zhu, Oliver Groth, Justin Johnson,
+      (ECCV), pages 720–736, 2018. 1, 2, 7                                 Kenji Hata, Joshua Kravitz, Stephanie Chen, Yannis Kalan-
+                                                                           tidis, Li-Jia Li, David A Shamma, et al. Visual genome:
+ [6] Dima Damen, Hazel Doughty, Giovanni Maria Farinella,                  Connecting language and vision using crowdsourced dense
+      Antonino Furnari, Evangelos Kazakos, Jian Ma, Davide                 image annotations. International journal of computer vision,
+      Moltisanti, Jonathan Munro, Toby Perrett, Will Price,                123:32–73, 2017. 3
+      et al. Rescaling egocentric vision. arXiv preprint             [21] Rongjie Li, Songyang Zhang, and Xuming He. Sgtr: End-to-
+      arXiv:2006.13256, 2020. 2, 7                                         end scene graph generation with transformer. In proceedings
+                                                                           of the IEEE/CVF conference on computer vision and pattern
+ [7] Ahmad Darkhalil, Dandan Shan, Bin Zhu, Jian Ma, Amlan                 recognition, pages 19486–19496, 2022. 2
+      Kar, Richard Higgins, Sanja Fidler, David Fouhey, and Dima     [22] Yin Li, Miao Liu, and James M Rehg. In the eye of beholder:
+      Damen. Epic-kitchens visor benchmark: Video segmenta-                Joint learning of gaze and actions in first person video. In
+      tions and object relations. Advances in Neural Information           Proceedings of the European Conference on Computer Vi-
+      Processing Systems, 35:13745–13758, 2022. 2                          sion (ECCV), pages 619–635, 2018. 1, 2
+                                                                     [23] Chin-Yew Lin. Rouge: A package for automatic evaluation
+ [8] Ana Garcia Del Molino, Cheston Tan, Joo-Hwee Lim, and                 of summaries. In Text summarization branches out, pages
+      Ah-Hwee Tan. Summarization of egocentric videos: A com-              74–81, 2004. 8
+      prehensive survey. IEEE Transactions on Human-Machine          [24] Yichao Lu, Cheng Chang, Himanshu Rai, Guangwei Yu, and
+      Systems, 47(1):65–76, 2016. 1                                        Maksims Volkovs. Multi-view scene graph generation in
+                                                                           videos. In International Challenge on Activity Recognition
+ [9] Alireza Fathi, Xiaofeng Ren, and James M Rehg. Learning               (ActivityNet) CVPR 2021 Workshop, page 2, 2021. 2
+      to recognize objects in egocentric activities. In CVPR 2011,   [25] Yichao Lu, Himanshu Rai, Jason Chang, Boris Knyazev,
+      pages 3281–3288. IEEE, 2011. 1, 2                                    Guangwei Yu, Shashank Shekhar, Graham W Taylor, and
+                                                                           Maksims Volkovs. Context-aware scene graph generation
+[10] Christoph Feichtenhofer, Haoqi Fan, Jitendra Malik, and               with seq2seq transformers. In Proceedings of the IEEE/CVF
+      Kaiming He. Slowfast networks for video recognition. In              international conference on computer vision, pages 15931–
+      Proceedings of the IEEE/CVF international conference on              15941, 2021. 2
+      computer vision, pages 6202–6211, 2019. 6                      [26] Arnav Vaibhav Malawade, Shih-Yuan Yu, Brandon Hsu,
+                                                                           Harsimrat Kaeley, Anurag Karra, and Mohammad Abdullah
+[11] Shengyu Feng, Hesham Mostafa, Marcel Nassar, Somdeb
+      Majumdar, and Subarna Tripathi. Exploiting long-term de-
+      pendencies for generating dynamic scene graphs. In Pro-
+      ceedings of the IEEE/CVF Winter Conference on Applica-
+      tions of Computer Vision, pages 5130–5139, 2023. 2
+
+[12] Kristen Grauman, Andrew Westbury, Eugene Byrne,
+      Zachary Chavis, Antonino Furnari, Rohit Girdhar, Jackson
+      Hamburger, Hao Jiang, Miao Liu, Xingyu Liu, et al. Ego4d:
+      Around the world in 3,000 hours of egocentric video. In Pro-
+      ceedings of the IEEE/CVF Conference on Computer Vision
+
+                                                                     18630
+      Al Faruque. Roadscene2vec: A tool for extracting and em-       [40] Ivan Rodin, Antonino Furnari, Dimitrios Mavroeidis, and
+      bedding road scene-graphs. Knowledge-Based Systems, 242:             Giovanni Maria Farinella. Predicting the future from first
+      108245, 2022. 2                                                      person (egocentric) vision: A survey. Computer Vision and
+[27] Jianguo Mao, Wenbin Jiang, Xiangdong Wang, Zhifan Feng,               Image Understanding, 2021. 1
+      Yajuan Lyu, Hong Liu, and Yong Zhu. Dynamic multistep
+      reasoning based on video scene graph for video question an-    [41] Dandan Shan, Jiaqi Geng, Michelle Shu, and David F
+      swering. In Proceedings of the 2022 Conference of the North          Fouhey. Understanding human hands in contact at inter-
+      American Chapter of the Association for Computational Lin-           net scale. In Proceedings of the IEEE/CVF Conference
+      guistics: Human Language Technologies, pages 3894–3904,              on Computer Vision and Pattern Recognition, pages 9869–
+      2022. 2                                                              9878, 2020. 2
+[28] Kyle Min. Intel labs at ego4d challenge 2022: A bet-
+      ter baseline for audio-visual diarization. arXiv preprint      [42] Xindi Shang, Tongwei Ren, Jingfan Guo, Hanwang Zhang,
+      arXiv:2210.07764, 2022. 2                                            and Tat-Seng Chua. Video visual relation detection. In Pro-
+[29] Kyle Min. Sthg: Spatial-temporal heterogeneous graph                  ceedings of the 25th ACM International Conference on Mul-
+      learning for advanced audio-visual diarization. arXiv                timedia, page 1300–1308, New York, NY, USA, 2017. Asso-
+      preprint arXiv:2306.10608, 2023. 2                                   ciation for Computing Machinery. 7
+[30] Suvir Mirchandani, Fei Xia, Pete Florence, Brian Ichter,
+      Danny Driess, Montserrat Gonzalez Arenas, Kanishka Rao,        [43] Xindi Shang, Donglin Di, Junbin Xiao, Yu Cao, Xun Yang,
+      Dorsa Sadigh, and Andy Zeng. Large language models as                and Tat-Seng Chua. Annotating objects and relations in user-
+      general pattern machines. arXiv preprint arXiv:2307.04721,           generated videos. In Proceedings of the 2019 on Interna-
+      2023. 7                                                              tional Conference on Multimedia Retrieval, pages 279–287.
+[31] Sayak Nag, Kyle Min, Subarna Tripathi, and Amit K Roy-                ACM, 2019. 7
+      Chowdhury. Unbiased scene graph generation in videos. In
+      Proceedings of the IEEE/CVF Conference on Computer Vi-         [44] Kunal Pratap Singh, Jordi Salvador, Luca Weihs, and
+      sion and Pattern Recognition, pages 22803–22813, 2023. 2             Aniruddha Kembhavi. Scene graph contrastive learning for
+[32] Tushar Nagarajan, Yanghao Li, Christoph Feichtenhofer, and            embodied navigation. In Proceedings of the IEEE/CVF In-
+      Kristen Grauman. Ego-topo: Environment affordances from              ternational Conference on Computer Vision, pages 10884–
+      egocentric video. arXiv preprint arXiv:2001.04583, 2020. 2           10894, 2023. 2
+[33] Kien Nguyen, Subarna Tripathi, Bang Du, Tanaya Guha, and
+      Truong Q Nguyen. In defense of scene graphs for image          [45] Kaihua Tang, Hanwang Zhang, Baoyuan Wu, Wenhan Luo,
+      captioning. In Proceedings of the IEEE/CVF International             and Wei Liu. Learning to compose dynamic tree structures
+      Conference on Computer Vision, pages 1407–1416, 2021. 2              for visual contexts. In Proceedings of the IEEE/CVF con-
+[34] R OpenAI. Gpt-4 technical report. arxiv 2303.08774. View              ference on computer vision and pattern recognition, pages
+      in Article, 2023. 7                                                  6619–6628, 2019. 2
+[35] Kishore Papineni, Salim Roukos, Todd Ward, and Wei-Jing
+      Zhu. Bleu: a method for automatic evaluation of machine        [46] Ramakrishna Vedantam, C Lawrence Zitnick, and Devi
+      translation. In Proceedings of the 40th annual meeting of the        Parikh. Cider: Consensus-based image description evalua-
+      Association for Computational Linguistics, pages 311–318,            tion. In Proceedings of the IEEE conference on computer
+      2002. 8                                                              vision and pattern recognition, pages 4566–4575, 2015. 8
+[36] Hamed Pirsiavash and Deva Ramanan. Detecting activi-
+      ties of daily living in first-person camera views. In 2012     [47] Xiaolong Wang and Abhinav Gupta. Videos as space-time
+      IEEE conference on computer vision and pattern recogni-              region graphs. In Proceedings of the European Conference
+      tion, pages 2847–2854. IEEE, 2012. 1                                 on Computer Vision (ECCV), 2018. 2
+[37] Chiara Plizzari, Gabriele Goletto, Antonino Furnari, Sid-
+      dhant Bansal, Francesco Ragusa, Giovanni Maria Farinella,      [48] Chao-Yuan Wu and Philipp Krahenbuhl. Towards long-form
+      Dima Damen, and Tatiana Tommasi. An outlook into the fu-             video understanding. In Proceedings of the IEEE/CVF Con-
+      ture of egocentric vision. arXiv preprint arXiv:2308.07123,          ference on Computer Vision and Pattern Recognition, pages
+      2023. 1                                                              1884–1894, 2021. 1
+[38] Nishant Rai, Haofeng Chen, Jingwei Ji, Rishi Desai, Kazuki
+      Kozuka, Shun Ishizaka, Ehsan Adeli, and Juan Carlos            [49] Yiming Wu, Omar El Farouk Bourahla, Xi* Li, Fei Wu, Qi
+      Niebles. Home action genome: Cooperative compositional               Tian, and Xue Zhou. Adaptive graph representation learn-
+      action understanding. In Proceedings of the IEEE/CVF Con-            ing for video person re-identification. IEEE Transactions on
+      ference on Computer Vision and Pattern Recognition, pages            Image Processing, 2020. 2, 7
+      11184–11193, 2021. 2, 3, 7
+[39] Shaoqing Ren, Kaiming He, Ross Girshick, and Jian Sun.          [50] Jingkang Yang, Yi Zhe Ang, Zujin Guo, Kaiyang Zhou,
+      Faster r-cnn: Towards real-time object detection with region         Wayne Zhang, and Ziwei Liu. Panoptic scene graph gen-
+      proposal networks. In Advances in neural information pro-            eration. In European Conference on Computer Vision, pages
+      cessing systems, pages 91–99, 2015. 7                                178–196. Springer, 2022. 2, 3
+
+                                                                     [51] Jingkang Yang, Wenxuan Peng, Xiangtai Li, Zujin Guo,
+                                                                           Liangyu Chen, Bo Li, Zheng Ma, Kaiyang Zhou, Wayne
+                                                                           Zhang, Chen Change Loy, and Ziwei Liu. Panoptic video
+                                                                           scene graph generation. In CVPR, pages 18675–18685,
+                                                                           2023. 7
+
+                                                                     [52] Xu Yang, Kaihua Tang, Hanwang Zhang, and Jianfei Cai.
+                                                                           Auto-encoding scene graphs for image captioning. In Pro-
+                                                                           ceedings of the IEEE/CVF conference on computer vision
+                                                                           and pattern recognition, pages 10685–10694, 2019. 2
+
+                                                                     18631
+[53] Xuewen Yang, Yingru Liu, and Xin Wang. Reformer: The
+      relational transformer for image captioning. In Proceedings
+      of the 30th ACM International Conference on Multimedia,
+      pages 5398–5406, 2022. 2
+
+[54] Yuan Yuan, Xiaodan Liang, X. Wang, D. Y. Yeung, and
+      Abhinav Kumar Gupta. Temporal dynamic graph lstm for
+      action-driven video object detection. 2017 IEEE Interna-
+      tional Conference on Computer Vision (ICCV), pages 1819–
+      1828, 2017. 2
+
+[55] Yu Zhao, Hao Fei, Yixin Cao, Bobo Li, Meishan Zhang,
+      Jianguo Wei, Min Zhang, and Tat-Seng Chua. Construct-
+      ing holistic spatio-temporal scene graph for video semantic
+      role labeling. In ACM Multimedia, 2023. 2
+
+                                                                                  18632
+

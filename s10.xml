@@ -1,0 +1,983 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<feed xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/" xmlns:arxiv="http://arxiv.org/schemas/atom" xmlns="http://www.w3.org/2005/Atom">
+  <id>https://arxiv.org/api/xQCwU3u6q8VlDvbKlUGbtEMY20I</id>
+  <title>arXiv Query: search_query=abs:"recoverability" AND abs:"prediction"&amp;id_list=&amp;start=0&amp;max_results=40</title>
+  <updated>2026-07-26T12:15:54Z</updated>
+  <link href="https://arxiv.org/api/query?search_query=abs:%22recoverability%22+AND+abs:%22prediction%22&amp;start=0&amp;max_results=40&amp;id_list=" type="application/atom+xml"/>
+  <opensearch:itemsPerPage>40</opensearch:itemsPerPage>
+  <opensearch:totalResults>153</opensearch:totalResults>
+  <opensearch:startIndex>0</opensearch:startIndex>
+  <entry>
+    <id>http://arxiv.org/abs/2606.13637v1</id>
+    <title>The Stable Recovery Manifold: Geometric Principles Governing Recoverability in Continual Learning</title>
+    <updated>2026-06-11T17:45:41Z</updated>
+    <link href="https://arxiv.org/abs/2606.13637v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2606.13637v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Catastrophic forgetting is often viewed as the destruction of previously learned knowledge during sequential learning. Building on the Accessibility Collapse framework, we investigate the geometric structure of recoverability in continual learning. Using Split CIFAR-100 and a sequentially trained ResNet-18, we analyze recoverability, representational drift, and recovery complexity across ten tasks. We introduce Recovery Subspace Dimensionality (k_t), a measure of the minimum number of singular directions required to preserve 90 percent of full probe performance. Contrary to our Recoverability Diffusion hypothesis, recovery dimensionality remains stable throughout training (mean k_t = 8.0) despite substantial representational drift. Principal-angle drift strongly predicts recoverability (r = -0.862), and a simple geometric model explains 82.2 percent of recoverability variance. These findings support the Stable Recovery Manifold hypothesis, suggesting that forgotten knowledge remains compactly decodable despite representational reorganization. The results indicate that catastrophic forgetting is primarily an accessibility and manifold-alignment problem rather than information destruction.</summary>
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2026-06-11T17:45:41Z</published>
+    <arxiv:comment>9 pages, 8 figures, 8 tables</arxiv:comment>
+    <arxiv:primary_category term="cs.LG"/>
+    <author>
+      <name>Ayushman Trivedi</name>
+    </author>
+    <author>
+      <name>Bhavika Melwani</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2310.10316v8</id>
+    <title>Spectral representation of two-sided signals from $\ell_\infty$ and applications to signal processing</title>
+    <updated>2024-06-04T03:31:53Z</updated>
+    <link href="https://arxiv.org/abs/2310.10316v8" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2310.10316v8" rel="related" type="application/pdf" title="pdf"/>
+    <summary>The paper studies spectral representation as well as predictability and recoverability problems for non-vanishing discrete time signals from $\ell_\infty$, i.e. for bounded discrete time signals, including signals that do not vanish at $\pm\infty$. The extends the notions of transfer functions, the spectrum gaps, bandlimitness, and filters, on these general type signals. Some frequency conditions of predictability and data recoverability are presented, and some recovery methods and predictors have been suggested.</summary>
+    <category term="cs.IT" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="math.FA" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2023-10-16T11:52:55Z</published>
+    <arxiv:primary_category term="cs.IT"/>
+    <arxiv:journal_ref>Problems of Information Transmission, 2024, iss. 2. pp. 113 - 126</arxiv:journal_ref>
+    <author>
+      <name>Nikolai Dokuchaev</name>
+    </author>
+    <arxiv:doi>10.1134/S0032946024020030</arxiv:doi>
+    <link rel="related" href="https://doi.org/10.1134/S0032946024020030" title="doi"/>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2310.20024v1</id>
+    <title>Topology Recoverability Prediction for Ad-Hoc Robot Networks: A Data-Driven Fault-Tolerant Approach</title>
+    <updated>2023-10-30T21:16:46Z</updated>
+    <link href="https://arxiv.org/abs/2310.20024v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2310.20024v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Faults occurring in ad-hoc robot networks may fatally perturb their topologies leading to disconnection of subsets of those networks. Optimal topology synthesis is generally resource-intensive and time-consuming to be done in real time for large ad-hoc robot networks. One should only perform topology re-computations if the probability of topology recoverability after the occurrence of any fault surpasses that of its irrecoverability. We formulate this problem as a binary classification problem. Then, we develop a two-pathway data-driven model based on Bayesian Gaussian mixture models that predicts the solution to a typical problem by two different pre-fault and post-fault prediction pathways. The results, obtained by the integration of the predictions of those pathways, clearly indicate the success of our model in solving the topology (ir)recoverability prediction problem compared to the best of current strategies found in the literature.</summary>
+    <category term="cs.RO" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.AI" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.MA" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2023-10-30T21:16:46Z</published>
+    <arxiv:primary_category term="cs.RO"/>
+    <arxiv:journal_ref>IEEE Transactions on Signal and Information Processing over Networks, 2023</arxiv:journal_ref>
+    <author>
+      <name>Matin Macktoobian</name>
+    </author>
+    <author>
+      <name>Zhan Shu</name>
+    </author>
+    <author>
+      <name>Qing Zhao</name>
+    </author>
+    <arxiv:doi>10.1109/TSIPN.2023.3328275</arxiv:doi>
+    <link rel="related" href="https://doi.org/10.1109/TSIPN.2023.3328275" title="doi"/>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2601.22352v1</id>
+    <title>Recoverability Has a Law: The ERR Measure for Tool-Augmented Agents</title>
+    <updated>2026-01-29T21:55:50Z</updated>
+    <link href="https://arxiv.org/abs/2601.22352v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2601.22352v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Language model agents often appear capable of self-recovery after failing tool call executions, yet this behavior lacks a formal explanation. We present a predictive theory that resolves this gap by showing that recoverability follows a measurable law. To elaborate, we formalize recoverability through Expected Recovery Regret (ERR), which quantifies the deviation of a recovery policy from the optimal one under stochastic execution noise, and derive a first-order relationship between ERR and an empirical observable quantity, the Efficiency Score (ES). This yields a falsifiable first-order quantitative law of recovery dynamics in tool-using agents. We empirically validate the law across five tool-use benchmarks spanning controlled perturbations, diagnostic reasoning, and real-world APIs. Across model scales, perturbation regimes, and recovery horizons, predicted regret under the ERR-ES law closely matched observed post-failure regret measured from Monte Carlo rollouts, within delta less than or equal to 0.05. Our results reveal that recoverability is not an artifact of model scale or architecture, but a governed property of interaction dynamics, providing a theoretical foundation for execution-level robustness in language agents.</summary>
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.AI" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2026-01-29T21:55:50Z</published>
+    <arxiv:comment>Preprint for ICML Submission</arxiv:comment>
+    <arxiv:primary_category term="cs.LG"/>
+    <author>
+      <name>Sri Vatsa Vuddanti</name>
+    </author>
+    <author>
+      <name>Satwik Kumar Chittiprolu</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1509.07947v1</id>
+    <title>A new result of the scaling law of weighted L1 minimization</title>
+    <updated>2015-09-26T05:43:17Z</updated>
+    <link href="https://arxiv.org/abs/1509.07947v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1509.07947v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>This paper study recovery conditions of weighted L1 minimization for signal reconstruction from compressed sensing measurements. A sufficient condition for exact recovery by using the general weighted L1 minimization is derived, which builds a direct relationship between the weights and the recoverability. Simulation results indicates that this sufficient condition provides a precise prediction of the scaling law for the weighted L1 minimization.</summary>
+    <category term="cs.IT" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2015-09-26T05:43:17Z</published>
+    <arxiv:comment>6 pages, 6 figures</arxiv:comment>
+    <arxiv:primary_category term="cs.IT"/>
+    <author>
+      <name>Jun Zhang</name>
+    </author>
+    <author>
+      <name>Urbashi Mitra</name>
+    </author>
+    <author>
+      <name>Kuan-Wen Huang</name>
+    </author>
+    <author>
+      <name>Nicolo Michelusi</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1003.1150v3</id>
+    <title>Approximate Quantum Error Correction via Complementary Observables</title>
+    <updated>2016-05-06T10:04:33Z</updated>
+    <link href="https://arxiv.org/abs/1003.1150v3" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1003.1150v3" rel="related" type="application/pdf" title="pdf"/>
+    <summary>The breakthrough of quantum error correction brought with it the picture of quantum information as a sort of combination of two complementary types of classical information, "amplitude" and "phase". Here I show how this intuition can be used to construct two new conditions for approximate quantum error correction. The first states that entanglement is locally recoverable from a bipartite state when one system can be used to approximately predict the outcomes of two complementary observables on the other. The second, more in the spirit of the recent decoupling approach, states that entanglement is locally recoverable when the environment cannot reliably predict either.</summary>
+    <category term="quant-ph" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2010-03-04T22:08:45Z</published>
+    <arxiv:comment>v3: This paper is superseded by arXiv:1605.01420. v2: included forgotten reference; changed confusing wording regarding state merging</arxiv:comment>
+    <arxiv:primary_category term="quant-ph"/>
+    <author>
+      <name>Joseph M. Renes</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2605.16074v1</id>
+    <title>When Noisy Quantum Order Finding Remains Recoverable for Shor's Algorithm</title>
+    <updated>2026-05-15T15:35:31Z</updated>
+    <link href="https://arxiv.org/abs/2605.16074v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2605.16074v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Order finding is the core subroutine of Shor's algorithm. On NISQ hardware, phase estimation output distributions are often distorted by noise, making correct order recovery difficult. We study recoverability in noisy order finding: given a measured precision-register distribution, when does standard classical post-processing still return the true order? We analyze 680 distributions from IBM quantum systems across problem instances and circuit settings. For each distribution, we apply continued-fraction post-processing with modular verification and define recoverability as whether the recovered order equals the true one. We characterize each distribution using four features: autocorrelation peak strength, normalized entropy, dominant verified mass fraction, and verified margin fraction. We evaluate these quantities using marginal feature comparisons, single-feature AUROC analysis, and multivariate tree-based classifiers. We use random-forest permutation importance to assess which quantities contribute distinct predictive information once the other features are known. To make classification behavior interpretable, we train a decision tree that exposes threshold rules for recoverable and non-recoverable distributions. We find that recoverability is strongly associated with residual comb-like structure in the measured distribution and the way verified probability mass is organized across candidate denominators. The dominant verified mass fraction is the strongest single-feature indicator of recoverability, and tree-based analysis shows it also provides the primary split in an interpretable threshold description. Some highly distorted distributions remain recoverable when one verified denominator dominates the post-processing mass, while some visibly structured distributions fail because classical post-processing favors an incorrect verified denominator.</summary>
+    <category term="quant-ph" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.ET" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2026-05-15T15:35:31Z</published>
+    <arxiv:primary_category term="quant-ph"/>
+    <author>
+      <name>Qingxin Yang</name>
+    </author>
+    <author>
+      <name>Stefano Markidis</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2607.12535v1</id>
+    <title>Context Distribution Restoration for Social Surveys: A Recoverability-Adaptive Transport Framework</title>
+    <updated>2026-07-14T09:08:55Z</updated>
+    <link href="https://arxiv.org/abs/2607.12535v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2607.12535v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Social surveys such as CHNS, NHANES, and BRFSS underpin population health and inequality research, yet critical metadata--urban/rural status, gender, and related stratification fields--are often incomplete. External population statistics or survey design information can provide a known prior P(M) over metadata categories. We formalize this setting as Context Distribution Restoration (CDR): recovering sample-level metadata assignments from covariates X while respecting P(M). The core challenge is that metadata recoverability varies by case: some respondents carry strong signals in X, others do not. We define recoverability theoretically as mutual information R(M|X) = I(X; M) and approximate it operationally via calibrated predictive uncertainty. We then introduce a recoverability-adaptive transport mechanism within an optimal transport framework to regulate the trade-off between individual evidence and population constraints. Across three large-scale surveys (CHNS, NHANES, BRFSS; up to 67k test samples), we show that unconstrained classifiers (XGBoost) achieve high accuracy but violate P(M) (TVD approximately 0.11), while CDR restores TVD &lt; 0.001 with minimal accuracy loss. A CHNS case study illustrates interpretable continuum structure. CDR offers a framework for population-consistent metadata restoration in computational social science.</summary>
+    <category term="cs.SI" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2026-07-14T09:08:55Z</published>
+    <arxiv:primary_category term="cs.SI"/>
+    <author>
+      <name>Lei Zhao</name>
+    </author>
+    <author>
+      <name>Fujin Huang</name>
+    </author>
+    <author>
+      <name>Ling Kang</name>
+    </author>
+    <author>
+      <name>Quan Guo</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2505.23790v1</id>
+    <title>Rethinking the Understanding Ability across LLMs through Mutual Information</title>
+    <updated>2025-05-25T22:31:24Z</updated>
+    <link href="https://arxiv.org/abs/2505.23790v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2505.23790v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Recent advances in large language models (LLMs) have revolutionized natural language processing, yet evaluating their intrinsic linguistic understanding remains challenging. Moving beyond specialized evaluation tasks, we propose an information-theoretic framework grounded in mutual information (MI) to achieve this. We formalize the understanding as MI between an input sentence and its latent representation (sentence-level MI), measuring how effectively input information is preserved in latent representation. Given that LLMs learn embeddings for individual tokens, we decompose sentence-level MI into token-level MI between tokens and sentence embeddings, establishing theoretical bounds connecting these measures. Based on this foundation, we theoretically derive a computable lower bound for token-level MI using Fano's inequality, which directly relates to token-level recoverability-the ability to predict original tokens from sentence embedding. We implement this recoverability task to comparatively measure MI across different LLMs, revealing that encoder-only models consistently maintain higher information fidelity than their decoder-only counterparts, with the latter exhibiting a distinctive late-layer "forgetting" pattern where mutual information is first enhanced and then discarded. Moreover, fine-tuning to maximize token-level recoverability consistently improves understanding ability of LLMs on tasks without task-specific supervision, demonstrating that mutual information can serve as a foundation for understanding and improving language model capabilities.</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.AI" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2025-05-25T22:31:24Z</published>
+    <arxiv:primary_category term="cs.CL"/>
+    <author>
+      <name>Shaojie Wang</name>
+    </author>
+    <author>
+      <name>Sirui Ding</name>
+    </author>
+    <author>
+      <name>Na Zou</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2310.03750v1</id>
+    <title>Health diagnosis and recuperation of aged Li-ion batteries with data analytics and equivalent circuit modeling</title>
+    <updated>2023-09-21T17:15:10Z</updated>
+    <link href="https://arxiv.org/abs/2310.03750v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2310.03750v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Battery health assessment and recuperation play a crucial role in the utilization of second-life Li-ion batteries. However, due to ambiguous aging mechanisms and lack of correlations between the recovery effects and operational states, it is challenging to accurately estimate battery health and devise a clear strategy for cell rejuvenation. This paper presents aging and reconditioning experiments of 62 commercial high-energy type lithium iron phosphate (LFP) cells, which supplement existing datasets of high-power LFP cells. The relatively large-scale data allow us to use machine learning models to predict cycle life and identify important indicators of recoverable capacity. Considering cell-to-cell inconsistencies, an average test error of $16.84\% \pm 1.87\%$ (mean absolute percentage error) for cycle life prediction is achieved by gradient boosting regressor given information from the first 80 cycles. In addition, it is found that some of the recoverable lost capacity is attributed to the lateral lithium non-uniformity within the electrodes. An equivalent circuit model is built and experimentally validated to demonstrate how such non-uniformity can be accumulated, and how it can give rise to recoverable capacity loss. SHapley Additive exPlanations (SHAP) analysis also reveals that battery operation history significantly affects the capacity recovery.</summary>
+    <category term="eess.SP" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cond-mat.mtrl-sci" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="physics.app-ph" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2023-09-21T17:15:10Z</published>
+    <arxiv:comment>20 pages, 5 figures, 1 table</arxiv:comment>
+    <arxiv:primary_category term="eess.SP"/>
+    <arxiv:journal_ref>iScience (2024)</arxiv:journal_ref>
+    <author>
+      <name>Riko I Made</name>
+    </author>
+    <author>
+      <name>Jing Lin</name>
+    </author>
+    <author>
+      <name>Jintao Zhang</name>
+    </author>
+    <author>
+      <name>Yu Zhang</name>
+    </author>
+    <author>
+      <name>Lionel C. H. Moh</name>
+    </author>
+    <author>
+      <name>Zhaolin Liu</name>
+    </author>
+    <author>
+      <name>Ning Ding</name>
+    </author>
+    <author>
+      <name>Sing Yang Chiam</name>
+    </author>
+    <author>
+      <name>Edwin Khoo</name>
+    </author>
+    <author>
+      <name>Xuesong Yin</name>
+    </author>
+    <author>
+      <name>Guangyuan Wesley Zheng</name>
+    </author>
+    <arxiv:doi>10.1016/j.isci.2024.109416</arxiv:doi>
+    <link rel="related" href="https://doi.org/10.1016/j.isci.2024.109416" title="doi"/>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2604.00147v1</id>
+    <title>Microscopic Basis for Recovery Rheology and the Nonequilibrium Structure,Yielding, and Flow of Dense Particle Suspensions</title>
+    <updated>2026-03-31T18:54:46Z</updated>
+    <link href="https://arxiv.org/abs/2604.00147v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2604.00147v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>The recent introduction of recovery rheology has provided qualitatively new physical insights into the yielding and flow of soft matter systems across diverse mechanically driven nonequilibrium protocols by separating the deformation strain into recoverable and unrecoverable components. A striking finding is that the fluid-like response associated with the gradually increasing unrecoverable strain ultimately leads to the continuous yielding transition from a solid to a liquid. We build on the force and particle level Elastically Collective Nonlinear Langevin Equation theory of activated dynamics within a nonequilibrium microrheological framework to formulate a general statistical mechanical foundation of step-rate start-up shear response that relates recovery rheology to microscopic structure, relaxation, and elasticity. Quantitative applications to metastable hard and soft sphere colloidal suspensions reveal testable new predictions and interconnections between macroscopic and microscopic properties: (i) the steady state recoverable strain is directly related to the steady-state shear thinning; (ii) the transient stress overshoot amplitude varies non-monotonically with packing fraction and is quantitatively linked to the steady-state recoverable strain; (iii) the acquired unrecoverable strain dictates the stress overshoot strain; (iv) the predicted enormous reduction of the structural relaxation time under deformation is inversely related to the unrecoverable strain-rate.</summary>
+    <category term="cond-mat.soft" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2026-03-31T18:54:46Z</published>
+    <arxiv:comment>To appear in Physical Review Research</arxiv:comment>
+    <arxiv:primary_category term="cond-mat.soft"/>
+    <author>
+      <name>Anoop Mutneja</name>
+    </author>
+    <author>
+      <name>Kenneth S. Schweizer</name>
+    </author>
+    <arxiv:doi>10.1103/7dxn-94gy</arxiv:doi>
+    <link rel="related" href="https://doi.org/10.1103/7dxn-94gy" title="doi"/>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1803.02233v3</id>
+    <title>Predictability of sequences and subsequences with spectrum degeneracy at periodically located points</title>
+    <updated>2018-08-19T12:49:42Z</updated>
+    <link href="https://arxiv.org/abs/1803.02233v3" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1803.02233v3" rel="related" type="application/pdf" title="pdf"/>
+    <summary>The paper established sufficient conditions of predictability with degeneracy for the spectrum at $M$-periodically located isolated points on the unit circle. It is also shown that $m$-periodic subsequences of these sequences are also predictable if $m$ is a divisor of $M$. The predictability can be achieved for finite horizon with linear predictors defined by convolutions with certain kernels. As an example of applications, it is shown that there exists a class of sequences that is everywhere dense in the class of all square-summable sequences and such that its members can be recovered from their periodic subsequences. This recoverability is associated with certain spectrum degeneracy of a new kind.</summary>
+    <category term="cs.IT" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="math.SP" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2018-03-06T14:59:49Z</published>
+    <arxiv:primary_category term="cs.IT"/>
+    <author>
+      <name>Nikolai Dokuchaev</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2604.08783v1</id>
+    <title>BEACON: Benefit-Aware Early-Exit for Automatic Modulation Classification via Recoverability Prediction</title>
+    <updated>2026-04-09T21:44:56Z</updated>
+    <link href="https://arxiv.org/abs/2604.08783v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2604.08783v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Convolutional neural networks (CNNs) have emerged as a powerful tool for automatic modulation classification (AMC) by directly extracting discriminative features from raw in-phase and quadrature (I/Q) signals. However, deploying CNN-based AMC models on IoT devices remains challenging because of limited computational resources, energy constraints, and real-time processing requirements. Early-exit (EE) strategies alleviate this burden by allowing qualified samples to terminate inference at an EE branch. However, our empirical analysis reveals a critical limitation of existing confidence-based EE strategies: they predominantly select samples whose early and final predictions are correct and consistent, while failing to capture whether deeper inference can provide a tangible accuracy gain. To address this limitation, we propose BEACON, a Benefit-Aware Early-Exit framework for AMC via recoverability prediction. BEACON introduces a benefit-aware EE criterion that explicitly predicts recoverable errors, defined as instances where the final-exit branch corrects an initial early-branch misclassification. Using only short-branch observables, we design a lightweight benefit-aware predictor (LBAP) to implement this criterion, estimating the likelihood of such recoverable cases and triggering deeper inference only when an accuracy gain is expected. Extensive experiments on ResNet-18-based AMC models demonstrate that the proposed approach consistently outperforms state-of-the-art baselines, achieving a superior accuracy-computation tradeoff across diverse EE threshold settings and signal-to-noise ratio regimes. These findings validate the effectiveness of the benefit-aware criterion and its practicality for energy-efficient on-device AMC under stringent resource constraints.</summary>
+    <category term="eess.SP" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2026-04-09T21:44:56Z</published>
+    <arxiv:comment>Submitted to IEEE Internet of Things Journal (under review)</arxiv:comment>
+    <arxiv:primary_category term="eess.SP"/>
+    <author>
+      <name>Zheng Liu</name>
+    </author>
+    <author>
+      <name>Hatem Abou-Zeid</name>
+    </author>
+    <author>
+      <name>Huaqing Wu</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/0904.3994v2</id>
+    <title>Compressed Remote Sensing of Sparse Objects</title>
+    <updated>2009-05-19T21:00:22Z</updated>
+    <link href="https://arxiv.org/abs/0904.3994v2" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/0904.3994v2" rel="related" type="application/pdf" title="pdf"/>
+    <summary>  The linear inverse source and scattering problems are studied from the perspective of compressed sensing, in particular the idea that sufficient incoherence and sparsity guarantee uniqueness of the solution. By introducing the sensor as well as target ensembles, the maximum number of recoverable targets is proved to be at least proportional to the number of measurement data modulo a log-square factor with overwhelming probability. Important contributions of the analysis include the discoveries of the threshold aperture, consistent with the classical Rayleigh criterion, and the decoherence effect induced by random antenna locations. The prediction of theorems are confirmed by numerical simulations.</summary>
+    <category term="physics.data-an" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="physics.optics" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2009-04-25T17:55:38Z</published>
+    <arxiv:primary_category term="physics.data-an"/>
+    <author>
+      <name>Albert Fannjiang</name>
+    </author>
+    <author>
+      <name>Pengchong Yan</name>
+    </author>
+    <author>
+      <name>Thomas Strohmer</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2605.18830v1</id>
+    <title>In-Context Learning Operates as Concept Subspace Learning</title>
+    <updated>2026-05-12T21:43:48Z</updated>
+    <link href="https://arxiv.org/abs/2605.18830v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2605.18830v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Regression and Bayesian accounts of in-context learning (ICL) explain how demonstrations can induce predictors, while mechanistic analyses often identify compact activation directions that steer prompted behavior. However, it remains unclear whether structured demonstrations induce low-dimensional concept inference. We study this question through a concept-subspace view of ICL, in which tasks vary only along intrinsic concept coordinates, although inputs are observed in a high-dimensional ambient space. For ridge and least-squares ICL proxies, prediction decomposes exactly into concept-coordinate regression and off-subspace leakage. Under block-diagonal or near-block-diagonal covariance assumptions, the leading estimation and nuisance-sensitivity terms scale with the dimension of the concept subspace, while residual effects are controlled by cross-subspace coupling. This separation gives a mechanistic prediction: recoverable task information should concentrate in a low-dimensional, task-aligned activation subspace. On CounterFact-derived multi-relation prompts with Llama-3-8B, a 68--73-dimensional subspace of the 4096-dimensional residual stream restores 78.8% of the clean--corrupted accuracy gap, whereas patching the complementary subspace restores 0%. Concept swaps redirect predictions toward injected relations, while random and cross-task matched-rank controls are largely ineffective. Additional experiments on Qwen2.5-7B and a controlled cross-lingual rule task show the same qualitative pattern. These results support concept subspaces as compact, task-aligned mediators of recoverable ICL behavior in structured task families, without implying full-circuit recovery.</summary>
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2026-05-12T21:43:48Z</published>
+    <arxiv:primary_category term="cs.LG"/>
+    <author>
+      <name>Wei Tang</name>
+    </author>
+    <author>
+      <name>Xinyan Jiang</name>
+    </author>
+    <author>
+      <name>Fakhri Karray</name>
+    </author>
+    <author>
+      <name>Lijie Hu</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2211.02794v1</id>
+    <title>An STL-based Approach to Resilient Control for Cyber-Physical Systems</title>
+    <updated>2022-11-05T01:08:41Z</updated>
+    <link href="https://arxiv.org/abs/2211.02794v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2211.02794v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>We present ResilienC, a framework for resilient control of Cyber-Physical Systems subject to STL-based requirements. ResilienC utilizes a recently developed formalism for specifying CPS resiliency in terms of sets of $(\mathit{rec},\mathit{dur})$ real-valued pairs, where $\mathit{rec}$ represents the system's capability to rapidly recover from a property violation (recoverability), and $\mathit{dur}$ is reflective of its ability to avoid violations post-recovery (durability). We define the resilient STL control problem as one of multi-objective optimization, where the recoverability and durability of the desired STL specification are maximized. When neither objective is prioritized over the other, the solution to the problem is a set of Pareto-optimal system trajectories. We present a precise solution method to the resilient STL control problem using a mixed-integer linear programming encoding and an a posteriori $ε$-constraint approach for efficiently retrieving the complete set of optimally resilient solutions. In ResilienC, at each time-step, the optimal control action selected from the set of Pareto-optimal solutions by a Decision Maker strategy realizes a form of Model Predictive Control. We demonstrate the practical utility of the ResilienC framework on two significant case studies: autonomous vehicle lane keeping and deadline-driven, multi-region package delivery.</summary>
+    <category term="eess.SY" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2022-11-05T01:08:41Z</published>
+    <arxiv:comment>11 pages, 6 figures</arxiv:comment>
+    <arxiv:primary_category term="eess.SY"/>
+    <author>
+      <name>Hongkai Chen</name>
+    </author>
+    <author>
+      <name>Scott A. Smolka</name>
+    </author>
+    <author>
+      <name>Nicola Paoletti</name>
+    </author>
+    <author>
+      <name>Shan Lin</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2501.00600v2</id>
+    <title>Constriction and contact impedance of ceramic solid electrolytes</title>
+    <updated>2025-01-05T19:18:40Z</updated>
+    <link href="https://arxiv.org/abs/2501.00600v2" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2501.00600v2" rel="related" type="application/pdf" title="pdf"/>
+    <summary>The development of solid-state batteries (SSBs) is hindered by degradation at solid-solid interfaces due to void formation and contact loss, resulting in increased impedance. Here, we systematically investigate the roles of real and unrecoverable interfacial contact areas at the electrode/Li$_6$PS$_5$Cl interface in driving the impedance rise. By controlling contact geometries and applied pressures, we identify their distinct contributions to the impedance spectra and quantify their influence on the interfacial resistance and transport. Experiments reveal that interfacial resistance varies strongly with recoverable contact area and applied pressure following power law scaling, with exponents of -1 and -0.5, respectively. Moreover, distributed contacts result in lower impedance due to smaller potential gradients and a more uniform potential distribution. Continuum simulations of the contact geometries predict interfacial resistances in agreement with experiments. Our work highlights the influence of unrecoverable and recoverable contact losses on SSB impedance while quantifying the effectiveness of mitigation strategies.</summary>
+    <category term="cond-mat.mtrl-sci" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="physics.app-ph" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2024-12-31T18:57:37Z</published>
+    <arxiv:comment>19 pages, 6 figures + 17 pages of Supporting Information</arxiv:comment>
+    <arxiv:primary_category term="cond-mat.mtrl-sci"/>
+    <arxiv:journal_ref>ACS Energy Lett. 10, 1999 (2025)</arxiv:journal_ref>
+    <author>
+      <name>Md Salman Rabbi Limon</name>
+    </author>
+    <author>
+      <name>Curtis Duffee</name>
+    </author>
+    <author>
+      <name>Zeeshan Ahmad</name>
+    </author>
+    <arxiv:doi>10.1021/acsenergylett.5c00032</arxiv:doi>
+    <link rel="related" href="https://doi.org/10.1021/acsenergylett.5c00032" title="doi"/>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2606.07687v1</id>
+    <title>What Makes Video World Model Latents Action-Relevant: Prediction over Reconstruction</title>
+    <updated>2026-06-05T04:43:02Z</updated>
+    <link href="https://arxiv.org/abs/2606.07687v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2606.07687v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Video world models are increasingly used to provide predictive visual representations, yet it remains unclear which pretraining signals induce action-relevant structure in their latent spaces. We study this question through a unified probe-based evaluation across diverse encoder families, including image-only self-supervision, video pretraining with and without latent prediction, reconstruction-based autoencoders, diffusion models, and shortcut-forcing dynamics models. Using a common inverse-dynamics probing objective, we find that action-relevant structure is driven primarily by temporal video pretraining rather than pixel reconstruction fidelity: models with strong pixel decoding quality can exhibit near-zero action recoverability, while video-pretrained self-supervised encoders consistently achieve the best Pareto trade-off between visual fidelity and action prediction. Comparing V-JEPA and VideoMAE further shows that most gains arise from natural-video temporal context, with feature-level latent prediction providing a smaller additional benefit. These trends transfer across robotic benchmarks, though CALVIN reveals that static-environment tasks can partially mask the importance of temporal structure by allowing strong image priors to suffice. Finally, inverse-dynamics supervision substantially improves robustness to visual corruption, suggesting that action-aware objectives regularize latent geometry beyond clean-setting performance. Our results identify temporal predictive structure -- not reconstruction fidelity -- as the primary ingredient underlying action-relevant video representations.</summary>
+    <category term="cs.CV" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.AI" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2026-06-05T04:43:02Z</published>
+    <arxiv:primary_category term="cs.CV"/>
+    <author>
+      <name>Jewon Yeom</name>
+    </author>
+    <author>
+      <name>Hanseul Kim</name>
+    </author>
+    <author>
+      <name>Jeongjae Park</name>
+    </author>
+    <author>
+      <name>Sungmok Jung</name>
+    </author>
+    <author>
+      <name>Jaejin Lee</name>
+    </author>
+    <author>
+      <name>Taesup Kim</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2508.00697v1</id>
+    <title>On-Device Diffusion Transformer Policy for Efficient Robot Manipulation</title>
+    <updated>2025-08-01T15:14:39Z</updated>
+    <link href="https://arxiv.org/abs/2508.00697v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2508.00697v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Diffusion Policies have significantly advanced robotic manipulation tasks via imitation learning, but their application on resource-constrained mobile platforms remains challenging due to computational inefficiency and extensive memory footprint. In this paper, we propose LightDP, a novel framework specifically designed to accelerate Diffusion Policies for real-time deployment on mobile devices. LightDP addresses the computational bottleneck through two core strategies: network compression of the denoising modules and reduction of the required sampling steps. We first conduct an extensive computational analysis on existing Diffusion Policy architectures, identifying the denoising network as the primary contributor to latency. To overcome performance degradation typically associated with conventional pruning methods, we introduce a unified pruning and retraining pipeline, optimizing the model's post-pruning recoverability explicitly. Furthermore, we combine pruning techniques with consistency distillation to effectively reduce sampling steps while maintaining action prediction accuracy. Experimental evaluations on the standard datasets, \ie, PushT, Robomimic, CALVIN, and LIBERO, demonstrate that LightDP achieves real-time action prediction on mobile devices with competitive performance, marking an important step toward practical deployment of diffusion-based policies in resource-limited environments. Extensive real-world experiments also show the proposed LightDP can achieve performance comparable to state-of-the-art Diffusion Policies.</summary>
+    <category term="cs.RO" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.AI" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.CV" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2025-08-01T15:14:39Z</published>
+    <arxiv:comment>ICCV 2025</arxiv:comment>
+    <arxiv:primary_category term="cs.RO"/>
+    <author>
+      <name>Yiming Wu</name>
+    </author>
+    <author>
+      <name>Huan Wang</name>
+    </author>
+    <author>
+      <name>Zhenghao Chen</name>
+    </author>
+    <author>
+      <name>Jianxin Pang</name>
+    </author>
+    <author>
+      <name>Dong Xu</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2508.20133v2</id>
+    <title>Proactive HIV Care: AI-Based Comorbidity Prediction from Routine EHR Data</title>
+    <updated>2025-08-29T11:20:53Z</updated>
+    <link href="https://arxiv.org/abs/2508.20133v2" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2508.20133v2" rel="related" type="application/pdf" title="pdf"/>
+    <summary>People living with HIV face a high burden of comorbidities, yet early detection is often limited by symptom-driven screening. We evaluate the potential of AI to predict multiple comorbidities from routinely collected Electronic Health Records. Using data from 2,200 HIV-positive patients in South East London, comprising 30 laboratory markers and 7 demographic/social attributes, we compare demographic-aware models (which use both laboratory/social variables and demographic information as input) against demographic-unaware models (which exclude all demographic information). Across all methods, demographic-aware models consistently outperformed unaware counterparts. Demographic recoverability experiments revealed that gender and age can be accurately inferred from laboratory data, underscoring both the predictive value and fairness considerations of demographic features. These findings show that combining demographic and laboratory data can improve automated, multi-label comorbidity prediction in HIV care, while raising important questions about bias and interpretability in clinical AI.</summary>
+    <category term="cs.CY" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2025-08-26T16:13:28Z</published>
+    <arxiv:comment>accepted at ICCV 2025</arxiv:comment>
+    <arxiv:primary_category term="cs.CY"/>
+    <author>
+      <name>Solomon Russom</name>
+    </author>
+    <author>
+      <name>Dimitrios Kollias</name>
+    </author>
+    <author>
+      <name>Qianni Zhang</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2606.15665v1</id>
+    <title>Information Gap and Feasibility-Aware Inference in Binomial Logistic Mixtures</title>
+    <updated>2026-06-14T08:14:20Z</updated>
+    <link href="https://arxiv.org/abs/2606.15665v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2606.15665v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>This paper studies the information gap between mixture detection and label recovery in binomial logistic mixtures. Standard likelihood-based criteria such as the Bayesian information criterion (BIC) can detect the presence of two components, but this does not guarantee that the corresponding labels are recoverable. We show that this gap is intrinsic to binomial logistic mixtures with a fixed number of trials: observed-data evidence for mixture structure and per-observation information for label recovery have different local orders in the component separation, and only the former accumulates with the sample size. As a result, there exists a detectable-but-unrecoverable regime in which BIC selects two components while the posterior labels remain essentially uninformative. To address this issue, we propose two feasibility-aware inference procedures: a recoverability-aware BIC with a posterior-entropy penalty and an entropy-regularized estimator that mitigates the tendency of the maximum likelihood estimator to produce overly separated components and overly concentrated posterior responsibilities. Numerical experiments confirm the predicted gap and demonstrate that the proposed methods avoid misleading component selections and improve the calibration of posterior label probabilities.</summary>
+    <category term="stat.ML" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="math.ST" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2026-06-14T08:14:20Z</published>
+    <arxiv:comment>33 pages (main) + 30 pages (supplement)</arxiv:comment>
+    <arxiv:primary_category term="stat.ML"/>
+    <author>
+      <name>Yuta Hayashida</name>
+    </author>
+    <author>
+      <name>Shonosuke Sugasawa</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2607.05587v1</id>
+    <title>A Mechanistic Lens on Semantic Conflicts: Using Activation Patching to Understand LLM Behavior</title>
+    <updated>2026-07-06T19:35:04Z</updated>
+    <link href="https://arxiv.org/abs/2607.05587v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2607.05587v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Large language models (LLMs) are increasingly used in software-engineering tasks processing executable code and non-executable semantic cues such as comments or identifiers. These two sources can conflict when semantic cues suggest different program behavior than the code itself. It remains unclear how such semantic conflicts affect LLM behavior and which source dominates their outputs.
+  We present the first controlled, mechanistic study of LLM behavior under semantic conflicts. To this end, we construct 45 Python snippet triplets that isolate conflicts by varying either semantic cues or implementation while keeping token-aligned pairs for causal intervention. We evaluate four open-weight LLMs on two tasks (output prediction and unit-test generation) using behavioral performance measures and residual-stream activation patching to identify token-layer states that causally contribute to behavioral differences between aligned and conflicting inputs.
+  Our results show that semantic conflicts significantly reduce execution-grounded correctness in both tasks and that all tested LLMs often follow misleading semantic cues. Residual-stream activation patching reveals a consistent pattern for final-output prediction: The changed cue/code region and a small set of intermediate tokens carry most of the recoverable causal signal before aggregation near the output readout. For unit-test generation, this pattern extends beyond the prompt, showing that conflict-related information is recoverable at generated sites before producing expected values. Overall, our findings show that semantic conflicts affect program comprehension and downstream tasks, with relevant information concentrated in a small number of causally active residual-stream states, and demonstrate a framework for mechanistically analyzing how LLMs integrate code-related information under controlled semantic variations.</summary>
+    <category term="cs.SE" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2026-07-06T19:35:04Z</published>
+    <arxiv:primary_category term="cs.SE"/>
+    <author>
+      <name>Youssef Abdelsalam</name>
+    </author>
+    <author>
+      <name>Norman Peitek</name>
+    </author>
+    <author>
+      <name>Anna-Maria Maurer</name>
+    </author>
+    <author>
+      <name>Marvin Wyrich</name>
+    </author>
+    <author>
+      <name>Sven Apel</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2606.29196v1</id>
+    <title>Representational Depth of Evaluation Awareness Shifts With Scale in Open-Weight Language Models</title>
+    <updated>2026-06-28T04:48:17Z</updated>
+    <link href="https://arxiv.org/abs/2606.29196v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2606.29196v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Do language models know when they are being tested? This question matters for AI safety: a model that recognises an evaluation context could alter its behaviour strategically, making downstream benchmarks harder to interpret. Using 11 models spanning Qwen 2.5, Gemma 2, and Llama 3.2, we find a systematic size-dependent shift in representational depth: in both Qwen 2.5 and Gemma 2, the layer at which evaluation-awareness is most linearly recoverable moves from late layers in smaller models to early layers in larger ones. This suggests that scale changes not only the strength of evaluation-awareness but also where it is most linearly recoverable in the network. This depth shift helps explain why within-family scaling trajectories are non-monotonic or inverse rather than smooth and family-general, showing that a simple universal power-law account is not supported under denser within-family sampling. Finally, white-box probe signals are consistently stronger than black-box behavioural expression, and the relationship between the two varies by family in ways not predicted by probe AUROC alone.</summary>
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2026-06-28T04:48:17Z</published>
+    <arxiv:comment>9 pages, 3 figures. Accepted at the Mechanistic Interpretability Workshop at ICML 2026</arxiv:comment>
+    <arxiv:primary_category term="cs.LG"/>
+    <author>
+      <name>Archit Manek</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2606.17115v1</id>
+    <title>Probing, Fusion, and Trustworthiness: A Systematic Evaluation of Foundation Model Representations for Multimodal Cancer Analysis</title>
+    <updated>2026-06-15T09:50:58Z</updated>
+    <link href="https://arxiv.org/abs/2606.17115v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2606.17115v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Foundation models (FMs) have emerged as powerful representation extractors for medical data, yet their generalizability to datasets under distribution shift remains underexplored. This work systematically evaluates FM-based representations on a suite of computational pathology tasks across two real-world commercial cohorts, IH-BC and IH-NSCLC, drawn from the licensed in-house (IH) oncology dataset. The analysis focuses on two modalities, whole-slide images and transcriptomic profiles, drawn from the IH multimodal data. We first benchmark unimodal probing performance across five FMs on eight downstream classification tasks, and find that image and omics representations carry complementary predictive signals. Then we investigate whether multimodal fusion can yield additional gains over unimodal baselines by comparing three image-omics fusion strategies built on paired representations. The trustworthiness of selected unimodal and multimodal pipelines is further assessed through conformal prediction. Our results show that FM representations achieve competitive performance on out-of-distribution data and that multimodal fusion helps mainly when no single modality dominates the signal. Conformal prediction reveals that in the majority of cases where a point prediction fails, the true diagnosis remains recoverable within the prediction set, reinforcing the value of uncertainty-aware inference for clinical support.</summary>
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.AI" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="q-bio.QM" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2026-06-15T09:50:58Z</published>
+    <arxiv:primary_category term="cs.LG"/>
+    <author>
+      <name>Jingyu Hu</name>
+    </author>
+    <author>
+      <name>Giuseppe Tripodi</name>
+    </author>
+    <author>
+      <name>Reed Naidoo</name>
+    </author>
+    <author>
+      <name>Sarah F. McGough</name>
+    </author>
+    <author>
+      <name>Tapabrata Chakraborti</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2604.27318v1</id>
+    <title>Revealing Strategic Interactions in Network Games Under Decaying Active Probing</title>
+    <updated>2026-04-30T02:01:12Z</updated>
+    <link href="https://arxiv.org/abs/2604.27318v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2604.27318v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Revealing the interaction topology underlying strategic behavior is fundamental to prediction, intervention, and policy design in networked systems. Yet the interaction matrix is often unobservable, and passive observation of repeated actions fails to provide sufficient excitation for reliable recovery. This paper studies topology recovery in repeated linear-quadratic network games under decaying active probing, where probing inputs are injected into a subset of players and the unknown interaction matrix is inferred from the resulting action trajectories. We first characterize a structural recoverability condition that determines when noiseless probing experiments can make the interaction matrix identifiable. We then show that, under suitable stability and controllability assumptions, a concrete decaying probing signal guarantees exact finite-step recovery while preserving convergence of the repeated-play process. To handle decision perturbations, we further develop a reweighted sparse estimator that achieves almost-sure consistency together with finite-time exact support recovery. These results clarify what can be recovered in both noiseless and perturbed settings.</summary>
+    <category term="math.OC" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2026-04-30T02:01:12Z</published>
+    <arxiv:comment>8 pages</arxiv:comment>
+    <arxiv:primary_category term="math.OC"/>
+    <author>
+      <name>Xiaoyu Xin</name>
+    </author>
+    <author>
+      <name>Longxu Zhang</name>
+    </author>
+    <author>
+      <name>Jinlong Lei</name>
+    </author>
+    <author>
+      <name>Yiguang Hong</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2607.19369v1</id>
+    <title>Beyond Tracking or Shortcut: Composition-Bounded Predictive States in Poker Autoregressive Models</title>
+    <updated>2026-06-13T15:56:26Z</updated>
+    <link href="https://arxiv.org/abs/2607.19369v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2607.19369v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Hidden-state probes often recover latent labels in imperfect-information sequence models, but this alone does not establish that a model maintains a posterior belief distribution over hidden states. This paper studies this ambiguity in a no-range Limit Hold'em autoregressive model trained only on action and value targets, not on an opponent's hand or range. Opponent-range probes are positive after action/value controls in two of three seeds, and the behavior head predicts held-out actions about five percentage points above a baseline using only observable public history. However, visible public betting composition explains more opponent-range signal than residual hidden states, suggesting that most recoverable information comes from betting summaries. Action/value+composition baselines reach 16.5-16.7% top-10 accuracy while composition-residual hidden probes fall to 11.4-12.2%, and matched-composition comparisons are negative in every seed. We call this evidence pattern composition-bounded predictive support: hidden states remain behavior-predictive and opponent-range correlated, but most recoverable range information is explained by visible betting composition rather than residual hidden-state structure. This is a case-study claim about opponent-range representational evidence, not exact Bayesian posterior tracking or a causal belief mechanism. Synthetic control and oracle validations show that the same diagnostics accept posterior-sensitive states and reject raw composition states under matched controls. Thus positive belief probes should be interpreted through targeted alternatives before being treated as evidence of belief tracking.</summary>
+    <category term="cs.AI" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2026-06-13T15:56:26Z</published>
+    <arxiv:primary_category term="cs.AI"/>
+    <author>
+      <name>Quanhao Li</name>
+    </author>
+    <author>
+      <name>Qianyu Chen</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2606.14555v1</id>
+    <title>Rethinking Global Average Pooling: Your Classifier Is Secretly a Multi-Instance Learner</title>
+    <updated>2026-06-12T15:35:05Z</updated>
+    <link href="https://arxiv.org/abs/2606.14555v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2606.14555v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Modern image classifiers widely adopt global average pooling (GAP) followed by a linear classification head. This linearity ensures that the image-level logits equal the average of logits obtained by applying the classification head pointwise to the feature grid prior to GAP. Consequently, standard classifiers may inherently retain spatial class evidence that remains recoverable even when the image-level prediction is incorrect. This structure naturally suggests a multiple-instance learning (MIL) interpretation, where an image is viewed as a bag of spatial instances. Within this formulation, we demonstrate that standard classifiers trained with a single label per image can still learn the intended classification task in multi-object scenes. We further exploit this property to decompose image-level logits into a prediction grid, providing a post-hoc diagnostic to extract spatial class evidence that GAP otherwise obscures. Our systematic evaluation reveals that off-the-shelf models consistently recover the ground-truth class within foreground regions. The MIL interpretation further suggests that common classifier failures reflect known limitations of mean aggregation.</summary>
+    <category term="cs.CV" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.AI" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2026-06-12T15:35:05Z</published>
+    <arxiv:primary_category term="cs.CV"/>
+    <author>
+      <name>Aray Karjauv</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2602.15855v1</id>
+    <title>Kalman-Inspired Runtime Stability and Recovery in Hybrid Reasoning Systems</title>
+    <updated>2026-01-24T11:29:57Z</updated>
+    <link href="https://arxiv.org/abs/2602.15855v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2602.15855v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Hybrid reasoning systems that combine learned components with model-based inference are increasingly deployed in tool-augmented decision loops, yet their runtime behavior under partial observability and sustained evidence mismatch remains poorly understood. In practice, failures often arise as gradual divergence of internal reasoning dynamics rather than as isolated prediction errors. This work studies runtime stability in hybrid reasoning systems from a Kalman-inspired perspective. We model reasoning as a stochastic inference process driven by an internal innovation signal and introduce cognitive drift as a measurable runtime phenomenon. Stability is defined in terms of detectability, bounded divergence, and recoverability rather than task-level correctness. We propose a runtime stability framework that monitors innovation statistics, detects emerging instability, and triggers recovery-aware control mechanisms. Experiments on multi-step, tool-augmented reasoning tasks demonstrate reliable instability detection prior to task failure and show that recovery, when feasible, re-establishes bounded internal behavior within finite time. These results emphasize runtime stability as a system-level requirement for reliable reasoning under uncertainty.</summary>
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.AI" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2026-01-24T11:29:57Z</published>
+    <arxiv:comment>Under review</arxiv:comment>
+    <arxiv:primary_category term="cs.LG"/>
+    <author>
+      <name>Barak Or</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2204.02513v1</id>
+    <title>In-Pocket 3D Graphs Enhance Ligand-Target Compatibility in Generative Small-Molecule Creation</title>
+    <updated>2022-04-05T22:53:51Z</updated>
+    <link href="https://arxiv.org/abs/2204.02513v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2204.02513v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Proteins in complex with small molecule ligands represent the core of structure-based drug discovery. However, three-dimensional representations are absent from most deep-learning-based generative models. We here present a graph-based generative modeling technology that encodes explicit 3D protein-ligand contacts within a relational graph architecture. The models combine a conditional variational autoencoder that allows for activity-specific molecule generation with putative contact generation that provides predictions of molecular interactions within the target binding pocket. We show that molecules generated with our 3D procedure are more compatible with the binding pocket of the dopamine D2 receptor than those produced by a comparable ligand-based 2D generative method, as measured by docking scores, expected stereochemistry, and recoverability in commercial chemical databases. Predicted protein-ligand contacts were found among highest-ranked docking poses with a high recovery rate. This work shows how the structural context of a protein target can be used to enhance molecule generation.</summary>
+    <category term="q-bio.BM" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="physics.bio-ph" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2022-04-05T22:53:51Z</published>
+    <arxiv:comment>5 pages, 3 figures</arxiv:comment>
+    <arxiv:primary_category term="q-bio.BM"/>
+    <author>
+      <name>Seung-gu Kang</name>
+    </author>
+    <author>
+      <name>Jeffrey K. Weber</name>
+    </author>
+    <author>
+      <name>Joseph A. Morrone</name>
+    </author>
+    <author>
+      <name>Leili Zhang</name>
+    </author>
+    <author>
+      <name>Tien Huynh</name>
+    </author>
+    <author>
+      <name>Wendy D. Cornell</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2601.22128v1</id>
+    <title>The Patient is not a Moving Document: A World Model Training Paradigm for Longitudinal EHR</title>
+    <updated>2026-01-29T18:49:37Z</updated>
+    <link href="https://arxiv.org/abs/2601.22128v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2601.22128v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Large language models (LLMs) trained with next-word-prediction have achieved success as clinical foundation models. Representations from these language backbones yield strong linear probe performance across biomedical tasks, suggesting that patient semantics emerge from next-token prediction at scale. However, this paradigm treats patients as a document to be summarized rather than a dynamical system to be simulated; a patient's trajectory emerges from their state evolving under interventions and time, requiring models that simulate dynamics rather than predict tokens. To address this, we introduce SMB-Structure, a world model for structured EHR that grounds a joint-embedding prediction architecture (JEPA) with next-token prediction (SFT). SFT grounds our model to reconstruct future patient states in token space, while JEPA predicts those futures in latent space from the initial patient representation alone, forcing trajectory dynamics to be encoded before the next state is observed. We validate across two large-scale cohorts: Memorial Sloan Kettering (23,319 oncology patients; 323,000+ patient-years) and INSPECT (19,402 pulmonary embolism patients). Using a linear probe evaluated at multiple points along the disease trajectory, we demonstrate that our training paradigm learns embeddings that capture disease dynamics not recoverable by autoregressive baselines, enabling SMB-Structure to achieve competitive performance on complex tasks characterized by high patient heterogeneity. Model weights are available at https://huggingface.co/standardmodelbio/SMB-v1-1.7B-Structure.</summary>
+    <category term="cs.AI" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.CE" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="q-bio.QM" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2026-01-29T18:49:37Z</published>
+    <arxiv:primary_category term="cs.AI"/>
+    <author>
+      <name>Irsyad Adam</name>
+    </author>
+    <author>
+      <name>Zekai Chen</name>
+    </author>
+    <author>
+      <name>David Laprade</name>
+    </author>
+    <author>
+      <name>Shaun Porwal</name>
+    </author>
+    <author>
+      <name>David Laub</name>
+    </author>
+    <author>
+      <name>Erik Reinertsen</name>
+    </author>
+    <author>
+      <name>Arda Pekis</name>
+    </author>
+    <author>
+      <name>Kevin Brown</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/physics/0611019v1</id>
+    <title>Statistical Description for Assumption-free Single-shot Measurement of Femtosecond Laser Pulse Parameters via Two-photon-induced Photocurrents</title>
+    <updated>2006-11-02T09:11:39Z</updated>
+    <link href="https://arxiv.org/abs/physics/0611019v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/physics/0611019v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>  Through examining the product of the mathematical variance of intensity with respect to time and frequency, we arrive at a temporal characterization of laser pulses through parameters for pulse duration, group delay dispersion and temporal form. These statistics, which are sufficient to predict subsequent pulse behavior, are recoverable in a simple experiment, measuring the two-photon-induced photocurrents in three nonlinear diodes. With only two photodiodes, we demonstrate that pulse durations as low as several tens of femtoseconds can be easily measured in a single shot if the usual assumptions of pulse form and dispersion are made as in the more difficult autocorrelation setup.</summary>
+    <category term="physics.optics" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2006-11-02T09:11:39Z</published>
+    <arxiv:primary_category term="physics.optics"/>
+    <author>
+      <name>Eric R. Tkaczyk</name>
+      <arxiv:affiliation>CUOS</arxiv:affiliation>
+    </author>
+    <author>
+      <name>Sylvain Rivet</name>
+      <arxiv:affiliation>LSOL</arxiv:affiliation>
+    </author>
+    <author>
+      <name>Lionel Canioni</name>
+      <arxiv:affiliation>CPMOH</arxiv:affiliation>
+    </author>
+    <author>
+      <name>Stéphane Santran</name>
+      <arxiv:affiliation>CPMOH</arxiv:affiliation>
+    </author>
+    <author>
+      <name>Laurent Sarger</name>
+      <arxiv:affiliation>CPMOH</arxiv:affiliation>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2605.20127v1</id>
+    <title>Beyond Prediction Accuracy: Target-Space Recovery Profiles for Evaluating Model-Brain Alignment</title>
+    <updated>2026-05-19T17:14:27Z</updated>
+    <link href="https://arxiv.org/abs/2605.20127v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2605.20127v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Artificial vision models are often evaluated against the human visual cortex by measuring how accurately their internal representations predict brain responses. However, prediction accuracy alone does not indicate which dimensions of the target brain's response space are recovered. Here, we introduce a unified framework for evaluating both model-brain and brain-brain alignment by identifying the response dimensions recovered by prediction. Using repeated fMRI measurements, we first identify target-brain response dimensions that can be reproducibly predicted across independent trial splits. We then predict target-brain responses from either another subject's brain responses or a vision model's internal representations, and quantify how strongly each of these reproducible response dimensions is recovered. Applying this framework to a subset of the Natural Scenes Dataset, in which eight subjects viewed the same natural images during fMRI, we find that the early-to-intermediate visual-cortex responses contain a low-dimensional set of reproducible dimensions. Brain-to-brain comparisons identify which of these dimensions are consistently recoverable from other subjects' brains, providing a diagnostic human reference rather than only a scalar benchmark. In some cases, pretrained and randomly initialized models achieve similar prediction accuracy while showing distinct recovery profiles across these response dimensions. These results show that prediction accuracy alone can mask model-brain mismatches. By making explicit which reproducible brain response dimensions are recovered by prediction, our framework provides a more diagnostic evaluation of alignment between artificial vision models and the human visual cortex.</summary>
+    <category term="q-bio.NC" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.AI" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2026-05-19T17:14:27Z</published>
+    <arxiv:comment>34 pages, 12 figures, 5 tables</arxiv:comment>
+    <arxiv:primary_category term="q-bio.NC"/>
+    <author>
+      <name>Ken Nakamura</name>
+    </author>
+    <author>
+      <name>Tomoya Nakai</name>
+    </author>
+    <author>
+      <name>Ryuto Yashiro</name>
+    </author>
+    <author>
+      <name>Ayumu Yamashita</name>
+    </author>
+    <author>
+      <name>Kaoru Amano</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2607.19954v1</id>
+    <title>A Multi-Dimensional Evaluation of Explainability in Media Bias Detection</title>
+    <updated>2026-07-22T09:29:49Z</updated>
+    <link href="https://arxiv.org/abs/2607.19954v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2607.19954v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Detecting media bias automatically is difficult because biased framing is often subtle, yet in domains such as news analysis, accurate predictions alone are insufficient without explanations that reflect the model's underlying reasoning. We present a multi-dimensional evaluation of explainability in encoder-based media bias detection using the Bias Annotations By Experts (BABE) dataset. Specifically, we study BERT and RoBERTa as classifiers (base and large variants) along three complementary axes: predictive performance, explanation plausibility (token-level alignment with expert rationales), and mechanistic faithfulness (whether compact sets of attention heads recover predictive signal under counterfactual rationale masking). To induce variation in plausibility, we additionally investigate attention-supervised finetuning, which incorporates expert rationale annotations as an auxiliary training signal. Attention supervision serves as an intervention on attribution plausibility, while the effectiveness of attribution methods varies substantially across architectures. Circuit analysis further reveals substantial variation in mechanistic recoverability across architectures, suggesting that model scale alone does not determine circuit compressibility. Taken together, our findings suggest that predictive performance, attribution plausibility, and mechanistic faithfulness characterize different aspects of model behavior and should be evaluated separately when studying explainability in media bias detection.</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2026-07-22T09:29:49Z</published>
+    <arxiv:comment>12 pages, 6 figures, under review</arxiv:comment>
+    <arxiv:primary_category term="cs.CL"/>
+    <author>
+      <name>Ting Chen</name>
+    </author>
+    <author>
+      <name>Raina Zhang</name>
+    </author>
+    <author>
+      <name>Benjamin M. Ampel</name>
+    </author>
+    <author>
+      <name>Sagar Samtani</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1509.07361v2</id>
+    <title>A new topological semimetal with iso-energetic Weyl fermions in TaAs under high pressure</title>
+    <updated>2015-11-11T11:49:38Z</updated>
+    <link href="https://arxiv.org/abs/1509.07361v2" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1509.07361v2" rel="related" type="application/pdf" title="pdf"/>
+    <summary>TaAs as one of the experimentally discovered topological Weyl semimetal has attracted intense interests recently. The ambient TaAs has two types of Weyl nodes which are not on the same energy level. As an effective way to tune lattice parameters and electronic interactions, high pressure is becoming a significant tool to explore new materials as well as their exotic states. Therefore, it is highly interesting to investigate the behaviors of topological Weyl fermions and possible structural phase transitions in TaAs under pressure. Here, with a combination of ab initio calculations and crystal structure prediction techniques, a new hexagonal P-6m2 phase is predicted in TaAs at pressure around 14 GPa. Surprisingly, this new phase is a topological semimetal with only single set of Weyl nodes exactly on the same energy level. The phase transition pressure from the experimental measurements, including electrical transport measurements and Raman spectroscopy, agrees with our theoretical prediction reasonably. Moreover, the P-6m2 phase seems to be quenched recoverable to ambient pressure, which increases the possibilities of further study on the exotic behaviors of single set of Weyl fermions, such as the interplay between surface states and other properties.</summary>
+    <category term="cond-mat.mtrl-sci" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cond-mat.mes-hall" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cond-mat.str-el" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2015-09-24T13:27:43Z</published>
+    <arxiv:comment>25 pages, 4 figures, 2 tables</arxiv:comment>
+    <arxiv:primary_category term="cond-mat.mtrl-sci"/>
+    <arxiv:journal_ref>Phys. Rev. Lett. 117(14), 146402 (2016)</arxiv:journal_ref>
+    <author>
+      <name>Yonghui Zhou</name>
+    </author>
+    <author>
+      <name>Pengchao Lu</name>
+    </author>
+    <author>
+      <name>Yongping Du</name>
+    </author>
+    <author>
+      <name>Xiangde Zhu</name>
+    </author>
+    <author>
+      <name>Ranran Zhang</name>
+    </author>
+    <author>
+      <name>Dexi Shao</name>
+    </author>
+    <author>
+      <name>Xuliang Chen</name>
+    </author>
+    <author>
+      <name>Xuefei Wang</name>
+    </author>
+    <author>
+      <name>Mingliang Tian</name>
+    </author>
+    <author>
+      <name>Jian Sun</name>
+    </author>
+    <author>
+      <name>Xiangang Wan</name>
+    </author>
+    <author>
+      <name>Zhaorong Yang</name>
+    </author>
+    <author>
+      <name>Yuheng Zhang</name>
+    </author>
+    <author>
+      <name>Dingyu Xing</name>
+    </author>
+    <arxiv:doi>10.1103/PhysRevLett.117.146402</arxiv:doi>
+    <link rel="related" href="https://doi.org/10.1103/PhysRevLett.117.146402" title="doi"/>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2602.15438v3</id>
+    <title>Logit Distance Bounds Representational Similarity</title>
+    <updated>2026-06-24T10:39:19Z</updated>
+    <link href="https://arxiv.org/abs/2602.15438v3" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2602.15438v3" rel="related" type="application/pdf" title="pdf"/>
+    <summary>For a broad family of discriminative models that includes autoregressive language models, identifiability results imply that if two models induce the same conditional distributions, then their internal representations are equal up to an invertible linear transformation. We ask whether an analogous conclusion holds approximately when the distributions are close instead of equal. Building on the observation of Nielsen et al. (2025) that closeness in KL divergence need not imply high linear representational similarity, we study a distributional distance based on logit differences and show that closeness in this distance does yield linear similarity guarantees. Specifically, we define a representational dissimilarity measure based on the models' identifiability class and prove that it is bounded by the logit distance. We further show that, when model probabilities are bounded away from zero, KL divergence upper-bounds logit distance; yet the resulting bound fails to provide nontrivial control in practice. As a consequence, KL-based distillation can match a teacher's predictions while failing to preserve linear representational properties, such as linear-probe recoverability of human-interpretable concepts. In distillation experiments on synthetic and image datasets, logit-distance distillation yields students with higher linear representational similarity and better preservation of the teacher's linearly recoverable concepts.</summary>
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.AI" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="stat.ML" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2026-02-17T09:00:56Z</published>
+    <arxiv:primary_category term="cs.LG"/>
+    <author>
+      <name>Beatrix M. G. Nielsen</name>
+    </author>
+    <author>
+      <name>Emanuele Marconato</name>
+    </author>
+    <author>
+      <name>Luigi Gresele</name>
+    </author>
+    <author>
+      <name>Andrea Dittadi</name>
+    </author>
+    <author>
+      <name>Simon Buchholz</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2603.29560v1</id>
+    <title>Distributed Predictive Control Barrier Functions: Towards Scalable Safety Certification in Modular Multi-Agent Systems</title>
+    <updated>2026-03-31T10:38:22Z</updated>
+    <link href="https://arxiv.org/abs/2603.29560v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2603.29560v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>We consider safety-critical multi-agent systems with distributed control architectures and potentially varying network topologies. While learning-based distributed control enables scalability and high performance, a lack of formal safety guarantees in the face of unforeseen disturbances and unsafe network topology changes may lead to system failure. To address this challenge, we introduce structured control barrier functions (s-CBFs) as a multi-agent safety framework. The s-CBFs are augmented to a distributed predictive control barrier function (D-PCBF), a predictive, optimization-based safety layer that uses model predictions to guarantee recoverable safety at all times. The proposed approach enables a permissive yet formal plug-and-play protocol, allowing agents to join or leave the network while ensuring safety recovery if a change in network topology requires temporarily unsafe behavior. We validate the formulation through simulations and real-time experiments of a miniature race-car platoon.</summary>
+    <category term="eess.SY" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.RO" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="math.OC" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2026-03-31T10:38:22Z</published>
+    <arxiv:comment>This work has been submitted to the IEEE for possible publication</arxiv:comment>
+    <arxiv:primary_category term="eess.SY"/>
+    <author>
+      <name>Jonas Ohnemus</name>
+    </author>
+    <author>
+      <name>Alexandre Didier</name>
+    </author>
+    <author>
+      <name>Ahmed Aboudonia</name>
+    </author>
+    <author>
+      <name>Andrea Carron</name>
+    </author>
+    <author>
+      <name>Melanie N. Zeilinger</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2607.11298v2</id>
+    <title>PAC Studio Machine Learning: Human-in-the-Loop Analysis of TDPAC Spectra</title>
+    <updated>2026-07-17T22:13:30Z</updated>
+    <link href="https://arxiv.org/abs/2607.11298v2" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2607.11298v2" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Time-differential perturbed angular correlation (TDPAC or PAC) analysis is an ill-conditioned inverse problem in which site count, interaction type, correlated hyperfine parameters, damping, and initialization choices can produce competing numerical solutions. This software paper presents PAC Studio ML, a human-in-the-loop Python desktop environment for physics-informed inverse analysis of PAC spectra. The software integrates a Hamiltonian-based forward PAC model, user-defined synthetic training libraries, feature extraction, one-, two-, and three-site machine-learning predictors, direct parameter prediction, Auto sites model-family screening, ML-seeded nonlinear least-squares refinement, visualization, benchmarking, diagnostics, model-card reporting, and export tools. The ML component is designed to support, not replace, conventional fitting and expert interpretation by accelerating parameter exploration, suggesting plausible initialization regions, comparing site-count hypotheses, and improving reproducibility. Held-out synthetic tests demonstrate proof of operation and illustrate the unequal recoverability of PAC parameters in difficult inverse problems. Selected BiFeO3 examples demonstrate conventional, direct-ML, ML-seeded, and Auto sites workflows as software case studies, not as a complete experimental validation corpus. PAC Studio ML is therefore positioned as a supporting tool for expert PAC analysis: it improves workflow speed and diagnostic transparency while final model choice, physical constraints, and materials interpretation remain the responsibility of the researcher.</summary>
+    <category term="cond-mat.mtrl-sci" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2026-07-13T09:15:02Z</published>
+    <arxiv:primary_category term="cond-mat.mtrl-sci"/>
+    <author>
+      <name>Thien Thanh Dang</name>
+    </author>
+    <author>
+      <name>Juliana Heiniger-Schell</name>
+    </author>
+    <author>
+      <name>Doru Constantin Lupascu</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2206.04935v1</id>
+    <title>Sort by Structure: Language Model Ranking as Dependency Probing</title>
+    <updated>2022-06-10T08:10:29Z</updated>
+    <link href="https://arxiv.org/abs/2206.04935v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2206.04935v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Making an informed choice of pre-trained language model (LM) is critical for performance, yet environmentally costly, and as such widely underexplored. The field of Computer Vision has begun to tackle encoder ranking, with promising forays into Natural Language Processing, however they lack coverage of linguistic tasks such as structured prediction. We propose probing to rank LMs, specifically for parsing dependencies in a given language, by measuring the degree to which labeled trees are recoverable from an LM's contextualized embeddings. Across 46 typologically and architecturally diverse LM-language pairs, our probing approach predicts the best LM choice 79% of the time using orders of magnitude less compute than training a full parser. Within this study, we identify and analyze one recently proposed decoupled LM - RemBERT - and find it strikingly contains less inherent dependency information, but often yields the best parser after full fine-tuning. Without this outlier our approach identifies the best LM in 89% of cases.</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2022-06-10T08:10:29Z</published>
+    <arxiv:comment>Accepted at NAACL 2022 (Main Conference)</arxiv:comment>
+    <arxiv:primary_category term="cs.CL"/>
+    <author>
+      <name>Max Müller-Eberstein</name>
+    </author>
+    <author>
+      <name>Rob van der Goot</name>
+    </author>
+    <author>
+      <name>Barbara Plank</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2505.14130v1</id>
+    <title>Probing BERT for German Compound Semantics</title>
+    <updated>2025-05-20T09:36:17Z</updated>
+    <link href="https://arxiv.org/abs/2505.14130v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2505.14130v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>This paper investigates the extent to which pretrained German BERT encodes knowledge of noun compound semantics. We comprehensively vary combinations of target tokens, layers, and cased vs. uncased models, and evaluate them by predicting the compositionality of 868 gold standard compounds. Looking at representational patterns within the transformer architecture, we observe trends comparable to equivalent prior work on English, with compositionality information most easily recoverable in the early layers. However, our strongest results clearly lag behind those reported for English, suggesting an inherently more difficult task in German. This may be due to the higher productivity of compounding in German than in English and the associated increase in constituent-level ambiguity, including in our target compound set.</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2025-05-20T09:36:17Z</published>
+    <arxiv:comment>Accepted to SwissText 2025</arxiv:comment>
+    <arxiv:primary_category term="cs.CL"/>
+    <author>
+      <name>Filip Miletić</name>
+    </author>
+    <author>
+      <name>Aaron Schmid</name>
+    </author>
+    <author>
+      <name>Sabine Schulte im Walde</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2603.17306v3</id>
+    <title>Evidence for systematic semantic structure in individual phonemes</title>
+    <updated>2026-05-29T15:14:51Z</updated>
+    <link href="https://arxiv.org/abs/2603.17306v3" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2603.17306v3" rel="related" type="application/pdf" title="pdf"/>
+    <summary>A foundational assumption in linguistics holds that sound-meaning relations are largely arbitrary. Here we show that this assumption fails at the level of individual phonemes: each English phoneme carries a structured, multidimensional semantic profile that is recoverable from text, perceived across languages, and grounded in articulation. Three large language models independently detected consistent semantic structure across nine perceptual dimensions in 220 pairwise letter contrasts. Native English speakers (N = 93) confirmed these associations in a preregistered forced-choice task (85.3% agreement with model predictions), and listeners of five typologically diverse languages (N = 155) replicated the effect under audio presentation (73.2%-81.9% accuracy). Articulatory features predicted the structure with cross-validated R^2 of 0.56-0.98, indicating that the bodily act of producing a sound systematically shapes the meaning it conveys. These findings reframe phoneme-level iconicity as a pervasive, embodied property of the phonological system.</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="q-bio.NC" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2026-03-18T03:02:10Z</published>
+    <arxiv:comment>31 pages, 4 figures</arxiv:comment>
+    <arxiv:primary_category term="cs.CL"/>
+    <author>
+      <name>Gexin Zhao</name>
+    </author>
+  </entry>
+</feed>

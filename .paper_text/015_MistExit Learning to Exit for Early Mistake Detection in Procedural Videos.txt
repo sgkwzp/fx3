@@ -1,0 +1,1287 @@
+                                          MistExit: Learning to Exit for Early
+                                        Mistake Detection in Procedural Videos
+
+                                        Sagnik Majumder1  Anish Nethi1 Ziad Al-Halah2     Kristen Grauman1
+                                                          1UT Austin 2University of Utah
+
+arXiv:2603.14252v1 [cs.CV] 15 Mar 2026           Abstract. We introduce the task of early mistake detection in video,
+                                                 where the goal is to determine whether a keystep in a procedural activity
+                                                 is performed correctly while observing as little of the streaming video as
+                                                 possible. To tackle this problem, we propose a method comprising a mis-
+                                                 take detector and a reinforcement learning policy. At each timestep, the
+                                                 detector processes recently observed frames to estimate the keystep’s cor-
+                                                 rectness while anticipating future visual features, enabling reliable early
+                                                 mistake estimates. Meanwhile, the policy aggregates the detector outputs
+                                                 and visual observations over time and adaptively decides when to exit (i.e.,
+                                                 stop processing incoming frames) while producing the final prediction.
+                                                 Using diverse real-world procedural video datasets, we demonstrate that
+                                                 our MistExit model achieves superior mistake detection accuracy while re-
+                                                 ducing the fraction of video observed compared to state-of-the-art models.
+                                                 Project: https://vision.cs.utexas.edu/projects/mist_exit.
+
+                                        1 Introduction
+
+                                        Procedural videos illustrate how to perform a sequence of steps to complete
+                                        diverse human tasks, such as cooking a meal or repairing a bike, and are driving
+                                        a new frontier in AI coaching [25, 32, 52] and robotics [3, 28, 35]. Given the routine
+                                        and ubiquitous nature of procedural tasks, understanding procedural videos is
+                                        essential for developing capable AI assistants, including those deployed on smart
+                                        glasses that provide real-time contextual guidance across various domains such
+                                        as sports, cooking and music [14, 25, 31, 52, 70], and dexterous robots designed
+                                        to assist humans with similar tasks. Mistake detection—the task of identifying
+                                        errors in the execution of a procedural activity—is particularly important, as it
+                                        enables real-time support [52], facilitates skill assessment [17, 51, 53], and helps
+                                        identify areas for improvement during task execution [82]. These capabilities
+                                        make mistake detection a key component for personalizing learning and building
+                                        more competent agents for procedural tasks in real-world environments.
+
+                                            Despite impressive progress, existing research on mistake detection largely
+                                        operates in an offline, batch setting [12,23,30,42,49] that assumes access to the full
+                                        video for identifying errors in the keysteps of a procedural activity. Consequently,
+                                        such systems lack proactivity—that is, they cannot flag mistakes before the
+                                        agent has fully committed to or completed a step. This limitation reduces their
+                                        applicability in real-time and interactive scenarios in which humans and robots
+                                        operate, as well as in resource-efficient settings where avoiding wastage or damage
+2 Majumder et al. View selection model
+
+                                        Observed Frames
+
+EXIT POINT
+
+                                                                     Correct,
+                                                                   7% of video
+
+                                                                     elapsed
+
+            EXIT POINT
+
+                         Exit                            Mistake      Mistake,
+                        Policy                           Detector  12% of video
+
+                                                                      elapsed
+
+Fig. 1: Our goal is to learn a policy that, given a streaming video of a keystep in
+        Architecture modification:
+
+a procedural activity, decides how much of the video to observe before exiting (i.e.,
+          Different from our view-switch detector, our view selector has access to the next
+
+stoppingfraimnfeesrefrnocme)t,hseubcohththvaietwas mistake detector conditioned on the recently observed
+frames can accurately determine whether the keystep is a mistake or not while minimizing
+the fraTcrtaioinninogflotshse: video observed. E.g., in a video like the one shown in row 2, a well-
+
+trained model may observe a drill bit (frame 3) and infer that the step will eventually
+
+                                                                                                                                                                                                                                       35
+
+result in a mistake—tShwietch-ga-Vlaiews: sViewbSreelecatiokn aLegarneed ifrnom Ulanlatbeelerd Inf-rthea-wmild Veidseosc. Moanjumfdierrmet asl., AtrXhiv i2s02—4. and exit promptly,
+
+thereby using only about 12% of the video.
+
+to resources—such as ingredients during cooking or tools during a repair task—is
+critical. It also limits deployment in low-power setups [1, 25, 47, 81], e.g., on smart
+glasses, where the mistake detector must operate within an energy budget.
+
+    This motivates us to consider early mistake detectors that operate on stream-
+ing procedural videos and identify errors in keysteps while observing only a
+minimal fraction of the video. Towards this goal, we introduce the task of early
+detection of mistakes in procedural videos. In this task, the goal is to learn a
+policy that, given a streaming video of a keystep in a procedural activity—e.g., a
+chef peeling a cucumber for a salad, a mechanic propping up a bike to take
+off its wheel—decides how much of the video to observe before exiting (stopping
+inference). The objective is to ensure that a mistake detector, conditioned on
+the recently observed frames, can accurately determine whether the keystep is a
+mistake or not while minimizing the fraction of the video that must be observed.
+See Fig. 1.
+
+    We consider diverse categories of procedural mistakes in our task setting,
+including ordering errors (e.g. adding oil to a saucepan before heating), technical
+mistakes (e.g. over-tightening a bolt leading to threading damage), and incorrect
+object usage (e.g. using a spoon instead of a whisk to beat eggs).
+
+    To tackle this task, we propose MistExit, an early mistake detection framework
+comprising a mistake detector and a reinforcement learning (RL) policy. At each
+timestep of the streaming video, the detector processes the recently observed
+frames to produce an initial estimate of the keystep’s mistake label, along with
+predicted visual features for a sequence of future frames. Future anticipation
+enables the detector to better model the keystep’s correctness and provide reliable
+initial mistake estimates to the policy. The policy takes the detector’s outputs
+and the observed frames as inputs, aggregates them over time, and sequentially
+decides when to exit, while also producing the final prediction of the keystep’s
+correctness at the exit point. Whereas the detector outputs convey the detector’s
+uncertainty to the policy and indicate whether they are reliable enough to be
+incorporated into the policy’s model of the keystep’s correctness, the visual
+MistExit  3
+
+inputs—accumulated over time—allow the policy to verify the visual evidence
+against the detector’s predictions and adjust its exit strategy accordingly.
+
+    We train our policy using a novel reward comprising three components: a dense
+term that promotes continuous improvement in detection quality and stabilizes
+training on longer and more complex videos; a sparse term that encourages
+accurate predictions at the exit point, capturing the essence of the task; and a
+video-aware time penalty that incentivizes early exits commensurate with the
+video’s length and complexity.
+
+    We evaluate our approach on two real-world datasets of procedural videos:
+CaptainCook4D (CC4D) [54] and Assembly101 [61]. Together, these datasets span
+diverse activity scenarios—cooking in CC4D vs. (dis)assembly in Assembly101—
+as well as different task environments, with an in-the-wild cooking setup in CC4D
+and a tabletop setting in Assembly101. Our model successfully learns to detect
+procedural mistakes accurately while exiting early, outperforming multiple strong
+baselines, including policies from early action recognition [16, 24, 73, 78] and its
+variant without future anticipation. We will release our code and data.
+
+2 Related Work
+
+Mistake detection in procedural videos. Mistake detection in procedural videos
+involves identifying deviations in the execution of keysteps within the demon-
+strated procedural activity [19, 23, 25, 30, 54, 56, 61, 70]. Such deviations may
+include missing, adding or modifying certain steps [33,42,54], incorrectly perform-
+ing some steps [26, 33, 54, 58, 70] or altering their order [33, 54, 61]. Prior works
+identify mistakes of varying granularity–from sequence-level deviations [23, 56]
+to errors in both fine-grained [42, 58, 70] and coarse-grained [54, 61] actions, and
+tackle diverse activity scenarios–from indoor activities like cooking [25,42,54] and
+(dis-)assembly [23, 25, 56, 58, 61, 70] to outdoor activities like pitching a tent [33].
+
+    Most of these models operate in an offline setting, assuming access to the
+entire video and identifying mistakes after observing it in full. Such models
+determine step correctness by leveraging knowledge graphs constructed from
+video transcripts [12], employing hand-crafted error functions that rely on action
+preconditions to decide step correctness [23], comparing visual features of a
+step against pre-computed action-specific clusters [42], matching recognized step
+types against expected types extracted from a task graph [30], or detecting
+inconsistencies between predicted and observed gaze trajectories of the actor [49].
+In contrast, we address online mistake detection—specifically, a challenging
+setting in which the goal is to determine whether a step is correct or erroneous
+as early as possible.
+
+    Select prior methods tackle the challenging online (streaming) setting, but
+they detect only the first incorrect step using one-class classification to compare
+actions recognized by an action recognition model against expected actions
+derived from a large language model [19, 55] or a procedural task graph [60].
+However, these methods cannot detect mistakes beyond the first one because the
+action anticipation model becomes unreliable once the mistaken action is used as
+4  Majumder et al.
+
+input for predicting subsequent actions. Unlike these models, which can detect
+only the first mistake in a procedural sequence, we aim to identify all mistakes
+and do so early within each step. Finally, unlike all prior approaches, we equip
+our detector with the ability to anticipate future visual features, allowing it to
+flag mistakes even earlier and improve task performance, as we show in results.
+
+Online video understanding. Prior works have studied various online video under-
+standing tasks. Whereas online action recognition [4, 40, 65] requires classifying
+the action in a video clip using a small fraction of frames, the goal in online
+action detection [11, 15, 21, 68, 69, 79, 85] is to predict if a frame in a streaming
+video is from an action class or the background class. Other efforts tackle online
+action localization [34, 36, 63] and estimate action start and end times, predict
+action segments in streaming videos [22, 62] or estimate the continuous progress
+of an action in a streaming setting [13, 62]. In contrast, we tackle a distinct task
+of detecting mistakes in procedural videos in a streaming setting. Specifically,
+our focus is on both mistake detection accuracy and efficiency, and therefore, we
+evaluate an early detection setup where the goal is to recognize mistakes in a
+keystep as quickly as possible.
+
+Early recognition in videos. Early recognition [6, 8, 41, 57, 67, 71] involves recog-
+nizing actions and events in videos by observing only a few frames at their onset.
+Earlier approaches leverage probabilistic modeling [6,41,43,57] by extracting hand-
+crafted features from partially observed videos. These methods employ techniques
+such as bag-of-words representations [57], sparse coding [38, 39], or hierarchical
+representations [41]. More recent methods use learned features [18, 29, 72, 84]
+produced through knowledge distillation between teacher models trained on full
+videos and student models trained on partial videos [5, 18, 29, 72], generating
+full videos using partially observed ones [80], residual propagation [84], inferring
+relations with graph neural nets [8,76,77], learning both instance-specific features
+and generic features shared across the dataset [20] or multi-scale representation
+of partial videos [64]. In contrast, we tackle the novel task of early recognition of
+mistakes in procedural videos. Moreover, unlike the above methods that rely on
+short, fixed-length video segments, our goal is to learn a model that adaptively
+determines an early exit point aligned with the video’s length and complexity.
+
+    More closely related to our work are methods that learn early exit policies for
+adaptively stopping inference in a streaming video when the recognition backbone
+makes a correct prediction, thereby aiming to achieve high accuracy while saving
+on inference cost [16, 24, 73–75, 78]. While some methods [73, 74] use simple
+heuristics like making the exit decision by comparing the prediction confidence [73]
+or prediction entropy [74, 75] against a pre-defined threshold, FrameExit [24]
+trains an exit policy in a supervised manner using exit pseudo-labels generated
+by comparing the recognition loss against video-progress-dependent thresholds
+during training. Some approaches [16, 78] also use reinforcement learning (RL)
+to train exit policies with both dense rewards [78] that encourage an exit when
+there is no further potential for improvement in the prediction confidence for the
+target class, and sparse rewards [16] that not only incentivize maximizing the
+                                                                                     MistExit       5
+
+target prediction confidence at the point of exit but also punish the model for
+consuming too many frames.
+
+    Different from all early exit methods, we focus on achieving early exit for
+mistake detection in procedural videos and we do so by learning an RL-based exit
+policy. Our policy design enables the model to continuously refine its estimate of
+a keystep’s correctness by temporally aggregating visual information together
+with initial mistake estimates from the detector. Combined with an RL reward
+that promotes improving detection quality over time while encouraging early
+and accurate exits, this design leads to more stable training on longer and more
+complex episodes and substantially outperforms existing RL-based alternatives.
+
+3 Early mistake detection task
+
+We introduce a new task: early detection of mistakes in procedural videos. In
+this task, the goal is to train a policy that operates on a streaming video of a
+keystep in a procedural activity (e.g., a chef whisking eggs when preparing an
+omelette, a mechanic jacking up a car when fixing a flat tire) and intelligently
+decides how much of the video to observe before exiting (stopping inference),
+such that the observed length is very low compared to the full length of the video,
+while also ensuring a mistake detection model accurately detects any mistakes
+in the video. Using visual inputs, potentially alongside the mistake detector’s
+predictions, the policy must infer whether sufficient evidence has been gathered
+to determine the step’s correctness and accordingly decide whether it is a good
+time to exit.
+
+Task definition. Formally, we consider a procedural video V in a streaming
+
+setting. V consists of a sequence of N video clips1, such that V = [V1, . . . , VN ].
+
+Each clip Vi corresponds to a keystep in the procedural activity shown in V and
+
+has length Ti. Clip Vi streams RGB frames at the rate of f frames per second,
+such that Iitˆ denotes the image frame at time t and tˆ = ⌊t ∗ f ⌋ provides the frame
+index for time t. Here, 0 ≤ t ≤ Ti and ⌊y⌋ indicates rounding down y.
+
+    In this task, we aim to train a model comprising a mistake detector D and an
+
+exit policy π. Given a streaming clip Vi, the policy π must take an action ati ∈ A
+at each time t, where A = {Continue, Exit-mistake, Exit-correct} denotes the
+
+action space. Vi keeps producing image frames until the policy decides to Exit—
+
+where Exit-mistake and Exit-correct correspond to stopping inference with the
+
+model’s final prediction for the clip being mistake or correct, respectively—or
+
+until Vi reaches its end.
+
+    Let Ei denote this end point—natural or policy-induced—of the image stream.
+
+At any time t before the end point Ei, the mistake detector D takes the sequence
+
+of  K  most  recent  frames,  Sit,  such  that  S ti  =  [Iitˆ−K+1  , . . . , Ii ],tˆand  produces  an
+
+estimate M˜ ti of the mistake label Mi—0 for a mistake and 1 for correct—for
+
+Vi. Mi indicates if the keystep corresponding to Vi is being done correctly or
+
+not, and provides the policy with an initial estimate of the step’s correctness.
+
+1 We assume pre-segmented keysteps, as modern action detection models [2, 69, 85] can
+  robustly estimate keystep start and end times.
+6  Majumder et al.
+
+                                 View selection model
+
+             Mistake Detector 𝒟                                 s!#"&(  s!#"&'         s!  #"&)                    𝑀##!
+
+                                                        Transformer
+
+                𝑠!#"–%&(     𝑠!#"–%&'             𝑠!#"          𝑧(      𝑧'             𝑧)              𝑧)&(
+                 CNN          CNN                CNN
+             𝐼!#"$%&(     𝐼!#"$%&'              𝐼!#"                    All-zero features for future anticipation
+                                                                                  and mistake prediction
+
+                                                                    Exit Policy 𝜋  𝑇!  𝑀!        𝑀##
+
+                                                                                                    !
+
+             CNN          𝑚!#                           Critic                             Reward Function               = 𝑀!
+             CNN
+                                                                        Dense Reward: 𝑀̈!"#$ 𝑀! − 𝑀̈"! 𝑀!
+                                                                        Time Penalty: 1/𝑇!
+                                                                        Sparse Reward: 𝟏 𝑎!" ∈ {𝐸−𝑚, 𝐸−𝑐} ∗ 𝟏 ℰ 𝑎!"
+
+                                 𝑝!#   GRU      𝑔!#
+
+     𝑀##                  𝑜!#          ℎ#$( ℎ#          Actor   𝑎#! Continue/Exit  Environment
+                                                                       Streaming
+         !
+   Detector
+
+    Output
+
+AFrcigh.it2e:ctOuruer mMoisdtiEficxaittiomno:del for early mistake detection has two components: 1) a
+ mDiisfftearkeendt efrtoecmtooruDr v(iteowp-)s, waintcdh2d)eatnecetoxirt, opuorlivcyiewπ s(beolettcotomr).haAst aecachestsimtoesttheep ninexat
+ sftrraemamesinfgrokmeytshteepbcoltihp,vDiewpsrocesses recent frames to predict the keystep’s mistake
+ label and anticipate future features, improving the mistake detection quality. The
+Tproaliincyinπg ltoaskses: the detector’s estimate and the latest frame, aggregates them over time, 35
+
+                                              Switch-a-View: View Selection Learned from Unlabeled In-the-wild Videos. Majumder et al., ArXiv 2024.
+
+ and decides when to exit. We train π with a novel reward that encourages improving
+
+ detection quality over time while promoting early and accurate exits.
+
+Given the visual frames and the mistake detector’s predictions, the policy must
+intelligently decide when to exit, such that the resulting end point Ei occurs
+very early vis-a-vis the full clip length, i.e. Ei ≪ Ti, while its final prediction, as
+extracted from its action at the end point, matches the mistake label. That is,
+E(aEi ) = Mi, where E extracts the clip’s predicted correctness type from an Exit
+action.
+
+    Succeeding at this task requires a strong synergy between the exit policy and
+the mistake detector. The policy must reason from visual inputs—potentially
+alongside the detector’s predictions—about how far the keystep has progressed
+and whether sufficient evidence has been gathered for reliable mistake detection.
+In turn, the mistake detector must produce accurate estimates early in the
+streaming clip so that the policy can make prompt exit decisions. We evaluate
+the resulting performance–efficiency trade-off by measuring both the detection
+accuracy at the exit point and the fraction of the clip consumed (cf. Sec. 5.1).
+
+4 Approach
+
+We pose our early mistake detection task as a reinforcement learning (RL)
+problem, and propose our MistExit model to solve the task. Our model has
+two key components: 1) a mistake detector D, and 2) an exit policy π. Given a
+streaming clip corresponding to a keystep in an instructional video, the mistake
+detector determines whether the step is correct or erroneous by not only leveraging
+recently observed frames to detect mistakes in the parts of the clip observed so
+far but also anticipating future visual features. Anticipation lets the model infer
+if the step can lead to a mistake in the future (e.g., vigorously beating eggs in a
+                                                                                      MistExit        7
+
+small bowl may indicate a future spillover, taking off a tire before jacking up the
+car may damage the wheel hub), so that it can better facilitate early exits.
+
+    Conditioned on the detector’s latest prediction and the current frame from
+the stream—aggregated over time—the policy sequentially decides whether to
+continue observing or to exit. On the one hand, the detector’s confidence scores
+provide an explicit signal of its current prediction uncertainty to the policy,
+guiding it to either gather additional evidence or rely on accumulated predictions
+from the past for immediate termination. On the other hand, the visual frames
+observed so far, together with the detector’s initial estimates, enable the policy
+to cross-check the visual evidence with the detector outputs and assess whether
+the detector’s estimates are reliable enough to be used in the decision making,
+especially when the estimtes are high-confidence. See Fig. 2. Next, we describe
+these two components in detail.
+
+4.1 Mistake detector D
+
+Our mistake detector D comprises a transformer encoder [19, 66] that takes
+
+as input a sequence of the most recently observed frames and predicts both
+
+an estimate of the keystep’s binary mistake label and the visual features for a
+
+sequence of future frames. By predicting the features for future frames, D learns
+
+to anticipate the future and consequently can better model if a keystep is likely
+
+to end up being a mistake or not. This helps the policy to make even earlier exits
+
+while also ensuring improved mistake detection accuracy, as we show in results.
+
+      Specifically, we first use a CNN encoder [7, 44] to project the frame sequence
+
+S ti  (cf.  Sec.  3)  into   a  visual  feature  sequence  sti ,  such  that  sti  =  [sitˆ−K+1  , . . . , si]tˆ
+
+(cf. Sec. 3). Next, we produce a sequence of L + 1 all-zero features, z, such
+
+that first L entries correspond to the features for the future frames that D
+
+anticipates, and the last feature is the feature whose output will be used for
+
+estimating the mistake label. We then concatenate sti and z into a single feature
+sequence dti = [sti, z]. We further add to each feature entry in dti the appropriate
+sinusoidal positional embeddings [66] and a learnable modality embedding [46,48]
+
+to distinguish among three different feature types: one for all features in sti, one
+for the first L features in z, corresponding to the anticipated features, and one
+
+for the last feature in z, which corresponds to the feature that is mapped to the
+
+mistake logits.
+
+      Next, we aggregate dti using transformer encoder layers [19,42,66,83] and store
+the last L + 1 output features in a sequence d¯ti. Finally, we transform the first L
+                                        d¯t                                                           s˜ti
+entries     and   the  last  entry  in       using  separate  MLPs      to  obtain    the  estimates
+                                          i
+for the anticipated features, s¯ti = [sitˆ+1, . . . , sitˆ+L], and the logits M˜ ti for binary
+
+mistake classification.
+
+4.2 Exit policy π
+
+Our second model component is our exit policy π that takes the latest visual
+frames from the streaming clip and the predictions from the mistake detector,
+aggregates these inputs over time, and actively decides when to stop observing
+further frames. Specifically, for a clip Vi, it uses the visual cues and detection
+8    Majumder et al.
+
+scores to predict a sequence of actions ati that leads to an accurate prediction of
+the keystep’s correctness at the exit point Ei, while keeping the value of Ei as
+low as possible (cf. Sec. 3). The policy comprises two main modules: 1) an input
+
+encoder, and 2) a policy network.
+
+Inputs and encoding. At every time t in a streaming video clip Vi, the exit policy
+receives a visual observation Oit, along with the latest predictions M˜ ti from the
+mistake detector. Oti comprises the latest frame Iitˆ from the stream (cf. Sec. 3).
+
+    The visual input Oit, coupled with cues from the temporally aggregated past
+inputs O<t i , enables the model to infer the current stage of the activity—early or
+late—and to determine whether the frames observed thus far provide sufficient
+
+information to assess the correctness of the keystep. The mistake detection scores
+M˜ ti directly inform the model of the detector’s prediction and its confidence at the
+present time. The policy accumulates these estimates along with visual evidence
+
+over time and determines whether sufficient information has been gathered to
+
+decide the step’s correctness, adjusting its exit point accordingly.
+    To encode the visual observation Oit, we use a CNN [7, 44] encoder and
+
+produce a 1D embedding oti. For the binary mistake detection scores M˜it, we first
+normalize them and obtain detection confidences by passing through a softmax
+layer and then encode the confidences M¨ ti using an MLP encoder to produce
+another 1D embedding mti. Next, we concatenate oti and mti along the channel
+dimension to produce our policy embedding pti, such that pti = [oti, mti].
+
+Policy network. The policy network begins with a gated recurrent unit (GRU) [9,
+
+10] that uses the policy embedding pti and the policy’s aggregated history of
+states hit−1 to produce an updated history hti and a representation of the current
+state, git. Next, an actor-critic module takes gti and hit−1 as inputs, and generates
+                                     t      t     hit−1                                                     Vθ(git, hit−1),
+the  policy  distribution  π  θ  (a  i  |g  i  ,         )  and  the  value                of  the  state,
+
+where θ denotes the policy parameters. Finally, the policy samples an action
+
+ati from the policy distribution πθ, thereby deciding to Continue (cf. Sec. 3)
+consuming frames or stop further inference and Exit the stream. If the policy
+
+decides to exit, the model’s final prediction is determined by the chosen exit
+
+action–correct for Exit-correct and mistake for Exit-mistake. Importantly, the
+
+two Exit actions enables the policy to temporally aggregate the detector’s initial
+
+predictions, which might be noisy due to the fixed-length observation window,
+
+and generate a more reliable and accurate final prediction at the exit point,
+
+guided by our reward function (Sec. 4.3).
+
+4.3 Model training
+
+Mistake detector training. We set the training loss LD for our mistake detector
+D to a weighted sum of the mistake detection loss LM and a future anticipation
+loss LF , such that
+
+                                   \mc {L}^{\mc {D}} = w_1 * \mc {L}^M + w_2 * \mc {L}^F.                   (1)
+
+    Here, LM is the cross-entropy loss (CE) between the mistake label Mi
+(cf. Sec. 4.1) and the detector’s estimate of the same, M˜ ti (cf. Sec. 4.2), such that
+                                        MistExit                                                                                                                                                                                                                                                                                                                                                                                                                                          9
+
+  \mc {L}^M = CE(M_i, \tilde {M}^t_i),                                                                                                                                                                                                                                                                                                                                                                                                                                                    (2)
+
+Our future anticipation loss LF is the average L1 loss between the ground-truth
+future feature sequence s¯ti and its estimate s˜ti, such that
+
+  \mc {L}^F = \frac {1}{L} * (||s^{\hat {t} + 1}_i - \tilde {s}^{\hat {t} + 1}_i||_1 + \ldots + ||s^{\hat {t} + L}_i - \tilde {s}^{\hat {t} + L}_i||_1),                                                                                                                                                                                                                                                                                                                                  (3)
+
+and w1 and w2 are the weights on the two losses, respectively. We set w1 and w2
+on the basis of a disjoint validation split.
+
+Policy training. We propose a novel reward function to train our exit policy π:
+
+  \vspace {-0.3cm} r^t_i = \begin {cases} v_1 * \big (\underbrace {\ddot {M}^{t+1}_i[M_i] - \ddot {M}^t_i[M_i]}_{\scriptscriptstyle \text {Dense reward}}\big ) - v_3 * \big (\underbrace {1 / T_i}_{\scriptscriptstyle \text {Penalty}}\big ) &\quad t \in [0, E_i - 1]\\ v_2 * \underbrace {\mathbbm {1}[a^t_i \in \{E\text {-}m, E\text {-}c\}] * \mathbbm {1}[\mathcal {E}(a^t_i) = M_i]}_{\scriptscriptstyle \text {Sparse reward}} &\quad t = E_i.\\ \end {cases} \vspace {-0.3cm}  (4)
+
+Here, M¨ ti denotes the detector’s predicted confidence scores obtained by applying
+a softmax normalization to M˜ ti (cf. Sec. 4.1). Mi represents the ground-truth
+mistake label for the keystep (cf. Sec. 3). We use E-m and E-c to denote the
+Exit-mistake and Exit-correct actions, respectively. Finally, E extracts the clip’s
+predicted correctness type from the policy’s action at the exit time. In case the
+policy doesn’t exit, we use the detector’s final prediction as the mistake estimate.
+
+    Our reward has three terms: 1) a dense reward, 2) a sparse reward, and 3) a
+penalty. We set the dense reward to the improvement in the prediction confidence
+M¨i[Mi] for the mistake label from time t to t + 1, thereby incentivizing the policy
+to let the detector continuously improve its estimate of the step’s correctness over
+time. Moreover, our dense reward better handles long-horizon episodes arising
+from long and complex keysteps, improving RL training convergence.
+
+    We additionally provide the policy with a sparse reward when it chooses to exit
+and its predicted clip type—derived from its action—matches the ground-truth
+label. This encourages the policy to refine potentially unreliable intermediate
+estimates from the mistake detector and produce a high-quality prediction at
+the exit point. Our last term is a time penalty that discourages late exits by the
+policy. Importantly, instead of using a fixed penalty for all clips, we set it to the
+inverse of the clip length Ti (cf. Sec. 3). This allows the detector to consume
+more frames for determining the step’s correctness if the clip is longer and hence,
+possibly more challenging. Finally, we weight the sparse reward, the dense reward
+and the time penalty with v1, v2 and v3, respectively, where the weights are
+chosen using a held-out validation set.
+
+Training curriculum. We pre-train our mistake detector D without an exit policy
+by first randomly selecting a clip Vi and then randomly sampling a time t in the
+10  Majumder et al.
+
+clip. Next, we train our policy π while freezing the pre-trained detector. Since
+our reward depends on the mistake detector outputs, freezing the detector during
+policy training ensures stationary rewards and improves convergence.
+
+5 Experiments
+
+Here, we give an overview of setup details and then provide results.
+
+5.1 Experimental setup
+
+Datasets. We evaluate our model on two instructional video datasets: Captain-
+Cook4D (CC4D) [54] and Assembly101 [61]. Whereas CC4D comprises cooking
+videos recorded in real-world kitchens, Assembly101 contains videos of assem-
+bling and disassembling toy vehicles. The two datasets lets us evaluate diverse
+activity scenarios. In both datasets, each video consists of a sequence of keysteps,
+where each keystep may be performed either correctly or incorrectly. While both
+datasets provide two high-level mistake labels—correct and mistake, Assembly101
+includes an additional category in its mistake taxonomy, correction, which we
+treat as a mistake in our experiments. The video segments corresponding to indi-
+vidual keysteps serve as the streaming clips in our task (cf. Sec. 3). We construct
+train/val/test splits containing 2624/200/1037 clips for CC4D and 2726/200/343
+clips for Assembly101, respectively, ensuring that clips across different splits are
+drawn from disjoint videos. This amounts to a total of 58.3 and 14.5 hours of
+video for CC4D and Assembly101, respectively. We set the frame rate to 2 fps
+for all videos.
+
+Implementation. We modify the action recognition module of the state-of-the-art
+PREGO [19] model to enable future anticipation and use it as our mistake
+detector. Specifically, given a streaming clip and any point in time in the clip, our
+mistake detector D takes as inputs the visual features for the K = 5 most recent
+frames and outputs an estimate of the features for the next L = 20 frames, in
+addition to predicting if the clip is a mistake or not. We train the detector until
+convergence by setting the weights in its training loss (cf. Sec. 4.3) to w1 = 1 and
+w2 = 10−1, and using the AdamW [45] optimizer with a batch size of 128, an
+initial learning rate of 10−6, and a weight decay of 5 × 10−2. We use PPO [59] to
+train our exit policy π for a total of 42 million policy steps with 4 PPO updates
+after every 40 steps. To this end, we set the weights of our reward components
+(cf. Sec. 4.3) to v1 = 10−1 and v2 = v3 = 1 and use the Adam [37] optimizer with
+a batch size of 8 and an initial learning rate of 10−4. See Supp. (Sec. 7.3) for
+more details.
+
+Baselines. We compare against the following baselines and SOTA methods:
+– Random: a policy that randomly chooses an action from action space A
+– AdaFocusV2 [73]: a policy that exits when the confidence of the mistake
+
+   detector’s predicted class exceeds a threshold of 0.75. We also evaluate an
+   enhanced version of this model, AdaFocusV2++, where the exit decision uses
+MistExit  11
+
+   the mean confidence over the past P predictions, with P = 5 for CC4D and
+   P = 3 for Assembly101.
+– AdaFocusV3 [74]: policy that exits when the entropy of the mistake detec-
+   tor’s predictions is below 0.1 for CC4D and 0.5 for Assembly101. Similar to
+   AdaFocusV2++, we also evaluate AdaFocusV3++, which computes the mean
+   entropy over the past P predictions, with P = 3 for CC4D and P = 5 for
+   Assembly101.
+– FrameExit [24]: a learned baseline that produces exit pseudo-labels by check-
+   ing the mistake detector’s prediction loss against a time-dependent threshold—
+   lower for earlier frames and higher for later ones—and trains a policy via
+   supervised learning using these pseudo-labels.
+– FastForward [16]: another learned baseline that trains an RL policy using
+   a reward that encourages the detector to continuously improve its predicted
+   confidence of the target class over time while simultaneously discouraging late
+   exits through a fixed penalty of 10−2 per frame consumed.
+– AdaFrame [78]: an RL baseline that trains an actor-critic network with a
+   dense reward defined as the improvement, if any, in the detector’s predicted
+   confidence for the target class relative to its previous best confidence, and
+   stops inference when the value estimate produced by the critic falls below the
+   previous maximum predicted value by at least 0.7 twice in an episode.
+    For fair comparison, all models use the same mistake detection backbone [19]
+and are trained and validated using our train and val splits. Importantly, all
+three learned models were originally designed for skip-forward/backward video
+recognition with offline video access; we adapt them to our streaming setup by
+equipping them with our action space. We select policy-specific hyperparame-
+ters—such as the threshold for the AdaFocus family and the time penalty for
+FastForward—based on validation performance.
+
+Evaluation metrics. Following existing early recognition works [6, 41, 57], we
+assess our model along two dimensions: 1) mistake detection accuracy, and
+2) earliness of exit. We capture this accuracy vs. efficiency trade-off through
+scatter plots (shown below), where stronger models achieve higher accuracy while
+exiting earlier. To gauge accuracy, we use the average precision (AP) metric,
+which measures the area under the precision vs. recall curve. To measure model
+efficiency, we compute the mean observation ratio (OR) [6, 41, 57] across all
+test clips, where each exit time is normalized by the corresponding clip length
+and then averaged over all clips.
+
+5.2 Early mistake detection results
+
+Fig. 3 shows the early detection quality of all models on both CaptainCook4D
+(CC4D) [54] (Fig. 3a) and Assembly101 [61] (Fig. 3b). Employing a naive exit
+heuristic, such as Random, is insufficient for achieving high-quality and efficient
+mistake detection, highlighting the challenging nature of our early mistake detec-
+tion task. In comparison, the AdaFocus [73, 74] policy family, which leverages
+prediction uncertainty to guide exit decisions, improves detection accuracy while
+12          Majumder et al.
+
+Average precision (AP) %55                                                     58
+                                                     Average precision (AP) %  56
+    50      Random: OR = 4.5, AP = 54.1                                        54                     Random: OR = 12.4, AP = 54.8
+    45      AdaFocusV2: OR = 15.2, AP = 54.5                                   52                     AdaFocusV2: OR = 15.9, AP = 55.0
+    40      AdaFocusV2++: OR = 2.3, AP = 55.5                                  50                     AdaFocusV2++: OR = 17.5, AP = 54.4
+            AdaFocusV3: OR = 2.9, AP = 56.2                                    48                     AdaFocusV3: OR = 22.3, AP = 54.4
+      2.0%  AdaFocusV3++: OR = 3.2, AP = 56.2                                  46                     AdaFocusV3++: OR = 14.3, AP = 53.5
+            FrameExit: OR = 3.7, AP = 53.0                                                            FrameExit: OR = 9.8, AP = 54.7
+            AdaFrame: OR = 7.1, AP = 57.2                                         10%                 AdaFrame: OR = 38.5, AP = 57.0
+            FastForward: OR = 3.8, AP = 56.1                                                          FastForward: OR = 21.3, AP = 57.0
+            Ours : OR = 3.0, AP = 57.4                                                               Ours : OR = 9.2, AP = 57.0
+
+            4.0% 6.0% 8.0% 10.0% 12.0% 14.0%                                           20% 30% 40% 50% 60%
+                Observation ratio (OR) %                                                 Observation ratio (OR) %
+
+            (a) CaptainCook4D [54]                                                     (b) Assembly101 [61]
+
+        Fig. 3: Early mistake detection results. Higher AP, lower OR is better.
+
+enabling earlier exits, particularly on CC4D. This suggests that the mistake
+detector’s predictions provide useful cues for determining the appropriate exit
+point. The FrameExit [24] further improves performance, especially on Assem-
+bly101, demonstrating the usefulness of learning an exit policy. Both RL baselines,
+AdaFrame [78] and FastForward [16], significantly improve detection accuracy
+compared to FrameExit, indicating that policies trained with RL, rather than
+supervised learning, can better adapt their exit decisions to the nature and
+complexity of the video.
+
+    Our model outperforms all baselines on CC4D while also improving efficiency
+over most. On Assembly101, our model ranks again among the top performers
+while achieving significantly better efficiency. Notably, our gains over the other
+RL-based counterparts highlight the benefits of our superior reward formulation
+and the augmented input space, which includes the mistake detector’s prediction
+scores alongside the RGB frames. Moreover, comparing our performance with
+the FrameExit method illustrates that our well-designed RL policy not only
+substantially boosts the mistake detection accuracy but also enables earlier
+exits—identifying early segments of a streaming clip that are indicative of the
+keystep’s correctness. Overall, our approach consistently delivers a stronger
+accuracy-efficiency trade-off than existing methods.
+
+5.3 Model analysis
+
+Ablations. In Fig. 4a, we show the results from ablating our model components.
+Disabling future anticipation in the mistake detector leads to a substantial
+drop in detection accuracy. This indicates that future anticipation (one of our
+contributions) allows the model to delay exit slightly to locate informative clip
+segments that yield more reliable mistake predictions.
+
+    Removing visual inputs from the policy drastically increases the observation
+ratio, highlighting the importance of visual information for determining when
+sufficient evidence has been gathered. In particular, visual cues allow the policy
+to reason about the stage of the activity and whether it is too early to exit, while
+also cross-checking the visual evidence with the detector’s predictions to assess
+whether the detector’s estimates are reliable enough to trigger an immediate
+                                                                                                                 MistExit  13
+
+exit. Removing access to the mistake detector’s logits also degrades performance,
+indicating that our model effectively leverages these initial estimates to build
+an implicit representation of the step’s correctness and adjust its exit point
+accordingly. Using a
+
+58                                                                             58.0 L = 5: OR = 2.9, AP = 56.1
+
+56Average precision (AP) %                                                     57.5  L = 5: OR = 2.4, AP = 56.0
+                                                     Average precision (AP) %        L = 40: OR = 2.6, AP = 56.3
+54                                                                                   Ours (L = 20) : OR = 3.0, AP = 57.4
+    Ours (D) w/o future prediction: OR = 2.7, AP = 56.6
+52  Ours ( ) w/o vision: OR = 4.0, AP = 56.3                                   57.0
+
+50  Ours ( ) w/o mistake logits: OR = 3.1, AP = 56.9                           56.5
+    Ours ( ) w/o clip-aware time penalty: OR = 3.1, AP = 56.6
+48  Ours ( ) w/o time penalty: OR = 3.8, AP = 57.1
+
+46 Ours ( ) w/o dense reward: OR = 2.8, AP = 55.6                              56.0
+    Ours ( ) w/o sparse reward: OR = 2.9, AP = 56.0
+44  Ours : OR = 3.0, AP = 57.4
+                                                                  55.5 2.40% 2.50% 2.60% 2.70% 2.80% 2.90% 3.00%
+    2.70% 3.00% 3.30% 3.60% 3.90%                                              Observation ratio (OR) %
+              Observation ratio (OR) %
+                                                               (b) Performance vs. detector anticipation length
+    (a) Model ablations
+
+Fig. 4: Left: Ablation on larger-scale CaptainCook4D (CC4D) [54]. Right: Early
+mistake detection results on larger-scale CC4D for different lengths (L) of the anticipated
+feature sequence in our mistake detector (Sec. 4.1). Higher AP, lower OR is better for
+both plots.
+
+    fixed time penalty instead of one conditioned on the clip length also reduces
+performance, underscoring its role in helping the policy determine an appropriate
+exit point based on the length and complexity of the clip. Removing the time
+penalty also degrades performance, particularly policy efficiency, highlighting
+its role in encouraging early exits. Furthermore, because our task involves long
+horizons arising from variable clip lengths, the dense reward is critical for stable
+RL training, without which, the detection accuracy drops significantly. Removing
+the dense reward also affects detection accuracy, as it provides an important
+learning signal that captures the core objective of our task—maximizing detection
+accuracy at the point of exit.
+
+Analysis of length of anticipated frame sequence L. In Sec. 5 in main, we evaluated
+our method with the length of the anticipated future feature sequence in the
+mistake detector (Sec. 4.1) set to L = 20 (Sec. 5.1). Here, we analyze the impact
+of L on our model performance. Fig. 4b presents the results of this analysis. We
+observe that setting L = 20 significantly improves mistake detection performance
+compared to variants with other values of L, while only marginally increasing
+the amount of video consumed on average. This suggests that with L = 20, our
+model is better able to anticipate how the step will evolve and leverage this
+information to improve mistake detection accuracy, even though doing so may
+require slightly more visual evidence.
+
+Qualitative examples. In Fig. 5, we show some success cases from Captain-
+Cook4D [54] (top 2 rows) and Assembly101 [61] (bottom 2 rows). Notably, our
+14       Majumder et al.
+
+         Exit             CaptainCook4D
+
+Mistake                                Exit
+
+Correct                      Assembly101
+                                       Exit
+
+Mistake
+
+               Exit
+
+Correct
+
+Fig. 5: Our model’s successful predictions on CaptainCook4D [54] (top 2 rows) and
+Assembly101 [61] (bottom 2 rows). Our model correctly detects mistakes by identifying
+cues such as incorrect technique—for example, the knife positioned to produce an
+abnormally thin slice in row 1—and signs of struggle by the actor, such as repeatedly
+moving the cabin back and forth in row 3. It can also correctly predict that a step will
+end in a successful execution by leveraging cues that indicate the correctness of the
+remaining portion of the step—for instance, a closed pepper container in row 2 may
+suggest that the actor will not add extra pepper to the eggs, while a correctly installed
+wheel in row 4 may indicate that the remaining wheels will also be installed correctly.
+
+model can detect incorrect techniques and flag mistakes early by anticipating
+that the step will ultimately result in an error. E.g., in row 1, the actor begins by
+holding the knife too close to the base of the bun, resulting in an abnormally thin
+cut, and our model successfully picks up on this cue. Furthermore, our model can
+detect signs of struggle and repeated actions by the actor, which often indicate
+that the step will be labeled as a mistake. E.g., in row 3, the actor unsuccessfully
+attempts to attach the cabin to the chassis and moves it back and forth multiple
+times. Our model likely identifies this repeated motion and infers that the actor
+will fail to successfully complete the step.
+
+    In Fig. 6, we show qualitative examples that depict our model’s frame-level
+attention scores at the exit point for CaptainCook4D [54] (top) and Assem-
+bly101 [61] (bottom). We observe that the model consistently assigns the highest
+attention weights to frames that contain strong visual cues about whether the
+step will ultimately be executed correctly. For instance, in the CaptainCook4D
+example, the model places the most attention on the frame where the knife
+creates an initial cut on the bagel. This early cut reveals that the slice is likely
+to follow that trajectory and become excessively thin, providing an early visual
+signal that the step will end in a mistake. In the Assembly101 example, the base
+aligns well with the chassis in the third frame, indicating that the step is being
+                                                                  MistExit        15
+
+Score: 0.06     Score: 0.08     CaptainCook4D     Score: 0.35     Score: 0.30
+                                     Score: 0.21
+
+Frame 1         Frame 2         Frame 3           Frame 4         Frame 5
+   Score: 0.14     Score: 0.05                     Most attended     Score: 0.27
+                                 Assembly101
+                                    Score: 0.28      Score: 0.24
+
+Frame 1         Frame 2         Frame 3           Frame 4         Frame 5
+
+                                Most attended
+
+Fig. 6: Qualitative examples illustrating our model’s frame-level attention scores at the
+exit point for CaptainCook4D [54] (top) and Assembly101 [61] (bottom). We observe
+that the model attends the most to frames that are strongly indicative of whether the
+step will ultimately be executed correctly or not. For example, in the CaptainCook4D
+case, the model focuses most on the frame where the knife makes a small cut on the
+bagel, suggesting that the subsequent slice will follow that cut and become too thin,
+leading to a mistake. In the Assembly101 example, the base aligns well with the chassis
+in frame 3, indicating that the step is being executed correctly and leading the model
+to assign the highest attention to that frame.
+
+executed correctly and leading the model to assign the highest attention to that
+frame. Such examples highlight the model’s ability to identify informative frames
+that provide early evidence about the correctness of the ongoing keystep, while
+also suggesting its capacity to use these cues to anticipate how the remainder of
+the step is likely to unfold.
+
+    Finally, our model can also anticipate that a step will end in a successful
+execution by leveraging visual cues that indicate the correctness of the remaining
+portion. For instance, in row 2, the pepper container is already closed after
+seasoning the eggs, suggesting that the actor is unlikely to add excess pepper. By
+identifying such cues early in the streaming clip, the model can infer the (likely)
+eventual correctness of the step without needing to observe the entire sequence.
+
+    We also observe a common failure mode of our model. It sometimes predicts
+a step as correct when the observed portion of the clip shows a repetitive action
+being performed correctly, but the actor begins executing the action incorrectly
+after the model has already exited. Additionally, the model may incorrectly flag
+a mistake when a step appears to be performed clumsily but must be executed
+in that manner due to the nature of the action or the objects involved. In such
+cases, the model predicts a mistake even though the step is executed correctly.
+These failures arise when the observed portion of the clip is not representative of
+the remainder of the step containing non-standard object and action dynamics,
+and represents well the “no free lunch" principle of trying to skip seeing parts of
+the video while still confidently anticipating its results.
+16  Majumder et al.
+
+    See Supp. video (Sec. 7.1) for more qualitative examples.
+
+6 Conclusion
+
+We introduced the task of early mistake detection in streaming videos, where the
+goal is to determine the correctness of a keystep in a procedural activity while
+observing only a minimal fraction of the video. To address this challenge, we
+proposed a framework that combines a future-anticipating mistake detector with
+a reinforcement learning policy that adaptively decides when to stop observing
+and produce a prediction. Experiments on two diverse real-world procedural video
+datasets show that our approach achieves superior mistake detection accuracy
+while substantially reducing the amount of video that must be observed compared
+to prior methods. In future work, we plan to extend our model to handle open-
+world mistakes, including fine-grained mistake classification.
+            MistExit  17
+
+References
+
+ 1. Abrash, M.: Creating the future: Augmented reality, the next human-machine
+     interface. In: 2021 IEEE International Electron Devices Meeting (IEDM). pp. 1–11
+     (2021). https://doi.org/10.1109/IEDM19574.2021.9720526
+
+ 2. An, J., Kang, H., Han, S.H., Yang, M.H., Kim, S.J.: Miniroad: Minimal rnn frame-
+     work for online action detection. In: Proceedings of the IEEE/CVF International
+     Conference on Computer Vision (ICCV). pp. 8377–8387 (October 2023)
+
+ 3. Bahl, S., Mendonca, R., Chen, L., Jain, U., Pathak, D.: Affordances from human
+     videos as a versatile representation for robotics. In: Proceedings of the IEEE/CVF
+     Conference on Computer Vision and Pattern Recognition. pp. 13778–13790 (2023)
+
+ 4. Bloom, V., Makris, D., Argyriou, V.: Clustered spatio-temporal manifolds for online
+     action recognition. In: 2014 22nd International Conference on Pattern Recognition.
+     pp. 3963–3968 (2014). https://doi.org/10.1109/ICPR.2014.679
+
+ 5. Cai, Y., Li, H., Hu, J.F., Zheng, W.S.: Action knowledge transfer for action
+     prediction with partial videos. In: Proceedings of the Thirty-Third AAAI Conference
+     on Artificial Intelligence and Thirty-First Innovative Applications of Artificial
+     Intelligence Conference and Ninth AAAI Symposium on Educational Advances
+     in Artificial Intelligence. AAAI’19/IAAI’19/EAAI’19, AAAI Press (2019). https:
+     //doi.org/10.1609/aaai.v33i01.33018118, https://doi.org/10.1609/aaai.
+     v33i01.33018118
+
+ 6. Cao, Y., Barrett, D., Barbu, A., Narayanaswamy, S., Yu, H., Michaux, A., Lin, Y.,
+     Dickinson, S., Siskind, J.M., Wang, S.: Recognize human activities from partially
+     observed videos. In: 2013 IEEE Conference on Computer Vision and Pattern
+     Recognition. pp. 2658–2665 (2013). https://doi.org/10.1109/CVPR.2013.343
+
+ 7. Carreira, J., Zisserman, A.: Quo vadis, action recognition? a new model and the
+     kinetics dataset. In: proceedings of the IEEE Conference on Computer Vision and
+     Pattern Recognition. pp. 6299–6308 (2017)
+
+ 8. Chi, S., Chi, H.G., Huang, Q., Ramani, K.: Infogcn++: Learning representation by
+     predicting the future for online skeleton-based action recognition. IEEE Transactions
+     on Pattern Analysis and Machine Intelligence (2024)
+
+ 9. Cho, K., Van Merriënboer, B., Gulçehre, Ç., Bahdanau, D., Bougares, F., Schwenk,
+     H., Bengio, Y.: Learning phrase representations using rnn encoder–decoder for
+     statistical machine translation. In: Proceedings of the 2014 conference on empirical
+     methods in natural language processing (EMNLP). pp. 1724–1734 (2014)
+
+10. Chung, J., Gulcehre, C., Cho, K., Bengio, Y.: Empirical evaluation of gated recurrent
+     neural networks on sequence modeling. arXiv preprint arXiv:1412.3555 (2014)
+
+11. De Geest, R., Gavves, E., Ghodrati, A., Li, Z., Snoek, C., Tuytelaars, T.: Online
+     action detection. In: European Conference on Computer Vision. pp. 269–284.
+     Springer (2016)
+
+12. Ding, G., Sener, F., Ma, S., Yao, A.: Every mistake counts in assembly. arXiv
+     preprint arXiv:2307.16453 (2023)
+
+13. Donahue, G., Elhamifar, E.: Learning to predict activity progress by self-supervised
+     video alignment. In: 2024 IEEE/CVF Conference on Computer Vision and Pat-
+     tern Recognition (CVPR). pp. 18667–18677 (2024). https://doi.org/10.1109/
+     CVPR52733.2024.01766
+
+14. Doughty, H., Mayol-Cuevas, W., Damen, D.: The pros and cons: Rank-aware
+     temporal attention for skill determination in long videos. In: Proceedings of the
+     IEEE/CVF conference on computer vision and pattern recognition. pp. 7862–7871
+     (2019)
+18  Majumder et al.
+
+15. Eun, H., Moon, J., Park, J., Jung, C., Kim, C.: Learning to discriminate informa-
+     tion for online action detection. In: Proceedings of the IEEE/CVF conference on
+     computer vision and pattern recognition. pp. 809–818 (2020)
+
+16. Fan, H., Xu, Z., Zhu, L., Yan, C., Ge, J., Yang, Y.: Watching a small portion could
+     be as good as watching all: Towards efficient video classification. In: Proceedings
+     of the Twenty-Seventh International Joint Conference on Artificial Intelligence,
+     IJCAI-18. pp. 705–711. International Joint Conferences on Artificial Intelligence
+     Organization (7 2018). https://doi.org/10.24963/ijcai.2018/98, https://doi.
+     org/10.24963/ijcai.2018/98
+
+17. Feng, S., Wray, M., Mayol-Cuevas, W.: Evostruggle: A dataset capturing the evolu-
+     tion of struggle across activities and skill levels. arXiv preprint arXiv:2510.01362
+     (2025)
+
+18. Fernando, B., Herath, S.: Anticipating human actions by correlating past with
+     the future with jaccard similarity measures. In: Proceedings of the IEEE/CVF
+     conference on computer vision and pattern recognition. pp. 13224–13233 (2021)
+
+19. Flaborea, A., Di Melendugno, G.M.D., Plini, L., Scofano, L., De Matteis, E., Furnari,
+     A., Farinella, G.M., Galasso, F.: Prego: online mistake detection in procedural
+     egocentric videos. In: Proceedings of the IEEE/CVF Conference on Computer
+     Vision and Pattern Recognition. pp. 18483–18492 (2024)
+
+20. Foo, L.G., Li, T., Rahmani, H., Ke, Q., Liu, J.: Era: Expert retrieval and assembly
+     for early action prediction. In: European Conference on Computer Vision. pp.
+     670–688. Springer (2022)
+
+21. Gao, M., Zhou, Y., Xu, R., Socher, R., Xiong, C.: Woad: Weakly supervised online
+     action detection in untrimmed videos. In: Proceedings of the IEEE/CVF conference
+     on computer vision and pattern recognition. pp. 1915–1923 (2021)
+
+22. Ghoddoosian, R., Dwivedi, I., Agarwal, N., Choi, C., Dariush, B.: Weakly-supervised
+     online action segmentation in multi-view instructional videos. In: Proceedings of
+     the IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp.
+     13780–13790 (2022)
+
+23. Ghoddoosian, R., Dwivedi, I., Agarwal, N., Dariush, B.: Weakly-supervised action
+     segmentation and unseen error detection in anomalous instructional videos. In:
+     Proceedings of the IEEE/CVF International Conference on Computer Vision
+     (ICCV). pp. 10128–10138 (October 2023)
+
+24. Ghodrati, A., Bejnordi, B.E., Habibian, A.: Frameexit: Conditional early exiting
+     for efficient video recognition. In: Proceedings of the IEEE/CVF Conference on
+     Computer Vision and Pattern Recognition. pp. 15608–15618 (2021)
+
+25. Grauman, K., Westbury, A., Torresani, L., Kitani, K., Malik, J., Afouras, T.,
+     Ashutosh, K., Baiyya, V., Bansal, S., Boote, B., et al.: Ego-exo4d: Understanding
+     skilled human activity from first-and third-person perspectives. In: Proceedings
+     of the IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp.
+     19383–19400 (2024)
+
+26. Haneji, Y., Nishimura, T., Kameko, H., Shirai, K., Yoshida, T., Kajimura, K.,
+     Yamamoto, K., Cui, T., Nishimoto, T., Mori, S.: Egooops: A dataset for mistake
+     action detection from egocentric videos referring to procedural texts. arXiv preprint
+     arXiv:2410.05343 (2024)
+
+27. He, K., Zhang, X., Ren, S., Sun, J.: Delving deep into rectifiers: Surpassing human-
+     level performance on imagenet classification. In: Proceedings of the IEEE interna-
+     tional conference on computer vision. pp. 1026–1034 (2015)
+
+28. Hoque, R., Huang, P., Yoon, D.J., Sivapurapu, M., Zhang, J.: Egodex: Learn-
+     ing dexterous manipulation from large-scale egocentric video. arXiv preprint
+     arXiv:2505.11709 (2025)
+MistExit  19
+
+29. Hu, J.F., Zheng, W.S., Ma, L., Wang, G., Lai, J., Zhang, J.: Early action prediction
+     by soft regression. IEEE Transactions on Pattern Analysis and Machine Intelligence
+     41(11), 2568–2583 (2019). https://doi.org/10.1109/TPAMI.2018.2863279
+
+30. Huang, W.J., Li, Y.M., Xia, Z.W., Tang, Y.M., Lin, K.Y., Hu, J.F., Zheng, W.S.:
+     Modeling multiple normal action representations for error detection in procedural
+     tasks. In: Proceedings of the Computer Vision and Pattern Recognition Conference.
+     pp. 27794–27804 (2025)
+
+31. Huang, Y., Chen, G., Xu, J., Zhang, M., Yang, L., Pei, B., Zhang, H., Dong, L.,
+     Wang, Y., Wang, L., et al.: Egoexolearn: A dataset for bridging asynchronous
+     ego-and exo-centric view of procedural activities in real world. In: Proceedings
+     of the IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp.
+     22072–22086 (2024)
+
+32. Huh, M., Xue, Z., Das, U., Ashutosh, K., Grauman, K., Pavel, A.: Vid2coach:
+     Transforming how-to videos into task assistants. In: Proceedings of the 38th Annual
+     ACM Symposium on User Interface Software and Technology. pp. 1–24 (2025)
+
+33. Jang, Y., Sullivan, B., Ludwig, C., Gilchrist, I.D., Damen, D., Mayol-Cuevas,
+     W.: Epic-tent: An egocentric video dataset for camping tent assembly. In: 2019
+     IEEE/CVF International Conference on Computer Vision Workshop (ICCVW). pp.
+     4461–4469 (2019). https://doi.org/10.1109/ICCVW.2019.00547
+
+34. Kang, H., Kim, K., Ko, Y., Kim, S.J.: Cag-qil: Context-aware actionness grouping
+     via q imitation learning for online temporal action localization. In: 2021 IEEE/CVF
+     International Conference on Computer Vision (ICCV). pp. 13709–13718 (2021).
+
+     https://doi.org/10.1109/ICCV48922.2021.01347
+35. Kareer, S., Patel, D., Punamiya, R., Mathur, P., Cheng, S., Wang, C., Hoffman, J.,
+
+     Xu, D.: Egomimic: Scaling imitation learning via egocentric video. In: 2025 IEEE
+     International Conference on Robotics and Automation (ICRA). pp. 13226–13233.
+     IEEE (2025)
+36. Kim, Y.H., Kang, H., Kim, S.J.: A sliding window scheme for online temporal action
+     localization. In: Avidan, S., Brostow, G., Cissé, M., Farinella, G.M., Hassner, T.
+     (eds.) Computer Vision – ECCV 2022. pp. 653–669. Springer Nature Switzerland,
+     Cham (2022)
+37. Kingma, D.P., Ba, J.: Adam: A method for stochastic optimization. arXiv preprint
+     arXiv:1412.6980 (2014)
+38. Kong, Y., Fu, Y.: Max-margin action prediction machine. IEEE Transactions
+     on Pattern Analysis and Machine Intelligence 38(9), 1844–1858 (2016). https:
+     //doi.org/10.1109/TPAMI.2015.2491928
+39. Kong, Y., Kit, D., Fu, Y.: A discriminative model with multiple temporal scales
+     for action prediction. In: Fleet, D., Pajdla, T., Schiele, B., Tuytelaars, T. (eds.)
+     Computer Vision – ECCV 2014. pp. 596–611. Springer International Publishing,
+     Cham (2014)
+40. Kviatkovsky, I., Rivlin, E., Shimshoni, I.: Online action recognition using covari-
+     ance of shape and motion. Computer Vision and Image Understanding 129, 15–
+     26 (2014). https://doi.org/https://doi.org/10.1016/j.cviu.2014.08.001,
+     https : / / www . sciencedirect . com / science / article / pii / S1077314214001805,
+     special section: Advances in Discrete Geometry for Computer Imagery
+41. Lan, T., Chen, T.C., Savarese, S.: A hierarchical representation for future action
+     prediction. In: Fleet, D., Pajdla, T., Schiele, B., Tuytelaars, T. (eds.) Computer
+     Vision – ECCV 2014. pp. 689–704. Springer International Publishing, Cham (2014)
+42. Lee, S.P., Lu, Z., Zhang, Z., Hoai, M., Elhamifar, E.: Error detection in egocentric
+     procedural task videos. In: Proceedings of the IEEE/CVF Conference on Computer
+     Vision and Pattern Recognition (CVPR). pp. 18655–18666 (June 2024)
+20  Majumder et al.
+
+43. Li, K., Hu, J., Fu, Y.: Modeling complex temporal composition of actionlets for
+     activity prediction. In: Fitzgibbon, A., Lazebnik, S., Perona, P., Sato, Y., Schmid,
+     C. (eds.) Computer Vision – ECCV 2012. pp. 286–299. Springer Berlin Heidelberg,
+     Berlin, Heidelberg (2012)
+
+44. Lin, J., Gan, C., Han, S.: Tsm: Temporal shift module for efficient video under-
+     standing. In: Proceedings of the IEEE/CVF international conference on computer
+     vision. pp. 7083–7093 (2019)
+
+45. Loshchilov, I., Hutter, F.: Decoupled weight decay regularization. arXiv preprint
+     arXiv:1711.05101 (2017)
+
+46. Majumder, S., Chen, C., Al-Halah, Z., Grauman, K.: Few-shot audio-visual learning
+     of environment acoustics. Advances in Neural Information Processing Systems 35,
+     2522–2536 (2022)
+
+47. Majumder, S., Jiang, H., Moulon, P., Henderson, E., Calamia, P., Grauman, K.,
+     Ithapu, V.K.: Chat2map: Efficient scene mapping from multi-ego conversations.
+     In: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern
+     Recognition. pp. 10554–10564 (2023)
+
+48. Majumder, S., Nagarajan, T., Al-Halah, Z., Grauman, K.: Switch-a-view: View se-
+     lection learned from unlabeled in-the-wild videos. In: Proceedings of the IEEE/CVF
+     International Conference on Computer Vision. pp. 11969–11979 (2025)
+
+49. Mazzamuto, M., Furnari, A., Sato, Y., Farinella, G.M.: Gazing into missteps:
+     Leveraging eye-gaze for unsupervised mistake detection in egocentric videos of
+     skilled human activities. In: Proceedings of the Computer Vision and Pattern
+     Recognition Conference. pp. 8310–8320 (2025)
+
+50. Nair, V., Hinton, G.E.: Rectified linear units improve restricted boltzmann machines.
+     In: Proceedings of the 27th International Conference on International Conference
+     on Machine Learning. p. 807–814. ICML’10, Omnipress, Madison, WI, USA (2010)
+
+51. Pan, Y., Zhang, C., Bertasius, G.: Basket: A large-scale video dataset for fine-grained
+     skill estimation. In: Proceedings of the Computer Vision and Pattern Recognition
+     Conference. pp. 28952–28962 (2025)
+
+52. Panchal, S., Bhattacharyya, A., Berger, G., Mercier, A., Böhm, C., Dietrichkeit,
+     F., Pourreza, R., Li, X., Madan, P., Lee, M., et al.: What to say and when to say
+     it: Live fitness coaching as a testbed for situated interaction. Advances in Neural
+     Information Processing Systems 37, 75853–75882 (2024)
+
+53. Parmar, P., Morris, B.T.: What and how well you performed? a multitask learning
+     approach to action quality assessment. In: Proceedings of the IEEE/CVF conference
+     on computer vision and pattern recognition. pp. 304–313 (2019)
+
+54. Peddi, R., Arya, S., Challa, B., Pallapothula, L., Vyas, A., Gouripeddi, B., Zhang,
+     Q., Wang, J., Komaragiri, V., Ragan, E., et al.: Captaincook4d: A dataset for
+     understanding errors in procedural activities. Advances in Neural Information
+     Processing Systems 37, 135626–135679 (2024)
+
+55. Plini, L., Scofano, L., De Matteis, E., di Melendugno, G.M.D., Flaborea, A.,
+     Sanchietti, A., Farinella, G.M., Galasso, F., Furnari, A.: Ti-prego: Chain of thought
+     and in-context learning for online mistake detection in procedural egocentric videos.
+     arXiv preprint arXiv:2411.02570 (2024)
+
+56. Qian, Y., Luo, W., Lian, D., Tang, X., Zhao, P., Gao, S.: Svip: Sequence verification
+     for procedures in videos. In: Proceedings of the IEEE/CVF Conference on Computer
+     Vision and Pattern Recognition. pp. 19890–19902 (2022)
+
+57. Ryoo, M.S.: Human activity prediction: Early recognition of ongoing activities
+     from streaming videos. In: 2011 International Conference on Computer Vision. pp.
+     1036–1043 (2011). https://doi.org/10.1109/ICCV.2011.6126349
+MistExit  21
+
+58. Schoonbeek, T.J., Houben, T., Onvlee, H., Van der Sommen, F., et al.: Industreal: A
+     dataset for procedure step recognition handling execution errors in egocentric videos
+     in an industrial-like setting. In: Proceedings of the IEEE/CVF Winter Conference
+     on Applications of Computer Vision. pp. 4365–4374 (2024)
+
+59. Schulman, J., Wolski, F., Dhariwal, P., Radford, A., Klimov, O.: Proximal policy
+     optimization algorithms. arXiv preprint arXiv:1707.06347 (2017)
+
+60. Seminara, L., Farinella, G.M., Furnari, A.: Differentiable task graph learning:
+     Procedural activity representation and online mistake detection from egocentric
+     videos. arXiv preprint arXiv:2406.01486 (2024)
+
+61. Sener, F., Chatterjee, D., Shelepov, D., He, K., Singhania, D., Wang, R., Yao, A.:
+     Assembly101: A large-scale multi-view video dataset for understanding procedural
+     activities. In: Proceedings of the IEEE/CVF Conference on Computer Vision and
+     Pattern Recognition. pp. 21096–21106 (2022)
+
+62. Shen, Y., Elhamifar, E.: Progress-aware online action segmentation for egocentric
+     procedural task videos. In: Proceedings of the IEEE/CVF Conference on Computer
+     Vision and Pattern Recognition (CVPR). pp. 18186–18197 (June 2024)
+
+63. Soomro, K., Idrees, H., Shah, M.: Predicting the where and what of actors and
+     actions through online action localization. In: 2016 IEEE Conference on Computer
+     Vision and Pattern Recognition (CVPR). pp. 2648–2657 (2016). https://doi.org/
+     10.1109/CVPR.2016.290
+
+64. Stergiou, A., Damen, D.: The wisdom of crowds: Temporal progressive attention for
+     early action prediction. In: Proceedings of the IEEE/CVF Conference on Computer
+     Vision and Pattern Recognition. pp. 14709–14719 (2023)
+
+65. Suárez-Hernández, A., Segovia-Aguas, J., Torras, C., Alenya, G.: Online action
+     recognition. In: Proceedings of the AAAI Conference on Artificial Intelligence.
+     vol. 35, pp. 11981–11989 (2021)
+
+66. Vaswani, A., Shazeer, N., Parmar, N., Uszkoreit, J., Jones, L., Gomez, A.N.,
+     Kaiser, Ł., Polosukhin, I.: Attention is all you need. Advances in neural information
+     processing systems 30 (2017)
+
+67. Wang, B., Huang, L., Hoai, M.: Active vision for early recognition of human
+     actions. In: 2020 IEEE/CVF Conference on Computer Vision and Pattern Recogni-
+     tion (CVPR). pp. 1078–1088 (2020). https://doi.org/10.1109/CVPR42600.2020.
+     00116
+
+68. Wang, J., Chen, G., Huang, Y., Wang, L., Lu, T.: Memory-and-anticipation trans-
+     former for online action understanding. In: Proceedings of the IEEE/CVF Interna-
+     tional Conference on Computer Vision. pp. 13824–13835 (2023)
+
+69. Wang, X., Zhang, S., Qing, Z., Shao, Y., Zuo, Z., Gao, C., Sang, N.: Oadtr: Online
+     action detection with transformers. In: Proceedings of the IEEE/CVF International
+     Conference on Computer Vision. pp. 7565–7575 (2021)
+
+70. Wang, X., Kwon, T., Rad, M., Pan, B., Chakraborty, I., Andrist, S., Bohus,
+     D., Feniello, A., Tekin, B., Frujeri, F.V., et al.: Holoassist: an egocentric human
+     interaction dataset for interactive ai assistants in the real world. In: Proceedings
+     of the IEEE/CVF International Conference on Computer Vision. pp. 20270–20281
+     (2023)
+
+71. Wang, X., Hu, J.F., Lai, J.H., Zhang, J., Zheng, W.S.: Progressive teacher-student
+     learning for early action prediction. In: 2019 IEEE/CVF Conference on Computer
+     Vision and Pattern Recognition (CVPR). pp. 3551–3560 (2019). https://doi.org/
+     10.1109/CVPR.2019.00367
+
+72. Wang, X., Hu, J.F., Lai, J.H., Zhang, J., Zheng, W.S.: Progressive teacher-student
+     learning for early action prediction. In: 2019 IEEE/CVF Conference on Computer
+22  Majumder et al.
+
+     Vision and Pattern Recognition (CVPR). pp. 3551–3560 (2019). https://doi.org/
+     10.1109/CVPR.2019.00367
+73. Wang, Y., Yue, Y., Lin, Y., Jiang, H., Lai, Z., Kulikov, V., Orlov, N., Shi, H.,
+     Huang, G.: Adafocus v2: End-to-end training of spatial dynamic networks for video
+     recognition. In: 2022 IEEE/CVF Conference on Computer Vision and Pattern
+     Recognition (CVPR). pp. 20030–20040. IEEE (2022)
+74. Wang, Y., Yue, Y., Xu, X., Hassani, A., Kulikov, V., Orlov, N., Song, S., Shi, H.,
+     Huang, G.: Adafocusv3: On unified spatial-temporal dynamic video recognition. In:
+     European Conference on Computer Vision. pp. 226–243. Springer (2022)
+75. Wang, Y., Zhang, H., Yue, Y., Song, S., Deng, C., Feng, J., Huang, G.: Uni-adafocus:
+     spatial-temporal dynamic computation for video recognition. IEEE Transactions
+     on Pattern Analysis and Machine Intelligence (2024)
+76. Wu, X., Wang, R., Hou, J., Lin, H., Luo, J.: Spatial–temporal relation reasoning
+     for action prediction in videos. International Journal of Computer Vision 129, 1484
+     – 1505 (2021), https://api.semanticscholar.org/CorpusID:233904888
+77. Wu, X., Zhao, J., Wang, R.: Anticipating future relations via graph growing for
+     action prediction. In: AAAI Conference on Artificial Intelligence (2021), https:
+     //api.semanticscholar.org/CorpusID:232416180
+78. Wu, Z., Xiong, C., Ma, C.Y., Socher, R., Davis, L.S.: Adaframe: Adaptive frame
+     selection for fast video recognition. In: Proceedings of the IEEE/CVF Conference
+     on Computer Vision and Pattern Recognition. pp. 1278–1287 (2019)
+79. Xu, M., Gao, M., Chen, Y.T., Davis, L.S., Crandall, D.J.: Temporal recurrent
+     networks for online action detection. In: Proceedings of the IEEE/CVF international
+     conference on computer vision. pp. 5532–5541 (2019)
+80. Xu, W., Yu, J., Miao, Z., Wan, L., Ji, Q.: Prediction-cgan: Human action prediction
+     with conditional generative adversarial networks. In: Proceedings of the 27th ACM
+     International Conference on Multimedia. p. 611–619. MM ’19, Association for
+     Computing Machinery, New York, NY, USA (2019). https://doi.org/10.1145/
+     3343031.3351073, https://doi.org/10.1145/3343031.3351073
+81. Yang, L., Radway, R.M., Chen, Y.H., Wu, T.F., Liu, H., Ansari, E., Chandra,
+     V., Mitra, S., Beigné, E.: Three-dimensional stacked neural network accelerator
+     architectures for ar/vr applications. IEEE Micro 42(6), 116–124 (2022). https:
+     //doi.org/10.1109/MM.2022.3202254
+82. Yi, H., Pan, Y., He, F., Liu, X., Zhang, B., Oguntola, O., Bertasius, G.: Ex-
+     act: A video-language benchmark for expert action analysis. arXiv preprint
+     arXiv:2506.06277 (2025)
+83. Zhang, C.L., Wu, J., Li, Y.: Actionformer: Localizing moments of actions with
+     transformers. In: European Conference on Computer Vision. pp. 492–510. Springer
+     (2022)
+84. Zhao, H., Wildes, R.: Spatiotemporal feature residual propagation for action pre-
+     diction. In: 2019 IEEE/CVF International Conference on Computer Vision (ICCV).
+     pp. 7002–7011 (2019). https://doi.org/10.1109/ICCV.2019.00710
+85. Zhao, Y., Krähenbühl, P.: Real-time online video detection with temporal smoothing
+     transformers. In: European Conference on Computer Vision. pp. 485–502. Springer
+     (2022)
+                           MistExit  23
+
+Model  AP % OR %
+
+FastForward [16] 56.2 5.0
+
+Ours   56.8 3.7
+
+Table 1: Early mistake detection results for our method and the state-of-the-art RL
+baseline FastForward [16], averaged across 3 random seeds. Higher AP, lower OR is
+better
+
+7 Supplementary material
+
+In this supplementary material we provide additional details about:
+
+  – Video for qualitatively illustrating (Sec. 7.1), as mentioned in ‘Qualitative
+     examples’ in Sec. 5.
+
+  – Analysis of the impact of random seeds on our model performance (Sec. 7.2)
+  – Additional implementation details (Sec. 7.3), as referenced in Sec. 5.1.
+
+7.1 Supplementary video
+
+   Tne supplementary video, available at https://vision.cs.utexas.edu/
+projects/mist_exit, qualitatively illustrates our task, Early Detection of Mis-
+takes in Procedural Videos, and our MistExit method for tackling this task. We
+also show successful predictions by our model across both datasets, Captain-
+Cook4D [54] and Assembly101 [61]. Finally, we illustrate our model’s failure cases
+(Sec. 5.2) with qualitative examples.
+
+7.2 Impact of random seed on our model performance
+
+    In Sec. 5, we evaluated our method using a single random seed. Here, we
+further evaluate the model with two additional seeds, report the mean performance
+across the three seeds—one from the main paper and two from this analysis—and
+compare it against the state-of-the-art RL baseline FastForward [16]. The results
+are shown in Table 1. Our method consistently outperforms the baseline while
+achieving better efficiency, demonstrating that our design is robust to different
+random seed initializations.
+
+7.3 Additional implementation details
+
+    Here, we provide our implementation details in addition to what we provided
+in main (Sec. 5.1).
+
+    For both our mistake detector D and policy π, we use I3D [7] and TSM [44]
+encoders to embed video frames from CC4D and Assembly101, respectively, since
+24  Majumder et al.
+
+these datasets provide such precomputed features and use them to benchmark
+several tasks introduced alongside the datasets.
+
+    For our mistake detector, we project the visual feature inputs [7, 44] into
+2048-dimensional features using a single linear layer. Next, we use a one-layer
+Transformer encoder [19, 66] (Sec. 4.1) with a hidden dimensionality of 1024 to
+aggregate these features. Finally, to obtain the mistake label estimates and the
+anticipated features, we apply a single linear layer with the appropriate output
+dimensionality.
+
+    For our policy, we encode its visual inputs and mistake detection score inputs
+(Sec. 4.2) using a 3-layer MLP with ReLU [50] activations. The weights of these
+layers are initialized using Kaiming-normal initialization [27]. Our policy network
+employs a one-layer bidirectional GRU [9, 10] with 512 hidden units. The actor
+and critic networks each consist of a single fully connected layer. To train our
+policy using PPO [59] (Sec. 5.1), we weight the action loss by 1.0, the value loss
+by 0.5, and the entropy loss by 0.2.
+
+    Finally, as mentioned in Sec. 1, we will release our code and data to ensure
+reproducibility.
+

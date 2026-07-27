@@ -1,0 +1,648 @@
+                        The Thirty-Second AAAI Conference
+                         on Artificial Intelligence (AAAI-18)
+
+      Towards Automatic Learning of
+Procedures from Web Instructional Videos
+
+   Luowei Zhou               Chenliang Xu                                   Jason J. Corso
+
+   Robotics Institute         Department of CS                             Department of EECS
+University of Michigan     University of Rochester                        University of Michigan
+                        Chenliang.Xu@rochester.edu                        jjcorso@eecs.umich.edu
+ luozhou@umich.edu
+
+                              Abstract                                    step as a procedure segment, or simply segment for conve-
+                                                                          nience, inspired by (Sener et al. 2015; Alayrac et al. 2016).
+   The potential for agents, whether embodied or software, to             For example, there are 8 segments in the making a BLT sand-
+   learn by observing other agents performing procedures in-              wich video shown in Fig. 1. We represent these segments
+   volving objects and actions is rich. Current research on au-           by their start and end temporal boundaries in a given video.
+   tomatic procedure learning heavily relies on action labels             Note that one procedure segment could contain multiple ac-
+   or video subtitles, even during the evaluation phase, which            tions, but it should be conceptually compact, i.e., described
+   makes them infeasible in real-world scenarios. This leads to           with a single sentence. The number of procedure segments
+   our question: can the human-consensus structure of a proce-            and their locations reﬂect human consensus on how the pro-
+   dure be learned from a large set of long, unconstrained videos         cedure is structured. Can this human-consensus procedure
+   (e.g., instructional videos from YouTube) with only visual             structure be learned by an agent?
+   evidence? To answer this question, we introduce the prob-
+   lem of procedure segmentation—to segment a video proce-                   To that end, we deﬁne the Procedure Segmentation prob-
+   dure into category-independent procedure segments. Given               lem as: automatically segment a video containing a pro-
+   that no large-scale dataset is available for this problem, we          cedure into category-independent procedure segments. Al-
+   collect a large-scale procedure segmentation dataset with pro-         though this is a new problem, there are two related, exist-
+   cedure segments temporally localized and described; we use             ing problems: event proposal and procedure learning. The
+   cooking videos and name the dataset YouCook2. We pro-                  event proposal problem (Krishna et al. 2017) is to localize
+   pose a segment-level recurrent network for generating pro-             category-independent temporal events from unconstrained
+   cedure segments by modeling the dependencies across seg-               videos. Both event proposals and procedure segments can
+   ments. The generated segments can be used as pre-processing            contain multiple actions. However, the event proposal prob-
+   for other tasks, such as dense video captioning and event pars-        lem emphasizes the recall quality given a large amount of
+   ing. We show in our experiments that the proposed model out-           proposals, rather than the identiﬁcation of a procedure (se-
+   performs competitive baselines in procedure segmentation.              quence of segments) from limited but necessary proposals.
+                                                                          Events might overlap and are loosely-coupled but procedure
+                      Introduction                                        segments barely overlap, are closely-coupled and usually
+                                                                          have long-term dependencies.
+Action understanding remains an intensely studied problem-
+space, e.g., action recognition (Donahue et al. 2015; Wang                   The existing work in procedure learning is less-supervised
+et al. 2016), action detection (Singh et al. 2016; Yeung et               than that of event proposals (no labels are given for the seg-
+al. 2016; Shou, Wang, and Chang 2016) and action label-                   ments). It emphasizes video-subtitle alignment (Malmaud et
+ing (Kuehne, Richard, and Gall 2017; Huang, Fei-Fei, and                  al. 2015; Bojanowski et al. 2015) and discovery of common
+Niebles 2016; Bojanowski et al. 2014). These works all em-                procedure steps of a speciﬁc process (Alayrac et al. 2016;
+phasize instantaneous or short term actions, which clearly                Sener et al. 2015). However, the methods proposed in these
+play a role in understanding short or structured videos (Chen             works make restrictive assumptions: they typically assume
+et al. 2014). However, for long, unconstrained videos, such               either language is concurrently available, e.g., from subti-
+as user-uploaded instructional videos of complex tasks—                   tles, or the number of procedure steps for a certain procedure
+preparing coffee (Kuehne, Arslan, and Serre 2014), chang-                 is ﬁxed, or both. Such assumptions are limited: extra textual
+ing tires (Alayrac et al. 2016)—learning the steps of ac-                 input is unavailable in some scenarios; the subtitles or ac-
+complishing these tasks and their dependencies is essen-                  tion sequences automatically generated by machines, e.g.,
+tial, especially for agents’ automatic acquisition of language            YouTube’s ASR system, are inaccurate and require manual
+or manipulation skills from video (Yu and Siskind 2013;                   intervention; and many procedures of a certain type, such
+Al-Omari et al. 2017; Yu and Siskind 2015).                               a speciﬁc recipe, will vary the number of steps in different
+                                                                          instances (process variation).
+   We deﬁne procedure as the sequence of necessary steps
+comprising such a complex task, and deﬁne each individual                    Unfortunately, work in neither of these two problems
+                                                                          sheds sufﬁcient light on understanding procedure segmen-
+Copyright c 2018, Association for the Advancement of Artiﬁcial
+Intelligence (www.aaai.org). All rights reserved.
+
+                                                                    7590
+Start time:  00:21                                           00:54     01:06                01:56  02:41                                                    03:08 03:16 03:25
+ End time:                                                00:51     01:03                  01:54   02:40                                               03:00 03:15 03:25 03:28
+
+Grill the tomatoes in                                     Cook bacon until crispy,                                        Place a piece of lettuce as  Sprinkle salt and                         Place a piece of
+a pan and then put                                        then drain on paper towel  Add a bit of Worcestershire the first layer, place the            pepper to taste.                          bread at the top.
+them on a plate. Add oil to a pan and spread                                         sauce to mayonnaise and tomatoes over it.
+                                                                                     spread it over the bread.                                                               Place the bacon at
+                          it well so as to fry the bacon                                                                                                                     the top.
+
+Figure 1: An example from the YouCook2 dataset on making a BLT sandwich. Each procedure step has time boundaries
+annotated and is described by an English sentence. Video from YouTube with ID: 4eWzsx1vAi8.
+
+tation, as posed above. In this paper, we directly focus on                                   Our contributions are three-fold. First, we introduce
+procedure segmentation. We propose a new dataset of suf-                                   and are the ﬁrst to tackle the category-independent pro-
+ﬁcient size and complexity to facilitate investigating proce-                              cedure segmentation problem in untrimmed and uncon-
+dure segmentation, and we present an automatic procedure                                   strained videos. Second, we collect and distribute a large-
+segmentation method, called ProcNets.                                                      scale dataset for procedure segmentation in instructional
+                                                                                           videos. Third, we propose a segment-level recurrent model
+   Our new dataset, called YouCook21, contains 2000 videos                                 for proposing semantically meaningful video segments, in
+from 89 recipes with a total length of 176 hours. The pro-                                 contrast to state-of-the-art methods that model temporal de-
+cedure steps for each video are annotated with temporal                                    pendencies at the frame-level (Zhang et al. 2016). The out-
+boundaries and described post-hoc by a viewer/annotator                                    put procedure segments of ProcNets can be applied for other
+with imperative English sentences (see Fig. 1). To reﬂect the                              tasks, including full agent-based procedure learning (Yu and
+human consensus on how a procedure should be segmented,                                    Siskind 2013) or smaller-scale video description genera-
+we annotate each video with two annotators, one for the ma-                                tion (Yu et al. 2016; Krishna et al. 2017).
+jor effort and the other one for the veriﬁcation. To the best
+of our knowledge, this dataset is more than twice as large                                                      Related Work
+as the nearest in size and is the only one available to have
+both temporal boundary annotation and imperative English                                   The approaches in action detection, especially the recent
+sentence annotation for the procedure segments.                                            ones based on action proposal (Escorcia et al. 2016), in-
+                                                                                           spire our idea of segmenting video by proposing segment
+   We then propose an end-to-end model, named Proce-                                       candidates. Early works on action detection mainly use slid-
+dure Segmentation Networks or ProcNets, for procedure                                      ing windows for proposing segments (Gaidon, Harchaoui,
+segmentation. ProcNets make neither of the assumptions                                     and Schmid 2013; Oneata, Verbeek, and Schmid 2013).
+made by existing procedure learning methods: we do not                                     More recently, Shou et al. (Shou, Wang, and Chang 2016)
+rely on available subtitles and we do not rely on knowl-                                   propose a multi-stage convolutional network called Seg-
+edge of the number of segments in the procedure. Proc-                                     ment CNN (SCNN) and achieves state-of-the-art perfor-
+Nets segments a long, unconstrained video into a sequence                                  mance (Jiang et al. 2014). The most similar work to ours
+of category-independent procedure segments. ProcNets have                                  is Deep Action Proposals, also DAPs (Escorcia et al. 2016;
+three pieces: 1) context-aware frame-wise feature encoding;                                Krishna et al. 2017), where the model predicts the likelihood
+2) procedure segment proposal for localizing segment can-                                  of an action proposal to be an action while in our case seg-
+didates as start and end timestamps; 3) sequential predic-                                 ment proposal. DAPs determines ﬁxed proposal locations by
+tion for learning the temporal structure among the candi-                                  clustering over the ground-truth segments, while our model
+dates and generating the ﬁnal proposals through a Recur-                                   learns to localize procedures with anchor offsets, which is a
+rent Neural Network (RNN). The intuition is: when humans                                   generalization of the location pattern from training to testing
+are segmenting a procedure, they ﬁrst browse the video to                                  instead of directly transferring.
+have a general idea where are the salient segments, which
+is done by our proposal module. Then they ﬁnalize the seg-                                    Another topic similar to ours is action segmentation or
+ment boundaries based on the dependencies among the can-                                   labeling (Kuehne, Gall, and Serre 2016; Kuehne, Richard,
+didates, i.e., which happens after which, achieved by our se-                              and Gall 2017; Huang, Fei-Fei, and Niebles 2016; Bo-
+quential prediction module.                                                                janowski et al. 2014). It addresses the problem of seg-
+                                                                                           menting a long video into contiguous segments that cor-
+   For evaluation, we compare variants of our model with                                   respond to a sequence of actions. Most recently, Huang
+competitive baselines on standard metrics and the proposed                                 et al. (Huang, Fei-Fei, and Niebles 2016) propose to en-
+methods demonstrate top performance against baselines.                                     force action alignment through frame-wise visual similar-
+Furthermore, our detailed study suggests that ProcNets learn                               ities. Kuehne et al. (Kuehne, Richard, and Gall 2017) ap-
+the structure of procedures as expected.                                                   ply Hidden Markov Models (HMM) to learn the likelihood
+                                                                                           of image features given hidden action states. Both meth-
+    1Dataset website: http://youcook2.eecs.umich.edu
+
+                                                                                     7591
+             Figure 2: Mean and standard deviation of number of procedure segments for each recipe.
+
+140                                                                                                                                                            1400
+
+120                                                                                                                                                            1200
+
+100                                                                                                                                                            1000
+
+80                                                                                                                                                             800
+
+Count
+                                                                                                                                                        Count
+
+60                                                                                                                                                             600
+
+40                                                                                                                                                             400
+
+20                                                                                                                                                             200
+
+0    0  100  200  300  400  500            600  700  800                                                                                                       0     0  20  40  60  80  100              120   140
+
+                  Video duration (second)                                                                                                                                       Segment Length (second)
+
+        (a) Distribution of video duration.                                                                                                                             (b) Distribution of segment duration.
+
+                                           Figure 3: YouCook2 dataset duration statistics.
+
+ods focus on the transitions between adjacent action states,                                                                                                   (Das et al. 2013), MPII (Rohrbach et al. 2012), 50Salads
+leaving long-range dependencies not captured. Also, these                                                                                                      (Stein and McKenna 2013), Coffee (Alayrac et al. 2016),
+methods generally assume contiguous action segments with                                                                                                       Breakfast (Kuehne, Arslan, and Serre 2014) and Charades
+limited or no background activities between segments. Yet,                                                                                                     (Sigurdsson et al. 2016).
+background activities are detrimental to the action localiza-
+tion accuracy (Huang, Fei-Fei, and Niebles 2016). We avoid                                                                                                        Most of the datasets mentioned above have temporally lo-
+these problems with a segment proposal module followed by                                                                                                      calized action annotations. Compared to action segments,
+a segment-level dependency learning module.                                                                                                                    our procedure segments can contain richer semantic infor-
+                                                                                                                                                               mation and better capture the human-involved processes in
+                  YouCook2 dataset                                                                                                                             instructional videos. Due to the variety of instructional pro-
+                                                                                                                                                               cesses and how each process can be performed, a ﬁxed set
+Existing datasets for analyzing instructional videos suffer                                                                                                    of actions fails to describe the details in the video process
+from either limited videos (Alayrac et al. 2016; Sener et al.                                                                                                  (e.g., attributes and ﬁne-grained objects). For example, the
+2015) or weak diversity in background (Regneri et al. 2013)                                                                                                    attribute “crispy” in the recipe step “cook bacon until crispy
+and activities (Kuehne, Arslan, and Serre 2014)). They pro-                                                                                                    then drain on paper towel” (see Fig. 1) cannot be described
+vide limited or no annotations on procedure segment bound-                                                                                                     by any action nor activity labels.
+aries or descriptions (Sigurdsson et al. 2016). To this end,
+we collect a novel cooking video dataset, named YouCook2.                                                                                                      Annotations
+
+   YouCook2 contains 2000 videos that are nearly equal-                                                                                                        Each video contains 3–16 procedure segments. The seg-
+distributed over 89 recipes. The recipes are from four ma-                                                                                                     ments are temporally localized (timestamps) and described
+jor cuisine locales, e.g., Africa, Americas, Asia and Europe,                                                                                                  by English sentences in imperative form (e.g., grill the toma-
+and have a large variety of cooking styles, methods, ingredi-                                                                                                  toes in a pan). An example is shown in Fig. 1. The annota-
+ents and cookwares. The videos are collected from YouTube,                                                                                                     tors have access to audio and subtitles but are required to
+where various challenges, e.g., fast camera motion, camera                                                                                                     organize and summarize the descriptions in their own way.
+zooms, video defocus, and scene-type changes are present.                                                                                                      As indicated in prior work (Baldassano et al. 2017), people
+Table 1 shows the comparison between YouCook2 and other                                                                                                        generally agree with boundaries of salient events in video
+commonly-used instructional video datasets, e.g., YouCook                                                                                                      and hence we collect one annotation per video. To reﬂect the
+
+                                                               7592
+ResNet Features                                 Context-aware          Temporal Conv.                 Segment Proposals
+                                                                                                            (K x L x 3)
+      (L X 512)
+                                                Features (L X 512) Anchors (K kernel size)
+                             Bi-LSTM
+                                        Res                                                              Length Offset
+
+                                        Net
+
+                                        LSTM    Linear                                                Center Offset        Tanh
+
+                                        -f      Layer
+
+                                                                                            Proposal Score           Tanh  Procedure
+                                                                                                                           Segment
+                                        LSTM                                                                               Proposal
+                                          -b
+
+                                                                                                            Sigmoid
+
+Proposed Segments    Segment Proposals                                                     Max-pool           Boundaries
+                                                                                             Scores      Score
+       (start, end)
+                                                                             Proposal Vector
+      (1.1,4.3)
+      (5.7,8.2)                                                                           Flatten
+     (9.1,11.9)
+                     Segment            Beam                                                          0
+                       Index            Search
+                                                                       LSTM                           0
+
+                                                                                            Location  1
+                                                                                                      0
+
+                                                                                            Embed     …
+
+…                                               Likelihood of                                         0
+                                                Next Segment                                          0
+
+                                                                                                      0  Ground-truth
+                                                                                                           Segment
+                                                                                            Segment                        Sequential
+                                                                                                                           Prediction
+                                                                                            Feature
+
+Figure 4: Schematic illustration of the ProcNets. The input are the frame-wise ResNet features (by row) for a video. The output
+are the proposed procedure segments. First, the bi-directional LSTM embeds the ResNet features into context-aware features.
+Then, the procedure segment proposal module generates segment candidates. Finally, the sequential prediction module selects
+the ﬁnal proposals for output. During training, the ground-truth segments are embedded to composite the sequential prediction
+input, which are replaced with beam-searched segment in testing (as shown in the dashed arrows).
+
+Table 1: Comparisons of instructional video datasets. Un-              segments per recipe are shown in Fig. 2. The distribution of
+Cons. stands for Unconstrained Scene and Proc. Ann. is                 video duration is shown in Fig. 3(a). The total video length is
+short for Procedure Annotation.                                        175.6 hours with an average duration of 5.27 min per video.
+                                                                       All the videos remain untrimmed and can be up to 10 min.
+  Name     Duration  UnCons.                 Proc. Ann.                The distribution of segment durations is shown in Fig. 3(b)
+                                                                       with mean and standard deviation of 19.6s and 18.2s, respec-
+ YouCook     140 m      Yes                       No                   tively. The longest segment lasts 264s and the shortest one
+   MPII      490 m      No                        No                   lasts 1s. For the recipe descriptions, the total vocabulary is
+             320 m      No                        No                   around 2600 words.
+ 50Salads    120 m      Yes                       No
+  Coffee      67 h      Yes                       No                      We randomly split the dataset to 67%:23%:10% for train-
+Breakfast               Yes                       No                   ing, validation and testing according to each recipe. Note
+ Charades     82h                                                      that we also include unseen recipes from other datasets for
+                        Yes                      Yes                   analyzing the generalization ability of the models discussed.
+YouCook2     176h
+                                                                              Procedure Segmentation Networks
+human consensus on how a procedure should be segmented,
+we annotate each video with two annotators, one for the ma-            We propose Procedure Segmentation Networks (ProcNets)
+jor effort and the other one for veriﬁcation. We also set up           for segmenting an untrimmed and unconstrained video into
+a series of restrictions on the annotation to enforce this con-        a sequence of procedure segments. We accomplish this by
+sensus among different annotators. We have found that con-             three core modules: 1) context-aware video encoding; 2)
+sensus is comparatively easy to achieve given the grounded             segment proposal module that localizes a handful of pro-
+nature of the instructional video domain.                              posal candidates; 3) sequential prediction that predicts ﬁnal
+                                                                       segments based on segment-level dependencies among can-
+   Note that in this paper, we only use the temporal boundary          didates. At training, ProcNets are given ground-truth pro-
+annotations. We make the recipe descriptions available for             cedure segment boundaries for each video; no recipe cate-
+future research.                                                       gories or segment descriptions are given. At testing, for any
+                                                                       given unseen video, ProcNets propose and localize proce-
+Statistics and Splits                                                  dure segments in the video based on their visual appear-
+                                                                       ance and temporal relations. The overall network structure
+The average number of segments per video is 7.7 and the
+mean and standard deviation of the number of procedure
+
+                                                                 7593
+is shown in Fig. 4 and next, we explain each component.                             Segment Candidates      Boundaries
+                                                                                               (K/h x L/w)
+                                                                                                            Score       Flatten  Proposal
+                                                                       Proposed Segments                                          Vector
+Context-Aware Video Encoding                                           (start frame, end frame)
+                                                                                                                                                  0
+Deﬁne a video as x = {x1, x2, . . . , xL}, where L denotes
+the number of sampled frames and xi is the frame-wise                                                                            Location         0
+CNN feature vector with ﬁxed encoding size. In this paper
+L = 500 and encoding size is 512. We use ResNet (He et                                                                                            0  <start>
+al. 2016) as the appearance feature extractor for its state-                                                                                      0
+of-the-art performance in image classiﬁcation. We then for-                                                                                          ResNet
+ward the ResNet features through a bi-directional long short-                                                                              Embed  …  Feature
+term memory (Bi-LSTM) (Graves and Schmidhuber 2005)
+as context encoding. The outputs (forward and backward)                (1.1,4.3)    Index: 2  Beam                      LSTM                      0
+are concatenated with the ResNet feature at each frame and                                    Search                                              0
+the feature dimension is reduced to the same as ResNet fea-
+ture for a fair comparison. We call these frame-wise context-                                                                                     1
+aware features, denoted as bi = Bi-LSTM(x). Empirically,
+Bi-LSTM encoder outperforms context-free ResNet feature                                               Likelihood of                        Mean
+and LSTM-encoded feature by a relative 9% on our evalua-                                              Next Segment
+tion metric.                                                                                                                               pool
+
+                                                                       (5.7,8.2)    Index: 5  Beam                      LSTM                      0
+                                                                                              Search
+                                                                                                                                                  1
+                                                                                                         Likelihood of
+                                                                                                        Next Segment             Location         0  (1.1,4.3)
+                                                                                                                                                  0
+                                                                                                                                                     ResNet
+                                                                                                                                                  …  Feature
+
+                                                                                                                                           Embed  0
+                                                                                                                                                  0
+
+                                                                                                                         …                        0
+                                                                       …
+                                                                       Until <end>                                                         Mean
+                                                                                                                                           pool
+
+                                                                       Figure 5: An example on sequential prediction during infer-
+                                                                       ence with unrolled LSTM. The <start> token is feed into
+                                                                       model at time 0. The previously generated segment is feed
+                                                                       into model at time 1. Best view in color.
+
+                                                                       Sequential Prediction
+
+Procedure Segment Proposal                                             Contrary to spatial objects, video procedure segments, by
+                                                                       their nature, have strong temporal dependencies and yet am-
+Inspired by the anchor-offset mechanism for spatial object             biguous temporal boundaries. Therefore, we treat them dif-
+proposal, such as in Faster R-CNN (Ren et al. 2015), we de-            ferently. Recently, modeling frame-level temporal depen-
+sign a set of K explicit anchors for segment proposal. Each            dency in video has been explored (Zhang et al. 2016). How-
+anchor has the length: lk (k = 1, 2, .., K) and their centers          ever, memorizing dependencies over enormous frames is
+cover all the frames.                                                  still challenging for recurrent models to date (Singh et al.
+                                                                       2016). In contrast, we propose to learn segment-level de-
+   Each anchor-based proposal is represented by a proposal             pendency because the number of proposal segments could
+score and two offsets (center and length), from the output             be fewer so learning dependencies over segments are more
+of a temporal convolution applied on the context-aware fea-            tractable. By leveraging the segment-level dependency, we
+ture. The score indicates the likelihood for an anchor to be a         predict the sequence of procedure segments while dynami-
+procedure segment and the offsets are used to adjust the pro-          cally determine the number of segments to propose.
+posed segment boundaries. By zero-padding the video en-
+coding at the boundaries (depending on anchor sizes), we                  We use long short-term memory (LSTM) for sequen-
+obtain score and offset matrices of size K × L (see upper              tial prediction due to its state-of-the-art performance in se-
+right of Fig. 4) respectively, and hence the output of proposal        quence modeling (Xu et al. 2016; Zhang et al. 2016). The
+module is K × L × 3. Sigmoid function and Tanh functions               input of LSTM is constructed from three parts: 1) Proposal
+are applied for proposal score and offsets, respectively.              Vector S: max-pooled proposal scores from the proposal
+                                                                       module, ﬁxed over time; 2) Location Embedding Bt: a set
+   We formulate the proposal generation as a classiﬁcation             of vectors that discretely encode the locations of ground-
+problem and proposal offset as a regression problem. The               truth or previously generated segments; 3) Segment Content
+segment proposals are classiﬁed as procedure segment or                Ct: the visual features of the ground-truth or previously gen-
+non-procedure segment with binary cross-entropy loss ap-               erated segments. The tuple (S, Bt, Ct), t = 1, 2, ..., N , is
+plied. During training, the segment proposals having at least          concatenated as the input to LSTM at each time step t. Intu-
+0.8 IoU (Intersection over Union) with any ground-truth seg-           itively, when we learn to choose a few winners from a pool
+ments are regarded as positive samples and these having IoU            of candidates, we need to know who and how good they are
+less than 0.2 with all the ground-truth are treated as negative        (Proposal Vector), what they look like (Segment Content)
+samples. We randomly pick U samples from positive and                  and the target candidates (location embedding). We will de-
+negative separately for training. Then for the positive sam-           tail each component after introducing the overall model ﬁrst.
+ples, we regress the proposed length and center offsets to
+the ground-truth ones from a relative scale. Given a ground-              The softmax output of LSTM is the likelihood of each
+truth segment with center cg and length lg, the target offsets         proposal being the next segment prediction. Therefore,
+(θc, θl) w.r.t. anchor (center ca and length la) are given by:         the likelihood for the entire procedure segment sequence
+                                                                        1, ..., S of a video can be formulated as:
+
+θc = cg − ca θl = log lg . (1)                                                    log p( 1, ..., S|S)                                                (2)
+
+la                          la                                                            N
+
+Smooth l1-loss (Ren et al. 2015) is applied in a standard                           = log p( t|S, Bt−1, Ct−1, 0, ..., t−1) ,
+way. For inference, the proposed offsets adjust the anchor
+                                                                                        t=1
+location towards the ﬁnal prediction location.
+                                                                       where 0 is the special <start> segment token, B0 is the em-
+
+                                                                 7594
+Figure 6: An example on converting ground-truth segments                 on category-independent procedure segments. The proposed
+into one-hot vector representations from Proposal Vector.                model builds the video temporal structure without the need
+                                                                         of knowing the hidden states such as in HMM. Note that
+bedding for the <start> token, C0 is the meal-pooled video               there are other design choices.
+feature over all frames, Bt−1 and Ct−1 are determined by                 Non-Maximal Suppression (NMS). In terms of proposal
+ t−1. The objective is to maximize the segment sequence                  selection, a commonly adopted method in object detec-
+likelihood for all training videos. We apply cross-entropy               tion (Ren et al. 2015) or action detection (Shou, Wang, and
+loss to the likelihood output Pt at time step t given the                Chang 2016) is NMS. This approach fails to capture the
+ground-truth segment index. During inference, we sample                  temporal structure or segment dependencies of instructional
+a sequence of segment indexes with beam search (Vinyals                  videos. We consider it as a baseline in our experiment along
+et al. 2015; Donahue et al. 2015). In our experiments, sim-              with our sequential prediction model.
+ply set the beam size to 1 yields the best result, i.e., greedily        Other Time Sequence Models. Other methods for
+picking the index with the maximal likelihood as the next                proposing segments have rigid model conﬁgurations, such
+proposed segment. The algorithm terminates when the spe-                 as an HMM or pre-deﬁned “grammar” for the whole video,
+cial <end> token is picked. An example is shown in Fig. 5.               which is infeasible for general video structure inference.
+Next, we describe the three input vectors in details.
+Proposal Vector. As shown at the middle right of Fig. 4,                 Loss Function
+we apply max-pooling to proposal score to ﬁlter out propos-
+als with low proposal scores. The max-pooling kernel size is             The loss function for procedure segmentation network con-
+h × w and so as its stride, i.e., no overlapping. Empirically,           sists of three parts, the binary cross-entropy loss for proce-
+h = 8 and w at 4 or 5 yields the best results. Given the ﬁl-             dureness classiﬁcation, the smooth l1-loss (Ren et al. 2015)
+tered proposals (score and offsets), we ﬂatten the proposal              for offset regression and the cross-entropy loss for sequen-
+scores into a vector S by columns as Proposal Vector, which              tial prediction. The formulations are as follows:
+encodes the location and conﬁdence information of all likely
+segment candidates in a video.                                           L = Lcla + αrLreg + αsLseq                 (3)
+Location Embedding. During training, each ground-truth
+segment is represented by a one-hot vector where the index               Lcla = −  1 Up                         Un  (neg)
+of one matches to the nearest proposal candidate as illus-                                       (pos)
+trated in Fig. 6. This discrete representation of location is                           ( log(Si ) + log(1 − Si ))
+easier to learn than continuous location values. Through a                         Up + Un i=1 i=1
+trainable embedding matrix (similar to word embedding in
+language modeling), this one-hot vector maps to a vector,                1         Up
+which we call Location Embedding vector and depicts the
+location information of a segment. This Location Embed-                                  (gt)
+ding vector has the same size as the Proposal Vector. During             Lreg = Up ||Bi − Bi ||smooth−l1
+testing, we greedily sample the softmax output of LSTM at                          i=1
+previous time step to form location embedding for the cur-
+rent time step. Location Embedding represents the previous                         1N    T (gt)
+selected candidate, i.e., who we have and who we need next.              Lseq = − N log(Pt 1t )
+Segment Content. We then encode the visual content for                             t=1
+the candidate represented in the one-hot vector. We mean-
+pool the video ResNet feature bounded by the start and end               where Up and Un are the number of positive and nega-
+timestamps of the candidate. Its dimension is reduced to the             tive samples, respectively, Si(pos) and Si(neg)represents their
+same as Proposal Vector by a fully-connected layer. Segment              scores, Bi(gt) is the ground-truth boundary corresponding to
+Content indicates what the candidate looks like.                         positive sample i, Pt is the softmax output of LSTM at time
+
+Relations to Other Models. To the best of our knowledge,                 t and 1t(gt) is one-hot vector of ground-truth segment index.
+we are the ﬁrst to apply segment-level sequential modeling
+                                                                         Discount factors αr and αs are applied to balance the contri-
+                                                                         butions of the regression loss and sequential prediction loss,
+
+                                                                         respectively. Empirically, equally weighting each part, i.e.
+                                                                         αr = αs = 1, yields good results.
+
+                                                                                       Experiments and Results
+
+                                                                         In this section, we benchmark our new dataset on proce-
+                                                                         dure segmentation with competitive baselines and our pro-
+                                                                         posed methods under standard metrics. We also show abla-
+                                                                         tion studies, qualitative results and analysis on the procedure
+                                                                         structure learned by our approach.
+                                                                         Baselines. We compare our methods against state-of-the-
+                                                                         art methods in video summarization and action proposal due
+                                                                         to lack of direct baselines in our new problem. These meth-
+                                                                         ods include: 1) Video Summarization LSTM (vsLSTM)
+                                                                         (Zhang et al. 2016), 2) Segment CNN for proposals (SCNN-
+                                                                         prop) (Shou, Wang, and Chang 2016). The major difference
+                                                                         between ProcNets and vsLSTM is, our model learns the
+                                                                         segment-level temporal dependency while vsLSTM learns
+
+                                                                   7595
+the frame-level temporal dependency. SCNN-prop is the                   Table 2: Results on temporal segmentation. Top two scores
+proposal module of action detector SCNN, which achieves                 are highlighted. See text for details.
+state-of-the-art performance in action proposal.2 In addi-
+tion, we also evaluate a uniform segment baseline (denoted              Method (%)                validation          test
+as Uniform). Two variants of ProcNets are evaluated, one                                      Jaccard mIoU    Jaccard mIoU
+with all the modules (ProcNets-LSTM) and one that replaces              Uniform
+sequential prediction with NMS (ProcNets-NMS). Finally,                 vsLSTM                  41.5 36.0       40.1 35.1
+note that we compare with no action segmentation methods                SCNN-prop               47.2 33.9       45.2 32.2
+since these approaches require an action pool and directly                                      46.3 28.0       45.6 26.7
+model the ﬁnite action states (e.g., with HMM) which re-                ProcNets-NMS (ours)
+quires the “grammar” of the video procedure; both of these              ProcNets-LSTM (ours)    49.8 35.2       47.6 33.9
+needs violate the core assumptions in this paper.                                               51.5 37.5       50.6 37.0
+
+Metrics. For procedure segmentation, we adopt two stan-                 Table 3: Ablation study on LSTM input. We remove either
+dard metrics for evaluating segment proposals: Jaccard (Bo-             Proposal Vector (as -Proposal Vec), Location Embedding (as
+janowski et al. 2014) and mean Intersection over Union                  -Location Emb) or Segment Content (as -Segment Feat).
+(mIoU). In Jaccard measure, the maximal intersection over
+prediction between all the ﬁnal proposals and each ground-              Full model            Jaccard         mIoU
+truth segment is computed and averaged. The individual Jac-              -Proposal Vec
+card for each video is then averaged as the overall Jaccard.             -Location Emb          50.6           37.0
+mIoU replaces the intersection over prediction in Jaccard                -Segment Feat          47.6           36.1
+with intersection over union (IoU). Hence, mIoU penalizes                                       46.2           35.1
+all the misalignment of segments while Jaccard only penal-                                      49.0           36.4
+izes the partition of proposal beyond the ground truth. All
+the methods except for ProcNets-LSTM output 7 segments                  ﬁne-tuning which heavily slows down the training process.
+per video, determined by the average number of segments
+in the training set. Note that the average number of propos-            Procedure Segmentation Results
+als from ProcNets-LSTM is also around 7, makes that a fair
+comparison. Inspired by the average recall metric in action             We report the procedure segmentation results on both val-
+proposal (Escorcia et al. 2016), we also report the proposal            idation and testing sets in Tab. 2. The proposed ProcNets-
+averaged recall, precision and F1 score but with limited seg-           LSTM model outperforms all other methods by a huge mar-
+ments (10 per video), as motivated in Introduction section.             gin in both Jaccard and mIoU. SCNN-prop (Shou, Wang,
+                                                                        and Chang 2016) suffers in our sequential segmentation
+Data Preprocessing. To preserve the overall information                 task result from the lack of sequential modeling. vsLSTM
+in the videos, we uniformly down-sample 500 frames for                  (Zhang et al. 2016) models frame-level temporal depen-
+each video in YouCook2. The average sample rate is 1.58                 dency and shows superior results than SCNN-prop. How-
+fps. To further enlarge the training samples, we temporally             ever, our model learns segment-level temporal dependency
+augment the data, i.e., sample each video 10 times with tem-            and yields better segmentation results, which shows its ef-
+poral shifts. Then, we extract the frame-wise ResNet-34 fea-            fectiveness. Uniform baseline shows competitive results and
+ture (He et al. 2016),3 pretrained on both ImageNet (Deng et            the possible reason is, in instruction videos, generally proce-
+al. 2009) and MSCOCO caption (Lin et al. 2014; Zhou et                  dures span the whole video which favors segments that can
+al. 2016). Hence, each video is represented as a sequence of            cover the majority of video. For the rest experiments, all the
+image spatial features. Local motion features are not used in           results are on testing set.
+our study; they may further improve performance.                        Ablation study on sequential prediction. The input of
+                                                                        the sequence modeling LSTM is the concatenation of three
+Implementation and Training Details. The sizes of the                   parts: Proposal Vector, Location Embedding and Segment
+temporal conv. kernels (also anchor length) are from 3 to               Content. We remove either one of them as the ablation study.
+123 with an interval of 8, which covers 95% of the segment              Results are shown in Tab. 3. Unsurprisingly, the proposal
+durations in training set. The 16 explicit anchors centered at          scores (Proposal Vector) play a signiﬁcant role in determin-
+each frame, i.e., stride for temporal conv. is 1. We randomly           ing the ﬁnal proposals. When this information is unavailable,
+select U = 100 samples from all the positive and negative               the overall performance drops by 6% on Jaccard relatively.
+samples respectively and feed in negative samples if positive           The Location Embedding encodes the location information
+ones are less than U . Our implementation is in Torch. All              for ground-truth segments and is the most important com-
+the LSTMs have one layer and 512 hidden units. For hyper-               ponent for procedure structure learning. Jaccard and mIoU
+parameters, the learning rate is 4 × 10−5. We use the Adam              scores drop by 8.7% and 5.1% relatively when location em-
+optimizer (Kingma and Ba 2014) for updating weights with                bedding is not available. The segment visual feature has less
+α = 0.8 and β = 0.999. Note that we disable the CNN                     impact on the sequence prediction, which implies the visual
+                                                                        information represented in the video appearance feature is
+    2New results comparing DAPs and SCNN-prop: https://github.          noisy and less informative.
+com/escorciav/daps/wiki                                                 Proposal localization accuracy. We study the proposal
+                                                                        localization problem when each model proposes 10 seg-
+    3Torch implementation of ResNet by Facebook: https://github.
+com/facebook/fb.resnet.torch
+
+                                                                  7596
+Grilled Cheese
+
+    Ground-truth:
+         Proposed:
+
+        Chapati
+
+    Ground-truth:
+         Proposed:
+
+      Calamari
+
+    Ground-truth:
+         Proposed:
+
+Figure 7: Qualitative results from test set. YouTube IDs: BlTCkNkfmRY, jD4o Lmy6bU and jrwHN188H2I.
+
+Table 4: Results on segment localization accuracy. Top two            inverse the order of VaVb to VbVa to construct the permu-
+scores are highlighted.                                               tated video. We evaluate our model on both original test set
+                                                                      and the permutated test set. The performance of pre-trained
+Method (%) Recall Precision F1                                        ProcNets decreases by over a half in the permutated set and
+                                                                      10%-20% of the videos only have segments predicted at the
+vsLSTM             22.1  24.1 23.0                                    beginning of Vb (see Fig. 8). We believe reasons are two.
+SCNN-prop                                                             First, the model captures the ending content in Vb and termi-
+                   28.2  23.2 25.4                                    nates the segment generation within Vb. Second, the tempo-
+                                                                      ral structure of Va has no dependencies on Vb and hence is
+ProcNets-NMS 37.1        30.4 33.4                                    ignored by the model.
+
+Pancake                                                                                     Conclusion
+
+               Va        Vb                                           We introduce a new problem called procedure segmenta-
+                                                                      tion to study human consensus on how a procedure is struc-
+Ground-truth:                                                         tured from unconstrained videos. Our proposed ProcNets
+                                                                      take frame-wise video features as the input and predict pro-
+Original:                                                             cedure segments exist in the video. We evaluate the model
+                                                                      against competitive baselines on the newly collected large-
+Permuted:                                                             scale cooking video dataset with standard metrics and show
+                                                                      signiﬁcant improvements. Besides, ProcNets are capable of
+Figure 8: An example output of ProcNets on the original and           inferring the video structure by video content and modeling
+the permutated video. YouTube ID: ejq2ZsHgwFk.                        the temporal dependencies among procedure segments. For
+                                                                      future work, there are two extensions of the current work.
+ments per video. Note that the metrics used here are not              The ﬁrst one is dense video captioning. The other one is
+suitable for ProcNets-LSTM as they impose a ﬁxed num-                 weakly supervised segmentation, which is to ﬁrst align the
+ber of segments, where ProcNets-LSTM learns that auto-                weak audio/subtitle signal with the video and then train our
+matically; nonetheless, we evaluate ProcNets-NMS for the              model with the aligned annotation.
+quality of procedure segment proposal. The average recall,
+precision and F1 are shown in Tab. 4. The IoU threshold for           Acknowledgement. This work has been supported in
+true positive is 0.5. SCNN-prop shows competitive localiza-           part by Google, ARO W911NF-15-1-0354, NSF CNS
+tion results as expected. vsLSTM yields inferior localization         1463102, NSF CNS 1628987, NSF NRI 1522904 and NSF
+accuracy even though it performs better than SCNN-prop on             BIGDATA 1741472. This article solely reﬂects the opin-
+segmentation. Our proposed model has more than 9% and                 ions and conclusions of its authors and neither Google, ARO
+7% higher recall and precision than the baselines.                    nor NSF. We sincerely thank our colleagues Vikas Dhiman,
+Qualitative results. We demonstrate qualitative results               Madan Ravi Ganesh and Ryan Szeto for their helpful dis-
+with videos from YouCook2 test set (see Fig. 7). The model            cussions. We also thank Mingyang Zhou, Yichen Yao, Hao-
+can accurately localize some of the segments and predict              nan Chen, Carolyn Busch and Dali Zhang for their efforts in
+their lengths. Moreover, the number of segments proposed is           constructing the dataset.
+adapted to individual videos and the model learns to propose
+fewer segments at the beginning and the end of the video,                                    References
+where usually no cooking processes happen. In the example
+of making Grilled Cheese, ProcNets propose the ﬁfth seg-              Al-Omari, M.; Duckworth, P.; Hogg, D. C.; and Cohn, A. G. 2017.
+ment to cover the process of cutting bread slices into two            Natural language acquisition and grounding for embodied robotic
+pieces. This trivial segment is not annotated but is still se-        systems. In AAAI, 4349–4356.
+mantically meaningful.
+Analysis on temporal structure learning. We conduct
+additional experiments to evaluate the temporal structure
+learning capability of ProcNets. For a given testing video,
+denote the ﬁrst half as Va and the second half as Vb. We
+
+                                                                7597
+Alayrac, J.-B.; Bojanowski, P.; Agrawal, N.; Sivic, J.; Laptev, I.;          Oneata, D.; Verbeek, J.; and Schmid, C. 2013. Action and event
+and Lacoste-Julien, S. 2016. Unsupervised learning from narrated             recognition with ﬁsher vectors on a compact feature set. In ICCV,
+instruction videos. In CVPR, 4575–4583.                                      1817–1824.
+
+Baldassano, C.; Chen, J.; Zadbood, A.; Pillow, J. W.; Hasson, U.;            Regneri, M.; Rohrbach, M.; Wetzel, D.; Thater, S.; Schiele, B.; and
+and Norman, K. A. 2017. Discovering event structure in continu-              Pinkal, M. 2013. Grounding action descriptions in videos. Trans-
+ous narrative perception and memory. Neuron 95(3):709–721.                   actions of the Association for Computational Linguistics 1:25–36.
+
+Bojanowski, P.; Lajugie, R.; Bach, F.; Laptev, I.; Ponce, J.; Schmid,        Ren, S.; He, K.; Girshick, R.; and Sun, J. 2015. Faster r-cnn:
+C.; and Sivic, J. 2014. Weakly supervised action labeling in videos          Towards real-time object detection with region proposal networks.
+under ordering constraints. In ECCV, 628–643. Springer.                      In NIPS, 91–99.
+
+Bojanowski, P.; Lajugie, R.; Grave, E.; Bach, F.; Laptev, I.; Ponce,         Rohrbach, M.; Amin, S.; Andriluka, M.; and Schiele, B. 2012. A
+J.; and Schmid, C. 2015. Weakly-supervised alignment of video                database for ﬁne grained activity detection of cooking activities. In
+with text. In CVPR, 4462–4470.                                               CVPR, 1194–1201.
+
+Chen, W.; Xiong, C.; Xu, R.; and Corso, J. J. 2014. Actionness               Sener, O.; Zamir, A. R.; Savarese, S.; and Saxena, A. 2015. Un-
+ranking with lattice conditional ordinal random ﬁelds. In CVPR,              supervised semantic parsing of video collections. In ICCV, 4480–
+748–755.                                                                     4488.
+
+Das, P.; Xu, C.; Doell, R. F.; and Corso, J. J. 2013. A thousand             Shou, Z.; Wang, D.; and Chang, S.-F. 2016. Temporal action lo-
+frames in just a few words: Lingual description of videos through            calization in untrimmed videos via multi-stage cnns. In CVPR,
+latent topics and sparse object stitching. In CVPR, 2634–2641.               1049–1058.
+
+Deng, J.; Dong, W.; Socher, R.; Li, L.-J.; Li, K.; and Fei-Fei, L.           Sigurdsson, G. A.; Varol, G.; Wang, X.; Farhadi, A.; Laptev, I.;
+2009. Imagenet: A large-scale hierarchical image database. In                and Gupta, A. 2016. Hollywood in homes: Crowdsourcing data
+CVPR, 248–255.                                                               collection for activity understanding. In ECCV.
+
+Donahue, J.; Anne Hendricks, L.; Guadarrama, S.; Rohrbach, M.;               Singh, B.; Marks, T. K.; Jones, M.; Tuzel, O.; and Shao, M. 2016.
+Venugopalan, S.; Saenko, K.; and Darrell, T. 2015. Long-term re-             A multi-stream bi-directional recurrent neural network for ﬁne-
+current convolutional networks for visual recognition and descrip-           grained action detection. In CVPR, 1961–1970.
+tion. In CVPR, 2625–2634.
+                                                                             Stein, S., and McKenna, S. J. 2013. Combining embedded ac-
+Escorcia, V.; Heilbron, F. C.; Niebles, J. C.; and Ghanem, B. 2016.          celerometers with computer vision for recognizing food prepara-
+Daps: Deep action proposals for action understanding. In ECCV,               tion activities. In Proceedings of the 2013 ACM international
+768–784. Springer.                                                           joint conference on Pervasive and ubiquitous computing, 729–738.
+                                                                             ACM.
+Gaidon, A.; Harchaoui, Z.; and Schmid, C. 2013. Temporal local-
+ization of actions with actoms. TPAMI 35(11):2782–2795.                      Vinyals, O.; Toshev, A.; Bengio, S.; and Erhan, D. 2015. Show and
+                                                                             tell: A neural image caption generator. In CVPR, 3156–3164.
+Graves, A., and Schmidhuber, J. 2005. Framewise phoneme classi-
+ﬁcation with bidirectional lstm and other neural network architec-           Wang, L.; Xiong, Y.; Wang, Z.; Qiao, Y.; Lin, D.; Tang, X.; and
+tures. Neural Networks 18(5):602–610.                                        Van Gool, L. 2016. Temporal segment networks: towards good
+                                                                             practices for deep action recognition. In ECCV, 20–36. Springer.
+He, K.; Zhang, X.; Ren, S.; and Sun, J. 2016. Deep residual learn-
+ing for image recognition. In CVPR, 770–778.                                 Xu, J.; Mei, T.; Yao, T.; and Rui, Y. 2016. Msr-vtt: A large video
+                                                                             description dataset for bridging video and language. In CVPR,
+Huang, D.-A.; Fei-Fei, L.; and Niebles, J. C. 2016. Connection-              5288–5296.
+ist temporal modeling for weakly supervised action labeling. In
+ECCV, 137–153. Springer.                                                     Yeung, S.; Russakovsky, O.; Mori, G.; and Fei-Fei, L. 2016. End-
+                                                                             to-end learning of action detection from frame glimpses in videos.
+Jiang, Y.-G.; Liu, J.; Roshan Zamir, A.; Toderici, G.; Laptev, I.;           In CVPR, 2678–2687.
+Shah, M.; and Sukthankar, R. 2014. THUMOS challenge: Ac-
+tion recognition with a large number of classes. http://crcv.ucf.            Yu, H., and Siskind, J. M. 2013. Grounded language learning from
+edu/THUMOS14/.                                                               video described with sentences. In ACL, 53–63.
+
+Kingma, D., and Ba, J. 2014. Adam: A method for stochastic                   Yu, H., and Siskind, J. M. 2015. Learning to describe video with
+optimization. arXiv preprint arXiv:1412.6980.                                weak supervision by exploiting negative sentential information. In
+                                                                             AAAI, 3855–3863.
+Krishna, R.; Hata, K.; Ren, F.; Fei-Fei, L.; and Niebles, J. C. 2017.
+Dense-captioning events in videos. ICCV.                                     Yu, H.; Wang, J.; Huang, Z.; Yang, Y.; and Xu, W. 2016. Video
+                                                                             paragraph captioning using hierarchical recurrent neural networks.
+Kuehne, H.; Arslan, A.; and Serre, T. 2014. The language of ac-              In CVPR, 4584–4593.
+tions: Recovering the syntax and semantics of goal-directed human
+activities. In CVPR, 780–787.                                                Zhang, K.; Chao, W.-L.; Sha, F.; and Grauman, K. 2016. Video
+                                                                             summarization with long short-term memory. In ECCV, 766–782.
+Kuehne, H.; Gall, J.; and Serre, T. 2016. An end-to-end generative           Springer.
+framework for video segmentation and recognition. In WACV, 1–8.
+                                                                             Zhou, L.; Xu, C.; Koch, P.; and Corso, J. J. 2016. Watch what you
+Kuehne, H.; Richard, A.; and Gall, J. 2017. Weakly supervised                just said: Image captioning with text-conditional attention. arXiv
+learning of actions from transcripts. CVIU.                                  preprint arXiv:1606.04621.
+
+Lin, T.-Y.; Maire, M.; Belongie, S.; Hays, J.; Perona, P.; Ramanan,
+D.; Dolla´r, P.; and Zitnick, C. L. 2014. Microsoft coco: Common
+objects in context. In ECCV, 740–755. Springer.
+
+Malmaud, J.; Huang, J.; Rathod, V.; Johnston, N.; Rabinovich, A.;
+and Murphy, K. 2015. What’s cookin’? interpreting cooking videos
+using text, speech and vision. arXiv preprint arXiv:1503.01558.
+
+                                                                       7598
+

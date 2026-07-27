@@ -1,0 +1,323 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<feed xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/" xmlns:arxiv="http://arxiv.org/schemas/atom" xmlns="http://www.w3.org/2005/Atom">
+  <id>https://arxiv.org/api/qnPYu6xK+go6cnKla9jLoGtyeT4</id>
+  <title>arXiv Query: search_query=abs:"HoloAssist"&amp;id_list=&amp;start=0&amp;max_results=25</title>
+  <updated>2026-07-26T12:30:28Z</updated>
+  <link href="https://arxiv.org/api/query?search_query=abs:%22HoloAssist%22&amp;start=0&amp;max_results=25&amp;id_list=" type="application/atom+xml"/>
+  <opensearch:itemsPerPage>25</opensearch:itemsPerPage>
+  <opensearch:totalResults>10</opensearch:totalResults>
+  <opensearch:startIndex>0</opensearch:startIndex>
+  <entry>
+    <id>http://arxiv.org/abs/2309.17024v1</id>
+    <title>HoloAssist: an Egocentric Human Interaction Dataset for Interactive AI Assistants in the Real World</title>
+    <updated>2023-09-29T07:17:43Z</updated>
+    <link href="https://arxiv.org/abs/2309.17024v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2309.17024v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Building an interactive AI assistant that can perceive, reason, and collaborate with humans in the real world has been a long-standing pursuit in the AI community. This work is part of a broader research effort to develop intelligent agents that can interactively guide humans through performing tasks in the physical world. As a first step in this direction, we introduce HoloAssist, a large-scale egocentric human interaction dataset, where two people collaboratively complete physical manipulation tasks. The task performer executes the task while wearing a mixed-reality headset that captures seven synchronized data streams. The task instructor watches the performer's egocentric video in real time and guides them verbally. By augmenting the data with action and conversational annotations and observing the rich behaviors of various participants, we present key insights into how human assistants correct mistakes, intervene in the task completion procedure, and ground their instructions to the environment. HoloAssist spans 166 hours of data captured by 350 unique instructor-performer pairs. Furthermore, we construct and present benchmarks on mistake detection, intervention type prediction, and hand forecasting, along with detailed analysis. We expect HoloAssist will provide an important resource for building AI assistants that can fluidly collaborate with humans in the real world. Data can be downloaded at https://holoassist.github.io/.</summary>
+    <category term="cs.CV" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2023-09-29T07:17:43Z</published>
+    <arxiv:comment>ICCV 2023</arxiv:comment>
+    <arxiv:primary_category term="cs.CV"/>
+    <author>
+      <name>Xin Wang</name>
+    </author>
+    <author>
+      <name>Taein Kwon</name>
+    </author>
+    <author>
+      <name>Mahdi Rad</name>
+    </author>
+    <author>
+      <name>Bowen Pan</name>
+    </author>
+    <author>
+      <name>Ishani Chakraborty</name>
+    </author>
+    <author>
+      <name>Sean Andrist</name>
+    </author>
+    <author>
+      <name>Dan Bohus</name>
+    </author>
+    <author>
+      <name>Ashley Feniello</name>
+    </author>
+    <author>
+      <name>Bugra Tekin</name>
+    </author>
+    <author>
+      <name>Felipe Vieira Frujeri</name>
+    </author>
+    <author>
+      <name>Neel Joshi</name>
+    </author>
+    <author>
+      <name>Marc Pollefeys</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2406.08379v5</id>
+    <title>Gazing Into Missteps: Leveraging Eye-Gaze for Unsupervised Mistake Detection in Egocentric Videos of Skilled Human Activities</title>
+    <updated>2025-07-16T09:17:10Z</updated>
+    <link href="https://arxiv.org/abs/2406.08379v5" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2406.08379v5" rel="related" type="application/pdf" title="pdf"/>
+    <summary>We address the challenge of unsupervised mistake detection in egocentric video of skilled human activities through the analysis of gaze signals. While traditional methods rely on manually labeled mistakes, our approach does not require mistake annotations, hence overcoming the need of domain-specific labeled data. Based on the observation that eye movements closely follow object manipulation activities, we assess to what extent eye-gaze signals can support mistake detection, proposing to identify deviations in attention patterns measured through a gaze tracker with respect to those estimated by a gaze prediction model. Since predicting gaze in video is characterized by high uncertainty, we propose a novel gaze completion task, where eye fixations are predicted from visual observations and partial gaze trajectories, and contribute a novel gaze completion approach which explicitly models correlations between gaze information and local visual tokens. Inconsistencies between predicted and observed gaze trajectories act as an indicator to identify mistakes. Experiments highlight the effectiveness of the proposed approach in different settings, with relative gains up to +14%, +11%, and +5% in EPIC-Tent, HoloAssist and IndustReal respectively, remarkably matching results of supervised approaches without seeing any labels. We further show that gaze-based analysis is particularly useful in the presence of skilled actions, low action execution confidence, and actions requiring hand-eye coordination and object manipulation skills. Our method is ranked first on the HoloAssist Mistake Detection challenge.</summary>
+    <category term="cs.CV" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2024-06-12T16:29:45Z</published>
+    <arxiv:primary_category term="cs.CV"/>
+    <author>
+      <name>Michele Mazzamuto</name>
+    </author>
+    <author>
+      <name>Antonino Furnari</name>
+    </author>
+    <author>
+      <name>Yoichi Sato</name>
+    </author>
+    <author>
+      <name>Giovanni Maria Farinella</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2506.06174v1</id>
+    <title>Technical Report for Egocentric Mistake Detection for the HoloAssist Challenge</title>
+    <updated>2025-06-06T15:39:09Z</updated>
+    <link href="https://arxiv.org/abs/2506.06174v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2506.06174v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>In this report, we address the task of online mistake detection, which is vital in domains like industrial automation and education, where real-time video analysis allows human operators to correct errors as they occur. While previous work focuses on procedural errors involving action order, broader error types must be addressed for real-world use. We introduce an online mistake detection framework that handles both procedural and execution errors (e.g., motor slips or tool misuse). Upon detecting an error, we use a large language model (LLM) to generate explanatory feedback. Experiments on the HoloAssist benchmark confirm the effectiveness of our approach, where our approach is placed second on the mistake detection task.</summary>
+    <category term="cs.CV" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2025-06-06T15:39:09Z</published>
+    <arxiv:primary_category term="cs.CV"/>
+    <author>
+      <name>Constantin Patsch</name>
+    </author>
+    <author>
+      <name>Marsil Zakour</name>
+    </author>
+    <author>
+      <name>Yuankai Wu</name>
+    </author>
+    <author>
+      <name>Eckehard Steinbach</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2504.12284v1</id>
+    <title>How Do I Do That? Synthesizing 3D Hand Motion and Contacts for Everyday Interactions</title>
+    <updated>2025-04-16T17:48:12Z</updated>
+    <link href="https://arxiv.org/abs/2504.12284v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2504.12284v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>We tackle the novel problem of predicting 3D hand motion and contact maps (or Interaction Trajectories) given a single RGB view, action text, and a 3D contact point on the object as input. Our approach consists of (1) Interaction Codebook: a VQVAE model to learn a latent codebook of hand poses and contact points, effectively tokenizing interaction trajectories, (2) Interaction Predictor: a transformer-decoder module to predict the interaction trajectory from test time inputs by using an indexer module to retrieve a latent affordance from the learned codebook. To train our model, we develop a data engine that extracts 3D hand poses and contact trajectories from the diverse HoloAssist dataset. We evaluate our model on a benchmark that is 2.5-10X larger than existing works, in terms of diversity of objects and interactions observed, and test for generalization of the model across object categories, action categories, tasks, and scenes. Experimental results show the effectiveness of our approach over transformer &amp; diffusion baselines across all settings.</summary>
+    <category term="cs.CV" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.AI" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2025-04-16T17:48:12Z</published>
+    <arxiv:comment>CVPR 2025, Project page: https://ap229997.github.io/projects/latentact</arxiv:comment>
+    <arxiv:primary_category term="cs.CV"/>
+    <author>
+      <name>Aditya Prakash</name>
+    </author>
+    <author>
+      <name>Benjamin Lundell</name>
+    </author>
+    <author>
+      <name>Dmitry Andreychuk</name>
+    </author>
+    <author>
+      <name>David Forsyth</name>
+    </author>
+    <author>
+      <name>Saurabh Gupta</name>
+    </author>
+    <author>
+      <name>Harpreet Sawhney</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2511.00730v4</id>
+    <title>Teaching LLMs to See and Guide: Context-Aware Real-Time Assistance in Augmented Reality</title>
+    <updated>2025-11-15T22:40:40Z</updated>
+    <link href="https://arxiv.org/abs/2511.00730v4" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2511.00730v4" rel="related" type="application/pdf" title="pdf"/>
+    <summary>The growing adoption of augmented and virtual reality (AR and VR) technologies in industrial training and on-the-job assistance has created new opportunities for intelligent, context-aware support systems. As workers perform complex tasks guided by AR and VR, these devices capture rich streams of multimodal data, including gaze, hand actions, and task progression, that can reveal user intent and task state in real time. Leveraging this information effectively remains a major challenge. In this work, we present a context-aware large language model (LLM) assistant that integrates diverse data modalities, such as hand actions, task steps, and dialogue history, into a unified framework for real-time question answering. To systematically study how context influences performance, we introduce an incremental prompting framework, where each model version receives progressively richer contextual inputs. Using the HoloAssist dataset, which records AR-guided task executions, we evaluate how each modality contributes to the assistant's effectiveness. Our experiments show that incorporating multimodal context significantly improves the accuracy and relevance of responses. These findings highlight the potential of LLM-driven multimodal integration to enable adaptive, intuitive assistance for AR and VR-based industrial training and assistance.</summary>
+    <category term="cs.HC" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2025-11-01T22:37:26Z</published>
+    <arxiv:comment>This work has been submitted to the IEEE Transactions on Systems, Man, and Cybernetics: Systems for possible publication</arxiv:comment>
+    <arxiv:primary_category term="cs.HC"/>
+    <author>
+      <name>Mahya Qorbani</name>
+    </author>
+    <author>
+      <name>Kamran Paynabar</name>
+    </author>
+    <author>
+      <name>Mohsen Moghaddam</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2604.21873v1</id>
+    <title>Grounding Video Reasoning in Physical Signals</title>
+    <updated>2026-04-23T17:17:18Z</updated>
+    <link href="https://arxiv.org/abs/2604.21873v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2604.21873v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Physical video understanding requires more than naming an event correctly. A model can answer a question about pouring, sliding, or collision from textual regularities while still failing to localize the event in time or space. We introduce a grounded benchmark for physical video understanding that extends the what--when--where evaluation structure of V-STaR to four video sources, six physics domains, three prompt families (physics, vstar_like, and neutral_rstr), and four input conditions (original, shuffled, ablated, and frame-masked). The benchmark contains 1,560 base video clips from SSV2, YouCook2, HoloAssist, and Roundabout-TAU. Each clip is first converted into a shared grounded event record, and the three query families are derived from that record. Temporal and spatial targets are shared across prompt families, while the non-physics families use deterministic family-appropriate semantic a_what targets derived from the same record. Across models and prompt families, physics remains the strongest regime overall, vstar_like is the clearest non-physics semantic comparison, and neutral_rstr behaves as a harder templated control. Prompt-family robustness is selective rather than universal, perturbation gains cluster in weak original cases, and spatial grounding is the weakest across settings. These results suggest that video Q&amp;A reasoning benchmarks shall report physically grounded, prompt-aware, and perturbation-aware diagnostics alongside aggregate accuracy.</summary>
+    <category term="cs.CV" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2026-04-23T17:17:18Z</published>
+    <arxiv:comment>Benchmark for Grounding Video Reasoning in Physical Signals</arxiv:comment>
+    <arxiv:primary_category term="cs.CV"/>
+    <author>
+      <name>Alibay Osmanli</name>
+    </author>
+    <author>
+      <name>Zixu Cheng</name>
+    </author>
+    <author>
+      <name>Shaogang Gong</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2606.31127v1</id>
+    <title>SkillSpotter: Pose-Aware Multi-View Skilled Action Detection and Grading in Ego-Exo Videos</title>
+    <updated>2026-06-30T04:43:03Z</updated>
+    <link href="https://arxiv.org/abs/2606.31127v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2606.31127v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>To enable personalized, real-time coaching using Augmented Reality glasses or fixed camera setups in domains such as sports, cooking, or music, a system must understand not just what a person does, but how well they execute an activity. In an ego-exo video setting, this requires simultaneously detecting individual skilled actions and classifying each as correct or needing improvement, which Ego-Exo4D's proficiency demonstration benchmark formalized. We first adapt seven state-of-the-art temporal action detection architectures to this task, extend the evaluation protocol to disentangle detection from grading, and show that existing methods grade near-randomly. We then introduce SkillSpotter, a pose-aware multi-view architecture that jointly detects and grades skilled actions through three task-specific modules: (1) adaptive temporal suppression to handle the varying density of skilled actions across diverse activities, (2) gated 3D body pose fusion to leverage body kinematics as a complementary signal to visual features, and (3) bidirectional cross-view attention to combine ego and exo views effectively. SkillSpotter improves class-specific mAP from 12.40 to 21.82 (+76%) and balanced accuracy from 55.99% to 60.40% over the best baseline. SkillSpotter's modules transfer to other temporal action detection models with consistent gains, and our method generalizes beyond Ego-Exo4D to HoloAssist. Code: https://github.com/eth-siplab/SkillSpotter</summary>
+    <category term="cs.CV" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.AI" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2026-06-30T04:43:03Z</published>
+    <arxiv:comment>Accepted for publication at European Conference on Computer Vision (ECCV)</arxiv:comment>
+    <arxiv:primary_category term="cs.CV"/>
+    <author>
+      <name>Björn Braun</name>
+    </author>
+    <author>
+      <name>Christian Holz</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2607.17790v1</id>
+    <title>ReViV: Reconstructing the Viewer and the View in 4D from Monocular Egocentric Video</title>
+    <updated>2026-07-20T10:22:53Z</updated>
+    <link href="https://arxiv.org/abs/2607.17790v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2607.17790v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Egocentric devices, such as wearable front-facing cameras, provide a unique perspective for capturing the continuous interaction between a human viewer and the surrounding environment. A holistic and efficient multimodal model capable of reconstructing this 4D representation is therefore highly desirable. However, existing approaches often rely on auxiliary inputs such as pre-computed camera trajectories, treat scene perception and human ego-motion modeling as separate problems despite their strong interdependency, and suffer from slow inference time. To address these limitations, we present ReViV, the first unified framework for holistic egocentric 4D reconstruction that extracts both viewer and view dynamics from a single monocular RGB video. We formulate the task as learning the full joint probability distribution over multimodal signals, including RGB video, camera trajectory, gaze direction, full-body motion, hand motion, and depth. Powered by a Masked Generative Egocentric Transformer, ReViV operates within a single feed-forward architecture to simultaneously reconstruct the temporally consistent 4D reconstruction across the viewer and the view with fast inference speed. Extensive experiments on diverse benchmarks, including HoloAssist, HOT3D, ARCTIC, Aria Digital Twin, and TACO, demonstrate that ReViV achieves state-of-the-art accuracy and efficiency across holistic ego-body, hand, and gaze reconstruction, camera tracking, while maintaining highly competitive egocentric depth estimation without relying on heavy task-specific priors. Code and models are fully open-sourced: https://reviv4d.github.io/.</summary>
+    <category term="cs.CV" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.AI" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2026-07-20T10:22:53Z</published>
+    <arxiv:comment>Accepted to ECCV 2026. The first two authors contributed equally, and their author order is interchangeable</arxiv:comment>
+    <arxiv:primary_category term="cs.CV"/>
+    <author>
+      <name>Xiaozhong Lyu</name>
+    </author>
+    <author>
+      <name>Gen Li</name>
+    </author>
+    <author>
+      <name>Zhiyin Qian</name>
+    </author>
+    <author>
+      <name>Xucong Zhang</name>
+    </author>
+    <author>
+      <name>Marc Pollefeys</name>
+    </author>
+    <author>
+      <name>Siyu Tang</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2606.04970v1</id>
+    <title>Plan, Watch, Recover: A Benchmark and Architectures for Proactive Procedural Assistance</title>
+    <updated>2026-06-03T14:52:03Z</updated>
+    <link href="https://arxiv.org/abs/2606.04970v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2606.04970v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>We envision a proactive multi-modal assistant system which gives users real-time step-by-step guidance on a procedural task, autonomously deciding \textit{when} to interrupt, and \textit{how} to coach. However, progress is limited by the absence of large-scale, cross-domain benchmarks that reflect realistic conditions, particularly the common case in which users deviate from the expected step sequence. We address this gap with four contributions: \textbf{(1)}~we release \textbf{EgoProactive}, a large-scale wearable-egocentric dataset for proactive procedural assistance with explicit Out-of-Plan (OOP) annotations and recovery steps; \textbf{(2)}~we augment five established benchmarks (Ego4D, EPIC-KITCHENS, EgoExo4D, HoloAssist, HowTo100M) into \textbf{Pro\textsuperscript{2}Bench} under a unified proactive-guidance schema; \textbf{(3)}~we propose a \textbf{decoupled planner--interaction architecture} specialized for procedural state, visual cues, and recovery injection; \textbf{(4)}~we introduce a post-training recipe that transfers across model families, validated by cross-backbone replication on Llama~4 and Qwen-3.6-VL. In extensive experiments, our trained Llama-4 system substantially improves objective intervention quality over strong proprietary baselines (Claude Opus~4.6, Gemini~3.1~Pro, GPT~5.2) and open-weight baselines (Qwen3~VL~235B) baselines across all six datasets. Oracle-plan experiments further show that, when plan quality is controlled, the trained duplex model produces high-quality guidance and large gains on Out-of-Plan recovery.</summary>
+    <category term="cs.CV" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.AI" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2026-06-03T14:52:03Z</published>
+    <arxiv:comment>53 pages, 14 figures</arxiv:comment>
+    <arxiv:primary_category term="cs.CV"/>
+    <author>
+      <name>Kaustav Kundu</name>
+    </author>
+    <author>
+      <name>Ritvik Shrivastava</name>
+    </author>
+    <author>
+      <name>Maxim Arap</name>
+    </author>
+    <author>
+      <name>Nanshu Wang</name>
+    </author>
+    <author>
+      <name>Xianhui Zhu</name>
+    </author>
+    <author>
+      <name>Quintin Fettes</name>
+    </author>
+    <author>
+      <name>Gautam Tiwari</name>
+    </author>
+    <author>
+      <name>Parth Suresh</name>
+    </author>
+    <author>
+      <name>Théo Moutakanni</name>
+    </author>
+    <author>
+      <name>Alejandro Castillejo Munoz</name>
+    </author>
+    <author>
+      <name>Allen Bolourchi</name>
+    </author>
+    <author>
+      <name>Pascale Fung</name>
+    </author>
+    <author>
+      <name>Pinar Donmez</name>
+    </author>
+    <author>
+      <name>Babak Damavandi</name>
+    </author>
+    <author>
+      <name>Anuj Kumar</name>
+    </author>
+    <author>
+      <name>Seungwhan Moon</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2501.09355v1</id>
+    <title>YETI (YET to Intervene) Proactive Interventions by Multimodal AI Agents in Augmented Reality Tasks</title>
+    <updated>2025-01-16T08:06:02Z</updated>
+    <link href="https://arxiv.org/abs/2501.09355v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2501.09355v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Multimodal AI Agents are AI models that have the capability of interactively and cooperatively assisting human users to solve day-to-day tasks. Augmented Reality (AR) head worn devices can uniquely improve the user experience of solving procedural day-to-day tasks by providing egocentric multimodal (audio and video) observational capabilities to AI Agents. Such AR capabilities can help AI Agents see and listen to actions that users take which can relate to multimodal capabilities of human users. Existing AI Agents, either Large Language Models (LLMs) or Multimodal Vision-Language Models (VLMs) are reactive in nature, which means that models cannot take an action without reading or listening to the human user's prompts. Proactivity of AI Agents on the other hand can help the human user detect and correct any mistakes in agent observed tasks, encourage users when they do tasks correctly or simply engage in conversation with the user - akin to a human teaching or assisting a user. Our proposed YET to Intervene (YETI) multimodal agent focuses on the research question of identifying circumstances that may require the agent to intervene proactively. This allows the agent to understand when it can intervene in a conversation with human users that can help the user correct mistakes on tasks, like cooking, using AR. Our YETI Agent learns scene understanding signals based on interpretable notions of Structural Similarity (SSIM) on consecutive video frames. We also define the alignment signal which the AI Agent can learn to identify if the video frames corresponding to the user's actions on the task are consistent with expected actions. These signals are used by our AI Agent to determine when it should proactively intervene. We compare our results on the instances of proactive intervention in the HoloAssist multimodal benchmark for an expert agent guiding a user to complete procedural tasks.</summary>
+    <category term="cs.AI" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.CV" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.ET" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.MA" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2025-01-16T08:06:02Z</published>
+    <arxiv:comment>Preprint</arxiv:comment>
+    <arxiv:primary_category term="cs.AI"/>
+    <author>
+      <name>Saptarashmi Bandyopadhyay</name>
+    </author>
+    <author>
+      <name>Vikas Bahirwani</name>
+    </author>
+    <author>
+      <name>Lavisha Aggarwal</name>
+    </author>
+    <author>
+      <name>Bhanu Guda</name>
+    </author>
+    <author>
+      <name>Lin Li</name>
+    </author>
+    <author>
+      <name>Andrea Colaco</name>
+    </author>
+  </entry>
+</feed>

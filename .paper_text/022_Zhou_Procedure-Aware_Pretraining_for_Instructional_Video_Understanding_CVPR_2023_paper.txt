@@ -1,0 +1,893 @@
+This CVPR paper is the Open Access version, provided by the Computer Vision Foundation.
+                 Except for this watermark, it is identical to the accepted version;
+
+          the final published version of the proceedings is available on IEEE Xplore.
+
+      Procedure-Aware Pretraining for Instructional Video Understanding
+
+Honglu Zhou1,2, Roberto Mart´ın-Mart´ın1,3, Mubbasir Kapadia2, Silvio Savarese1 and Juan Carlos Niebles1
+                               1Salesforce Research, 2Rutgers University, 3UT Austin
+
+   {hz289,mk1353}@cs.rutgers.edu, robertomm@cs.utexas.edu, {ssavarese,jniebles}@salesforce.com
+
+                        Abstract                               (a) Procedure Knowledge               (b) Pre-training
+
+   Our goal is to learn a video representation that is useful         Graph Building    Supervision
+for downstream procedure understanding tasks in instruc-
+tional videos. Due to the small amount of available an-        Instructional Videos                            What task?
+notations, a key challenge in procedure understanding is                                                       What step?
+to be able to extract from unlabeled videos the procedu-                                Procedure-Aware Model  What next step?
+ral knowledge such as the identity of the task (e.g., ‘make                                                     ...
+latte’), its steps (e.g., ‘pour milk’), or the potential next
+steps given partial progress in its execution. Our main in-                                                                      Downstream Procedural Tasks
+sight is that instructional videos depict sequences of steps
+that repeat between instances of the same or different tasks,  Figure 1. Training a video representation for procedure un-
+and that this structure can be well represented by a Proce-    derstanding with supervision from a procedural knowledge
+dural Knowledge Graph (PKG), where nodes are discrete          graph: the structure observed in instructions for procedures (from
+steps and edges connect steps that occur sequentially in       text, from videos) corresponds to sequences of steps that repeat
+the instructional activities. This graph can then be used      between instances of the same or different tasks; this structure is
+to generate pseudo labels to train a video representation      well represented by a Procedural Knowledge Graph (PKG). (a) We
+that encodes the procedural knowledge in a more accessi-       build a PKG combining text instructions with unlabeled video data,
+ble form to generalize to multiple procedure understand-       and (b) obtain a video representation by encoding the human pro-
+ing tasks. We build a PKG by combining information from        cedural knowledge from the PKG into a more general procedure-
+a text-based procedural knowledge database and an unla-        aware model (Paprika) generating pseudo labels with the PKG
+beled instructional video corpus and then use it to gener-     for several procedure understanding objectives. Paprika can
+ate training pseudo labels with four novel pre-training ob-    then be easily applied to multiple downstream procedural tasks.
+jectives. We call this PKG-based pre-training procedure
+and the resulting model Paprika, Procedure-Aware PRe-          tasks such as the identiﬁcation of the task, its steps, or fore-
+training for Instructional Knowledge Acquisition. We eval-     casting the next steps. An agent that has acquired procedu-
+uate Paprika on COIN and CrossTask for procedure un-           ral knowledge is said to have gained procedure understand-
+derstanding tasks such as task recognition, step recogni-      ing of instructional videos, which can be then exploited in
+tion, and step forecasting. Paprika yields a video rep-        multiple real-world applications such as instructional video
+resentation that improves over the state of the art: up to     labeling, video chapterization, process mining and, when
+11.23% gains in accuracy in 12 evaluation settings. Im-        connected to a robot, robot task planning.
+plementation is available at https://github.com/
+salesforce/paprika.                                               Our goal is to learn a novel video representation that can
+                                                               be applicable to a variety of procedure understanding tasks
+1. Introduction                                                in instructional videos. Unfortunately, prior methods for
+                                                               video representation learning are inadequate for this goal, as
+   Instructional videos depict humans demonstrating how        they lack the ability to capture procedural knowledge. This
+to perform multi-step tasks such as cooking, making up         is because most of them are trained to learn the (weak) cor-
+and embroidering, repairing, or creating new objects. For      respondence between visual and text modalities, where the
+a holistic instructional video understanding, an agent has to  text comes either from automatic-speech recognition (ASR)
+acquire procedural knowledge: structural information about     on the audio [43, 77], which is noisy and error-prone, or
+                                                               from a caption-like descriptive sentence (e.g., “a video of
+                                                               a dog”) [33], which does not contain sufﬁcient informa-
+                                                               tion for ﬁne-grained procedure understanding tasks such as
+                                                               step recognition or anticipation. Others are pre-trained on
+                                                               masked frame modeling [34], frame order modeling [34]
+                                                               or video-audio matching [1], which gives them basic video
+
+                                                               10727
+spatial, temporal or multimodal understanding but is too        casting. Regardless of the capacity of the downstream
+generic for procedure understanding tasks.                      model (from simple MLP to the powerful Transformer), our
+                                                                method yields a representation that outperforms the state of
+   Closer to our goal, Lin et al. [38] propose a video foun-    the art – up to 11.23% gains in accuracy out of 12 evalua-
+dation model for procedure understanding of instructional       tion settings.
+videos by matching the videos’ ASR transcription (i.e., sub-
+title/narration) to procedural steps from a text procedural     2. Related Work
+knowledge database (wikiHow [30]) and training the video-
+representation-learning model to match each part of an in-         We focus on learning a novel video representation that
+structional video to the corresponding step. Their method       can be easily adapted to downstream instructional video
+only acquires isolated step knowledge in pre-training and is    procedure understanding tasks [35, 38] such as procedural
+not as suitable to gain sophisticated procedural knowledge.     task recognition [20], step recognition [27, 47, 88], antic-
+                                                                ipation [21, 36, 44, 53, 80], localization [13, 15, 65, 85] or
+   We propose Paprika, from Procedure-Aware PRe-                segmentation [19, 25, 40, 41, 55, 56, 68, 86], procedure plan-
+training for Instructional Knowledge Acquisition, a method      ing [8, 10, 62], and so on [2, 12, 14, 23, 26, 58, 72, 73, 75, 78].
+to learn a novel video representation that encodes procedu-
+ral knowledge (Fig. 1). Our main insight is that the structure     Our goal is related to self-supervised learning of video
+observed in instructional videos corresponds to sequences       representations [51, 52]. Self-supervised pre-training ob-
+of steps that repeat between instances of the same or differ-   jectives include predicting the video pace [6, 70], future
+ent tasks. This structure can be captured by a Procedural       frame [39, 59, 67], future ASR [54] or the context [50],
+Knowledge Graph (PKG) where nodes are discretized steps         motion and appearance statistics [69], solving space or/and
+annotated with features, and edges connect steps that occur     time jigsaw puzzles [28, 31, 34, 74, 82], and identifying the
+sequentially in the instructional activities. We build such a   odd video segment [16] – all exploiting the temporal sig-
+graph by combining the text and step information from wik-      nals. Masking has also gained popularity where signals of
+iHow and the visual and step information from unlabeled         one or multiple modalities (frame/text/audio) are masked
+instructional video datasets such as HowTo100M [45] auto-       and required to be predicted [24, 32–34, 42, 61, 76, 81, 82].
+matically. The resulting graph encodes procedural knowl-        Other pre-training objectives are based on spatiotemporal
+edge about tasks and steps, and about the temporal order        data augmentation [48, 81], cross-modality clustering [11]
+and relation information of steps.                              matching [1,4,5,33,37,42,43,46,77,81,82], as well as ﬁne-
+                                                                grained noun/object-level or verb-level objectives [17, 33].
+   We then train our Paprika model on multiple pre-
+training objectives using the PKG to obtain the training la-       DS [38], MIL-NCE [43], VATT [1], VideoCLIP [77],
+bels. The proposed four pre-training objectives (Sec. 3.3)      VLM [76], MCN [11], MMV [4], Hero [34] and CBT [60]
+respectively focuses on procedural knowledge about the          have utilized HowTo100M – a large-scale instructional
+step of a video, tasks that a step may belong to, steps that    video dataset [45] for pre-training. Except DS, they have
+a task would require, and the general order of steps. These     utilized strictly or weakly temporally overlapped ASR with
+pre-training objectives are designed to allow a model to an-    video frames as the source for contrastive learning or
+swer questions about the subgraph of the PKG that a video       masked based modeling. DS [38] argued that ASR is a
+segment may belong to. The PKG produces pseudo labels           suboptimal source to describe procedural videos. They uti-
+for these questions as supervisory signals to adapt video       lized a pre-trained language foundation model to match step
+representations produced by a video foundation model [9]        headlines in wikiHow [30, 79, 83, 84, 87] to ASR sentences
+for robust and generalizable procedure understanding.           of video segments. The matched step headlines were then
+                                                                used to replace ASR sentences to learn a video represen-
+   Our contributions are summarized as follows:                 tation learning model. On procedure understanding down-
+(i) We propose a Procedural Knowledge Graph (PKG) that          stream tasks, DS outperforms models including S3D pre-
+encodes human procedural knowledge from collectively            trained with MIL-NCE [43] (MIL-NCE for short in the rest
+leveraging a text procedural knowledge database (wikiHow)       of the paper), ClipBERT [32] and VideoCLIP [77].
+and an unlabeled instructional video corpus (HowTo100M).
+(ii) We propose to elicit the knowledge in the PKG into            ActionCLIP [71] and Bridge-Prompt [35] are prompt-
+Paprika, a procedure-aware model, using four pre-               based models inspired by CLIP [49]; ActionCLIP focuses
+training objectives. To that end, we produce pseudo lables      on atomic action recognition [18] (i.e., recognizing an
+with the PKG that serve as supervisory signals to train         atomic action such as “falling” from a short clip ), whereas
+Paprika to learn to answer multiple questions about the         Bridge-Prompt is for ordinal action understanding related
+subgraph of the PKG that a video segment may belong to.         downstream applications. They are related to our work but
+(iii) We evaluate our method on the challenging COIN and        both require action annotations for training. Instead, we fo-
+CrossTask datasets on downstream procedure understand-          cus on more effective pre-training methods for a procedure
+ing tasks: task recognition, step recognition, and step fore-   understanding model that encodes the procedural knowl-
+
+                                                                10728
+           (a)               Building                                          (b) Pre-training                                               (c) Downstream Tasks
+
+Make birthday cake                       Instructional Videos                                                                 Light-Weight                           Task Recognition
+       1. Whisk flour                                                                                                Procedure-Aware Model
+       2. Add egg       Video-Step                                                                                                                                      make sandwitches
+       3. Add milk       Matching                                     Pre-Trained                                                                                     Step Recognition
+       4. Stir mixture                                         General-Purpose Video
+       5. ...
+                                                                  Foundation Model
+
+                                     ...                                                                                                                                  cut tomato
+                                                                                                                                                                      Step Forecasting
+- Add egg
+- Beat an egg           - Add milk
+- ...                   - Pour milk
+                        - ...
+                                                                                                                                                                          next step?
+                                                                                                                                                                      add mayonnaise?
+
+                                                        Video-Node Matching Video-Task Matching Task Context Learning Node Relation Learning  Both in pre-training &  In pre-training
+                                                                                                                                              downstream task         Supervision
+                                          Supervision
+                                                                                                                                              In downstream task
+
+                                                                                                                                              Frozen
+
+Figure 2. Overview. We encode procedural knowledge in a Procedural Knowledge Graph (PKG): nodes are (clustered) steps from wikiHow
+that are annotated with features, and edges connect steps that occur sequentially in the instructional activities from wikiHow or an unlabeled
+instructional video corpus. Four pre-training objectives elicit the knowledge in the PKG to Paprika, a procedure-aware model. We achieve
+this by querying the PKG to produce pseudo labels for pre-training as supervisory signals. Paprika learns a video representation that
+encodes procedural knowledge and thus lead to improved performance on multiple downstream procedure understanding tasks.
+
+edge and avoids laborious annotations on step class and          edge for downstream procedure understanding tasks for in-
+time boundary of instructional videos. This enables train-       structional videos. However, pre-training a new (or ﬁne-
+ing on rich but unlabeled web data.                              tuning a pre-trained) video model becomes impractical for
+                                                                 real-world settings as the model size grows rapidly [9, 51].
+   DS [38] leveraged wikiHow for instructional video un-         We propose instead a practical framework that trains a
+derstanding. This is similar to our goal of building the PKG     light-weight procedure-aware model f (·) that reﬁnes the
+from wikiHow and instructional videos. However, DS does          video segment feature extracted from a frozen general-
+not focus on encoding procedural knowledge during pre-           purpose video foundation model e(·), i.e., zl := f (e(xl))
+training beyond video segment and text matching. For ex-         (Fig. 2 (b)). Our framework exploits the success of existing
+ample, DS does not encode relationships between steps in         large foundation models [9] and enables parameter-efﬁcient
+the pre-trained video representation. This is in part due to     transfer learning (similar practices used in [3, 33]). f (·)
+multiple challenges that need to be addressed: (1) the order     serves as a feature adapter [22,63] to allow the reﬁned video
+of steps to execute a task follows certain temporal or causal    feature to encode the previously missing procedural knowl-
+constraints, (2) the execution order of steps of the task in     edge for a stronger downstream procedure understanding
+another video instance can be different from the order that      capability. We coin our trained f (·) as Paprika.
+is demonstrated in the current video instance, and (3) some
+steps may belong to tasks that are not demonstrated in the          Our key insight is that a text procedural knowledge
+current video instance (i.e., the cross-task characteristics of  database combined with unlabeled instructional videos can
+steps). We propose the PKG to address these challenges.          be utilized to build a Procedural Knowledge Graph (PKG)
+A model trained using our method can acquire the higher-         (Fig. 2 (a)) to encode procedural knowledge. The PKG can
+level prior human procedural knowledge instead of just the       provide supervisory signals for training a procedure-aware
+isolated step knowledge that DS provides.                        model. We now describe how to build the PKG from wik-
+                                                                 iHow and unlabeled procedural videos (Sec. 3.2), and then
+3. Methodology                                                   introduce four pre-training objectives (Sec. 3.3) that allow
+3.1. Problem Formulation                                         Paprika to learn zl infused with procedural knowledge
+                                                                 by mining the PKG.
+   Technically, video representation learning methods learn
+to represent a long video as a sequence of segment em-           3.2. Procedural Knowledge Graph
+beddings [1, 38, 43]. A video is viewed as a sequence of            The PKG is a homogeneous graph G = (V, E) with ver-
+L segments [x1, . . . , xl, .., xL], where xl 2 RH⇥W ⇥3⇥F ,
+H and W denote the spatial resolution height and width,          tex set V and edge set E. Nodes represent steps (e.g., ‘add
+and F is #RGB frames of the video segment (“#” de-               milk’) from a wide variety of tasks (e.g., ‘how to make
+notes “the number of”). A model is pre-trained to learn the      latte’), and edges represent directed step transitions. That
+mapping xl ! zl 2 Rd. Downstream models are applied              is, edge (i, j) indicates that a transition between steps in
+on the (whole or partial) sequence of segment embeddings         nodes i and j that was observed in real-life procedural data.
+[z1, . . . , zl, .., zL] to perform various tasks.               Step 1: Obtain nodes of the PKG. V contains steps of
+                                                                 tasks that may appear in instructional videos. Pre-training
+   Our goal is to learn zl that encodes procedural knowl-        uses unlabeled videos, thus, there are no step annotations
+
+                                                                 10729
+provided by the pre-training video corpus that can be di-                                                     the matched segments, and so on. Edge attributes can be
+                                                                                                              the source of the step node transition (from wikiHow or the
+rectly used to form the discrete node entities. Inspired by                                                   video corpus), task occurrence, distribution of timestamps
+                                                                                                              of the transition, etc. We describe the graph attributes we
+DS [38], we resort to the step headlines in wikiHow [30].                                                     used and how we used them in Sec. 3.3.
+
+   wikiHow is a text-based procedural knowledge database                                                      3.3. Training Paprika
+
+B that contains articles describing the sequence of steps                                                        The PKG is a rich source of supervision for training
+                                                                                                              models for procedure understanding. We propose four pre-
+needed for the completion of a wide range of tasks. B =                                                       training objectives as exemplars to show the possible ways
+n                                    o                                                                        in which the PKG can provide supervisory signals to train
+   [s1(1), . . . , sb(1) 1 ], . . . , [s1(t), . . . , sb(t) t ], . . . , [s1(T ), . . . , sb(T ) T ] where T  f (·) to learn good video representations using unlabeled in-
+                                                                                                              structional videos.
+is #tasks, the subscript bt is #steps of task t, and si(t) rep-                                               Video-Node Matching (VNM) aims at answering: what
+                                                                                                              are the step nodes of the PKG that are likely to be matched
+resents the natural language based summary (i.e., step head-                                                  to the input video segment xl? This pre-training objec-
+                                                                                                              tive leverages the node identity information of the PKG, and
+line) of i-th step for task t. Examples of wikiHow task arti-                                                 it resembles the downstream application of independently
+                                                                                                              recognizing steps of video segments. Formally,
+cles are available in Fig. 4 and 5.
+
+   Since two step headlines in B can represent the same step
+
+but are described slightly differently, e.g., “jack up the car”
+
+and “jack the car up”, we perform step deduplication by
+
+clustering similar step headlines. The resulting clusters are
+
+step nodes that constitute V. We list the largest step nodes in
+
+Supplementary Material. We ﬁnd cross-task characteristics
+
+of steps, i.e., one step may belong to multiple tasks.
+Step 2: Add edges to the PKG. E is the set of direct tran-
+
+sitions observed in data between any two step nodes. How-                                                            a(f (e(xl))) ! VVNM  (1)
+
+ever, most tasks in B have only one article, which provides                                                   where a(·) denotes the answer head model that performs
+
+only one way to complete the task through a sequence of                                                       the pre-training objective given the reﬁned video segment
+
+steps. How to encode the different ways to complete a task                                                    feature zl produced by f (·) as input, and VVNM ✓ V.
+                                                                                                              Video-Task Matching (VTM) aims at answering: what are
+t that involve different execution order of steps or new steps                                                the tasks of the matched step nodes of the input video seg-
+                                                                                                              ment xl? This pre-training objective leverages the node’s
+that are absent in the article of task t, becomes a challenge.                                                task attribute in the PKG. VTM focuses on inferring the
+                                                                                                              cross-task knowledge of the step nodes without the video
+   Our solution is to additionally leverage an unlabeled in-                                                  context. Formally,
+
+structional video corpus to provide more step transition ob-
+
+servations. In practice, we use MIL-NCE [43], a pre-trained
+
+video-language model, to compute the matching score be-                                                              a(f (e(xl))) ! TVTM  (2)
+tween a segment xl and a step headline si(t). MIL-NCE was
+
+trained to learn video and text embeddings with high match-
+
+ing scores on co-occurring frames and ASR subtitles.                                                          where TVTM ✓ T , and T is the set of tasks (kT k := T ).
+                                                                                                              Since HowTo100M provides task names of the long videos,
+   We then use a thresholding criterion and the correspon-
+                                                                                                              we experiment with using the task names from wikiHow
+dence between step headlines and step nodes obtained from
+                                                                                                              and/or from HowTo100M (Sec. 4.4). When task names
+Step 1 to match step nodes to video segments and obtain
+                                                                                                              from both sources are used, VNM leads to 2 answer heads.
+step node transitions given the temporal order of segments                                                    Task Context Learning (TCL) aims at answering: for
+                                                                                                              tasks the input video segment may belong to (produced by
+in videos. The step node transitions from wikiHow or the                                                      VTM), what are the step nodes that the tasks would typ-
+                                                                                                              ically need? TCL also leverages the node’s task attribute
+video corpus constitute E. Please refer to Supplementary                                                      in the PKG, but it focuses on inferring step nodes that may
+                                                                                                              co-occur with the matched step node of the video segment
+Material for implementation details on graph construction.                                                    in demonstrations. TCL learns the task’s step context that
+                                                                                                              is commonly observed in data, without the context of the
+   E encodes the structure observed in instructional videos                                                   current video segment. Formally,
+
+as it encompasses multiple sequences of steps that repeat
+
+between video instances of the same or different tasks. In
+
+addition, E captures the relations of steps; the type of rela-
+
+tion is not strictly deﬁned – the steps could be temporal or
+
+causal related – because the step transitions that form E are
+
+observed from human-provided real-life demonstrations.                                                               a(f (e(xl))) ! VTCL  (3)
+Step 3: Populate graph attributes. It is possible to col-
+                                                                                                              where VTCL ✓ V. When task names from both wikiHow
+lect various forms of attributes for the PKG depending on
+                                                                                                              and HowTo100M are used, TCL leads to 2 answer heads.
+the desired use cases of the PKG. For example, node at-                                                       Node Relation Learning (NRL) aims at answering: what
+                                                                                                              are the k-hop in-neighbors and out-neighbors of the
+tributes can be the step headline texts, task names associ-                                                   matched step nodes of the input video segment xl? k ranges
+                                                                                                              from 1 to a pre-deﬁned integer K, and thus NRL leads to
+ated with the step headlines of the node, video segments                                                      2K sub-questions (2K answer heads). NRL leverages the
+
+matched to the node, the distribution of timestamps of the
+
+matched segments, the aggregated multimodal features of
+
+                                                                                                              10730
+edge information of the PKG, and it focuses on learning the    4.2.3 Downstream Task Models
+local multi-scale graph structure of the matched nodes of xl.
+Predicting the in-neighbors resembles predicting the histor-   Segment features from the trained frozen f (·) are the input
+                                                               to downstream task model t(·). t(·) is trained and evaluated
+ical steps, whereas predicting the out-neighbors resembles     on the smaller-scale downstream dataset to perform down-
+forecasting the next steps of xl. Note that the answer to      stream tasks. We experiment with two options for t(·).
+NRL can be steps that come from other tasks different from     MLP. MLP with only 1 hidden layer is the classiﬁer of the
+                                                               downstream tasks, given the input of mean aggregated se-
+the task of the current video. Formally,                       quence features. Since a shallow MLP has a limited capac-
+                                                               ity, performance of a MLP downstream task model heavily
+                 a(f (e(xl))) ! VNRL  (4)                      relies on the quality of the input segment features.
+                                                               Transformer. Since context and temporal reasoning is cru-
+where VNRL ✓ V.                                                cial for the downstream TR and SF tasks, we follow [38] to
+                                                               use a one-layer Transformer [66] to allow the downstream
+4. Experiments                                                 task model the capability to automatically learn to reason
+                                                               about segment and step relations. Transformer is a rela-
+4.1. Pre-training Dataset                                      tively stronger downstream task model compared to MLP.
+
+   HowTo100M [45] is a large-scale video dataset that con-     4.3. Implementation Details
+tains over 1M long instructional videos (videos can be over       We used the version of B that has 10, 588 step headlines
+30 minutes) and is commonly used for video model pre-
+training. Videos were collected from YouTube using wik-        from T =1, 053 task articles. We used Agglomerative Clus-
+iHow article titles as search keywords [45]. To reduce the     tering given the features of step headlines, which resulted
+computational cost, most of our experiments, including the     in 10, 038 step nodes. Length of segments was set to be 9.6
+construction of the PKG, only use the HowTo100M subset         seconds. The pre-trained MIL-NCE [43] was used as e(·).
+of size 85K videos from [7].                                   f (·) was a MLP with a bottleneck layer that has a dimension
+                                                               of 128 as the only hidden layer. The reﬁned segment feature
+4.2. Evaluation Settings                                       shares the same dimension as the input segment feature (i.e.,
+   We study the transfer learning ability of our Paprika       512). Our pre-training objectives were cast to a multi-label
+                                                               classiﬁcation problem with Binary Cross Entropy as the loss
+model trained using the PKG on 12 evaluation settings: 3       function. We used the Adam optimizer [29], a batch size of
+downstream tasks ⇥2 downstream datasets ⇥2 downstream          256, and 8 NVIDIA A100 GPUs. Interested readers may
+models. The output of the trained procedure-aware model        refer to Supplementary Material for more details.
+f (·) is the input to the downstream model t(·). Note that
+the PKG is only used for pre-training and it is discarded at   4.4. Quantitative Results
+the downstream evaluation time (test time for f (·)).
+                                                               4.4.1 Ablation Studies
+4.2.1 Downstream Procedure Understanding Tasks
+Long-Term Activity/Task Recognition (TR) aims to clas-         We train Paprika utilizing each of our pre-training objec-
+sify the activity/task given all segments from a video.        tives from Sec. 3.3; the results are in Table 1. We also com-
+Step Recognition (SR) recognizes the step class given as       pute a performance matrix with color-based visualization
+input the segments of a step in a video.                       (Fig. 3) to compare the overall performance of the different
+Future Step Forecasting (SF) predicts the class of the next    pre-training objectives more easily.
+step given the past video segments. Such input contains
+the historical steps before the step to predict happens. As       The performance ranking of the pre-training objectives is
+in [38], we set the history to contain at least one step.      NRL > TCL > VTM > VNM. VNM is the least powerful
+                                                               because it only focus on learning the simpler knowledge of
+4.2.2 Downstream Datasets                                      matching single video segments to step nodes.
+
+We use COIN [64, 65] and CrossTask [88] as the down-              VTM (w+h) > VTM (w) > VTM (h) where ‘w’ denotes
+stream datasets because the two cover a wide range of pro-     wikiHow and ‘h’ for HowTo100M. This ranking suggests
+cedural tasks in human daily activities.                       that if the pre-training video corpus has the annotation of
+COIN contains 11K instructional videos covering 778 indi-      video’s task name, our method can well utilize such annota-
+vidual steps from 180 tasks in various domains. The aver-      tion to further improve performance. Utilizing the wikiHow
+age number of steps per video is 3.9.                          task names is better than HowTo100M because the mapping
+CrossTask has 4.7K instructional videos annotated with         between step headlines and HowTo100M tasks would not
+task name for each video spanning 83 tasks with 105 unique     be as clean as the mapping between step headlines and wik-
+steps. 2.7K videos have steps’ class and temporal boundary     iHow tasks, because the former depends on the quality of
+annotations; these videos are used for the SR and SF tasks.    the matching between a video segment to a step headline.
+8 steps per video on average.
+
+                                                               10731
+                                               Downstream Transformer                             Downstream MLP
+Pre-training Method                            COIN                          CrossTask            COIN          CrossTask
+MIL-NCE⇤ [43] (e(·))                    SF SR TR SF SR TR SF                                      SR TR SF SR TR
+
+                                        36.55 41.98 76.62 57.96 59.90 61.71 3.16                  1.17 21.06 27.71 24.98 5.27
+
+DS [38]                                 38.13 42.54 79.94 56.29 57.11 59.49 32.54 34.07 72.65 49.95 50.23 57.28
+DS⇤ [38]                                39.54 45.97 82.66 61.23 61.91 64.24 30.88 32.74 77.66 52.97 53.69 61.08
+
+VSM             VNM                     39.29  44.37  82.23           57.94  58.92  62.24  31.45  32.66  76.51  49.59  50.01  58.76
+Paprika (ours)  VTM (wikiHow)           41.98  49.80  82.88           59.45  61.00  64.77  37.56  42.32  82.23  57.08  58.23  64.14
+                VTM (HT100M)            42.05  49.89  84.45           60.27  61.26  66.25  38.13  42.56  82.41  58.48  59.02  65.82
+                VTM (wikiHow + HT100M)  41.97  48.59  83.44           60.19  60.64  65.08  36.87  40.07  81.52  56.45  57.42  65.61
+                TCL (wikiHow)           42.10  50.02  84.73           60.63  61.14  66.14  38.12  42.68  82.77  58.87  59.30  66.14
+                TCL (HT100M)            42.42  50.12  84.48           60.27  61.40  66.67  39.04  44.16  82.84  58.48  59.59  65.93
+                TCL (wikiHow + HT100M)  42.05  48.68  83.20           60.49  61.86  66.03  38.86  43.56  82.55  58.38  58.63  64.66
+                NRL (1 hop)             42.53  49.79  83.95           60.19  61.67  66.14  38.61  43.27  82.95  58.40  59.26  65.08
+                NRL (2 hops)            42.60  50.23  84.66           60.68  61.36  66.67  39.58  45.38  83.45  59.12  59.59  65.95
+                VNM + VTM + TCL + NRL   42.53  50.13  84.31           60.68  61.60  66.67  40.55  45.82  83.84  60.13  60.23  66.98
+                                        42.65  50.48  85.31           61.42  62.38  67.09  39.82  44.78  83.88  59.53  60.16  67.41
+
+                Gains to DS [38]        +4.52 +7.94 +5.37 +5.13 +5.27 +7.60 +7.28 +10.71 +11.23 +9.58 +9.93 +10.13
+
+Paprika (ours)⇤ VNM + VTM + TCL + NRL 43.22 50.99 85.84 62.63 63.53 68.35 38.38 42.95 83.41 60.38 61.21 68.35
+                      ⇤
+                Gains to DS [38]        +3.68 +5.02 +3.18 +1.40 +1.62 +4.11 +7.50 +10.21 +5.75 +7.41 +7.52 +7.27
+
+SF: Step Forecasting; SR: Step Recognition; TR: Task Recognition.
+The top 3 performance scores of each downstream evaluation setting are highlighted with green cells (the darker green, the better).
+⇤ denotes the model was pre-trained on the full HowTo100M (HT100M) dataset; otherwise, a subset of HowTo100M containing 85K videos was used.
+“VNM + VTM + TCL + NRL” represents “VNM + VTM (wikiHow + HT100M) + TCL (wikiHow) + NRL (1 hop)”. Please see Supplementary Material for results when K=2.
+DS⇤ [38] reported results on COIN are SF: 38.2 (39.4 from ‘Transformer w/ KB Transfer’), SR: 54.1 , and TR: 88.9 (90.0 from ‘Transformer w/ KB Transfer’). Our
+
+downstream experimental conﬁgurations are different from that in [38] (e.g., w.r.t. temporal length of segments, downstream Transformer model – ours has less parameters, etc.).
+
+Table 1. Accuracies (% ") of the downstream procedure understanding tasks under the 12 evaluation settings. Paprika that
+exploits the PKG outperforms the SOTA methods. Among our pre-training objectives, NRL is the most effective one, because it exploits
+the structural information of the PKG and elicits the procedural knowledge on the order and relation of cross-task steps to Paprika.
+
+VTM                                                                      NRL (2 hops) > NRL (1 hop) overall. NRL (2 hops)
+                                                                      has a worse or close performance than NRL (1 hop) only
+TCL                                                                   when the downstream task model t(·) is Transformer (Ta-
+                                                                      ble 1). When t(·) is MLP, NRL (2 hops) is always clearly
+Figure 3. Overall Performance Comparison. This matrix com-            better. This is because when the capacity of t(·) is limited,
+pares the overall performance of our proposed pre-training objec-     it desires the input video representations to encode more
+tives. The value in entry (i, j) is the ratio of evaluation settings  comprehensive information. NRL with more hops indicates
+in which the accuracy of method i the accuracy of method j.           a larger exploration on the local graph structure of the PKG
+Here, 1 indicates method i outperforms method j in all 12 evalua-     that a video segment belongs to; it can provide more related
+tion settings. The more green entries in the row of a method, the     neighboring node/step information, and allow the learned
+better its overall performance. NRL is the most effective method.     video representations to excel at the downstream tasks.
+
+   Comparing the three variants of TCL, TCL (w) > TCL                    We train Paprika using all pre-training objectives
+(w+h) > TCL (h). Overall, TCL (w+h) is worse than TCL                 without tuning coefﬁcient of each loss term. Paprika
+(w) because TCL depends on the quality of the pseudo la-              trained using all pre-training objectives yields the best re-
+bels of VTM. As utilizing the HowTo100M task names al-                sult on 8 out of 12 evaluation settings, which suggests the
+ready leads to probably problematic matched tasks, asking             four pre-training objectives can collaborate to lead to bet-
+f (·) to further identify the step nodes that these matched           ter results. Compared with NRL (1 hop), the performance
+tasks need would introduce additional noise, which eventu-            gains brought by VNM, VTM and TCL are relatively small.
+ally undermines the overall downstream performance.                   This variant also fails to outperform NRL (2 hops) on the
+                                                                      SF and SR tasks when t(·) is MLP. These results highlight
+                                                                      the superiority of NRL.
+
+                                                                         We also experiment with the full HowTo100M data. In-
+                                                                      creasing the size of the pre-training dataset, for both DS
+                                                                      and Paprika, accuracies are dropped on the COIN dataset
+                                                                      when t(·) is MLP (due to MLP’s limited capacity to exploit
+                                                                      the features pre-trained on the large dataset and scale well),
+                                                                      but we observe performance improvement of Paprika on
+                                                                      the rest 9 out of 12 evaluation settings.
+
+                                                                      10732
+Video
+
+04:28  04:38                                               05:45  05:55                                               06:04  06:14                                               09:07  09:17  Time
+
+                                        ... foods is this                                           ... i'm going to                                          ... all right so                  ... flip it over
+                                         on everything                                             add a few little                                         we're just going                     oh yeah all
+                                          um this is a                                                                                                      to put the meat                      right so we
+                                         phenomenal                                                    pieces of                                            over the hottest                    we're literally
+                                        seasoning and                                                mesquite in                                             part of the grill                    maybe 10
+                                      its got everything                                           there as well as                                          we're going to                    minutes away
+                                       you want in it ...                                          a couple pieces                                          let it just kind of                from this being
+                                                                                                   of pecan that'll                                          sear that for a
+Pseudo Labels from the                                                                                give us our                                                                                  done ...
+                                                                                                    smoke for this                                                little ...
+Video-Node Matching                                                                                                                                                              Video-Node Matching
+                                                                                                            ...       Video-Node Matching
+   - Season the tenderloin                                                                                                                                                         - Cover up the grill
+                                                           Video-Node Matching                                          - Grill the tri-tip
+Video-Task Matching                                                                                                                                                              Video-Task Matching
+                                                              - Add the wood when the grill reaches 250 degrees       Video-Task Matching
+   - Smoke Pork Tenderloin                                                                                                                                                         - Grill Tri Tip
+                                                           Video-Task Matching                                          - Grill Tri Tip
+ Task Context Learning                                                                                                                                                           Task Context Learning
+                                                             - Smoke Pork Tenderloin                                  Task Context Learning
+   - Prepare a rub or marinade                                                                                                                                                     - Head to your grocery store
+   - Cut the pork                                          Task Context Learning                                        - Head to your grocery store                               - Prep the roast
+   - Season the tenderloin                                                                                              - Prep the roast                                           - Use a dry rub
+   - Let the rub or marinade sit                              - Prepare a rub or marinade                               - Use a dry rub                                            - Give it a rest
+   - Choose the right wood                                    - Cut the pork                                            - Give it a rest                                           - Prep your grill
+   - Set up the grill up for indirect grilling                - Season the tenderloin                                   - Prep your grill                                          - Grill the tri-tip
+   - Add the wood when the grill reaches 250 degrees          - Let the rub or marinade sit                             - Grill the tri-tip                                        - Cover up the grill
+   - Place the tenderloin on the grate                        - Choose the right wood                                   - Cover up the grill                                       - Let it cook
+   - Let the pork smoke for a few hours                       - Set up the grill up for indirect grilling               - Let it cook                                              - Test for doneness
+   - Allow the pork to cool before slicing                    - Add the wood when the grill reaches 250 degrees         - Test for doneness                                        - Remove the roast when it's a little less
+   - Finished                                                 - Place the tenderloin on the grate                       - Remove the roast when it's a little less
+                                                              - Let the pork smoke for a few hours                                                                                   done than you want it to be in the end
+ Node Relation Learning                                       - Allow the pork to cool before slicing                     done than you want it to be in the end                   - Give it another rest
+                                                              - Finished                                                - Give it another rest                                     - Slice against the grain
+   1- hop out - nei ghbor s?                                                                                            - Slice against the grain                                  - Serve with your favorite sides
+   - Let the rub or marinade sit                           Node Relation Learning                                       - Serve with your favorite sides
+   1- hop i n- nei ghbor s?                                                                                                                                                      Node Relation Learning
+   - Cut the pork                                            1- hop out - nei ghbor s?                                Node Relation Learning
+   2- hop out - nei ghbor s?                                 - Place the tenderloin on the grate                                                                                    1- hop out - nei ghbor s?
+   - Choose the right wood                                   1- hop i n- nei ghbor s?                                   1- hop out - nei ghbor s?                                   - Let it cook
+   2- hop i n- nei ghbor s?                                  - Set up the grill up for indirect grilling                - Cover up the grill                                        1- hop i n- nei ghbor s?
+   - Prepare a rub or marinade                               2- hop out - nei ghbor s?                                  1- hop i n- nei ghbor s?                                    - Grill the tri-tip
+                                                             - Let the pork smoke for a few hours                       - Prep your grill                                           2- hop out - nei ghbor s?
+                                                             2- hop i n- nei ghbor s?                                   2- hop out - nei ghbor s?                                   - Test for doneness
+                                                             - Choose the right wood                                    - Let it cook                                               2- hop i n- nei ghbor s?
+                                                                                                                        2- hop i n- nei ghbor s?                                    - Prep your grill
+                                                                                                                        - Give it a rest / Give it another rest
+
+Figure 4. Pseudo labels generated by the PKG of one video (title is “Grilling A Tri-Tip ...”). Frames and temporally overlapped subtitles
+of four segments sampled from this video were shown. For a succinct visualization, for each pre-training objective, we only show the result
+of the most conﬁdent pseudo label. TCL and NRL provide more procedure-level context information than VNM and VTM. Our pseudo
+labels entail a much higher relevance to each segment than the subtitle and allow Paprika to leverage cross-task information sharing.
+
+4.4.2 Comparison to the State of the Art (SOTA)                                                                       in the same action. We perform ablation to match video
+                                                                                                                      frames to the wikiHow step headlines (VSM). VSM has a
+We have kept the model architectures and experimental se-                                                             slightly better overall performance than DS, but worse than
+tups the same between Paprika and the SOTA baselines.                                                                 VNM. VTM, TCL and NRL learn more advanced procedu-
+MIL-NCE [43] is a pre-training objective based on video-                                                              ral knowledge from the PKG, and therefore their gains over
+subtitle matching, and the subtitle can be weakly aligned                                                             DS are even more obvious.
+to the video segment. This pre-training objective is widely
+used by video foundation models. We use the frozen S3D                                                                   Paprika pre-trained with all four pre-training objec-
+model released by the authors as e(·) in our framework (and                                                           tives obtains the highest gain over DS, which is 11.23%
+to build the PKG). Our reported MIL-NCE results can be in-                                                            improvement in accuracy on the COIN task recognition task
+terpreted as the results of removing f (·) in our framework.                                                          when t(·) is MLP and the HowTo100M subset is the pre-
+DS [38] proposes to match a video segment’s subtitle to a                                                             training dataset. Overall, the gains are larger when t(·)
+step headline in wikiHow by leveraging a pre-trained lan-                                                             is MLP than Transformer. A shallow MLP downstream
+guage model, i.e., MPNet [57]; and the matching results are                                                           model, learned with features from Paprika pre-trained
+used as the pre-training supervisory signals. We use their                                                            using our full pre-training objectives, even outperforms the
+proposed objective to train f (·)–the same MLP-based ar-                                                              Transformer downstream model learned with input features
+chitecture used by Paprika–in our experiments.                                                                        from the SOTA pre-trained models. This is because our pro-
+                                                                                                                      posed method allows the video feature to early encode rela-
+   Our Paprika outperforms the SOTA (Table 1). The                                                                    tion information to address the limitation of a MLP model
+large performance improvement of ours compared to MIL-                                                                in lacking the relational reasoning capability.
+NCE highlights the ability of our Paprika model in adapt-
+ing the inferior video features to be instead competent at                                                            4.5. Qualitative Results
+the procedure understanding tasks. Paprika also out-
+performs DS. Among our proposed pre-training objectives,                                                                 We present the pseudo labels generated by the PKG of
+VNM has the closest results to DS because both focus on                                                               one long video in Fig. 4. Compared to the subtitles, the
+learning step knowledge; the better results of VNM attribute                                                          source of information that prior pre-training methods often
+to multimodal matching – matching the video frames to the                                                             use for supervision, pseudo labels generated by the PKG en-
+step nodes that summarize and unite different step headlines                                                          tail a higher relevance to each segment. Subtitles are noisy
+
+                                                                         10733
+Frames  Subtitle                                                                                                     Dip your fingers into the oil,
+   ...
+   ...   ... I'm going to be using a cotton pad                              Cover your                  and massage your scalp for                  Apply the oil to
+   ...   because I find that it's easier to apply if you                     shoulders with              three to five minutes.Do not                the rest of your
+   ...   actually use cotton to apply it on your scalp                       a towel (Apply              use too much oil; a little bit              hair (Apply Castor
+   ...   ...                                                                                             goes a long way (Apply Castor
+                                                                                 Castor Oil for Hair)                                                Oil for Hair)
+        Ps eudo Label s f r om                                                                           Oil for Hair)
+          Video-Node Matching s ubgr aph                        Wash your hair
+                                                                                                       Wrap a hot towel around your
+         Mat c hed Nodes ( RED) ?                               (Layer Cut Your Own                    head and the shower cap
+         - Apply the oil to the rest of your hair               Hair & Do a Hair Mask
+         - Apply the mask to your hair                          for Frizzy Hair)                       (Apply Castor Oil for Hair)
+         - Dip the doll's hair into the water
+                                                                Wash your hair, if                                       Apply the
+           Video-Task Matching                                  necessary                                                mask to
+                                                                                                                         your hair
+                                                                (Straighten Wavy Hair)
+                                                                                                                               (Do a Hair
+        Tas k s of Mat c hed Nodes ?                                          Brush the                                        Mask for Frizzy   Cover your hair
+                                                                              doll's hair                                      Hair)            with a shower cap
+        - Apply Castor Oil for Hair
+        - Do a Hair Mask for Frizzy Hair                                      (Fix Doll Hair)                  Consider                           (Apply Castor Oil for
+        - Fix Doll Hair                                                                                        protecting the                               Hair)
+                                                                                                               doll's face (Fix
+         Task Context Learning                               Dip the doll's                                                                     Combine all
+                                                             hair into the                                        Doll Hair)                    ingredients (Do a
+        Nodes of Tas k s ?                                   water (Fix Doll
+        Task: Do a Hair Mask for Frizzy Hair                                                           Obtain something                         Hair Mask for Frizzy
+                                                              Hair)                                    to curl your doll hair                   Hair)
+        - Warm the coconut oil, if needed                                                              with (Fix Doll Hair)
+        - Combine all ingredients                        Rinse the doll
+        - Apply the mask to your hair                    hair with clean,
+        - Wash your hair / Wash your hair, if necessary  cool water (Fix
+        Task: Apply Castor Oil for Hair
+                                                         Doll Hair)
+        - ...
+
+        Node Relation Learning
+
+        1- hop out - nei ghbor s ( YELLOW) ?              Take out                                                   Comb through                    Warm the
+                                                          the curlers                                                the hair weft with              coconut oil, if
+        - Cover your hair with a shower cap                                                                          a comb or brush
+        - Wash your hair / Wash your hair, if necessary   (Fix Doll Hair)                                            just as you would               needed (Do a Hair
+
+        - ...                                                                                                        your own hair                   Mask for Frizzy Hair)
+        1- hop i n- nei ghbor s ( BLUE) ?
+                                                                                               Lather the doll?s     (Sew Hair Extensions
+        - Dip your fingers into the oil, and massage                                           hair (Fix Doll Hair)  to a Clip)
+         your scalp ...
+        - Combine all ingredients
+        - ...
+
+Figure 5. Pseudo labels of one segment and the subgraph of the PKG that this segment belongs to. The PKG encodes the procedural
+knowledge of the general order and relation of steps from multiple tasks. This is because a node’s k-hop neighbors can come from multiple
+tasks, and the edge direction encodes the general execution order of steps (the order that was observed in data – not in one speciﬁc video).
+
+because the narrator may not directly describe the step. E.g.,  ferent tasks, and especially the top 2 well describe the step
+in the 1st segment, the narrator only mentions “this is a phe-  of the video segment. NRL allows Paprika to learn the
+nomenal seasoning” without explicitly describing the step       knowledge on order and relation of cross-task steps because
+“seasoning the tri-tip”. When the camera records how a nar-     pseudo labels of NRL are led by the structure of the PKG.
+rator is performing a step, the narrator may omit verbally or
+formally describing the step. Out of this observation, we       5. Conclusion
+leverage a multimodal matching function.
+                                                                   We show how to learn a video representation for pro-
+   Assigning wikiHow steps to a video, allows one video         cedure understanding in instructional videos that encodes
+to leverage cross-task information sharing. As shown in         procedural knowledge. The key is to leverage a Procedu-
+the pseudo labels of VNM, the matched step headlines can        ral Knowledge Graph (PKG) to inject procedural knowledge
+come from another task. E.g., “Season the tenderloin” and       into the video representation, which improves the state-of-
+“Add the wood ...” are step headlines of the task “Smoke        the-art performance on several tasks.
+Pork Tenderloin”, but the task of the video is “Grill Tri-      Limitations & Future Directions: Our model is built on
+Tip”. In the wikiHow article of the task “Grill Tri-Tip”        top of frozen video and language encoders. Future work
+(shown in the TCL blocks of the 3rd and 4th segments),          should explore jointly updating these deep visual and text
+the step headline corresponds to the action “seasoning” is      representations while also learning the procedural knowl-
+“Prep the roast”, which is vague, and no step headlines de-     edge model. Future work should also extend our methodol-
+scribe the action “adding wood”. Instead, “seasoning” and       ogy beyond the existing downstream tasks to more complex
+“adding wood” have a clearer step headlines to describe         procedure understanding benchmarks.
+them in the wikiHow article of “Smoke Pork Tenderloin”.         Social Impact: The ﬁnal models may also be limited to per-
+                                                                form video understanding on tasks not represented in train-
+   TCL and NRL provide more procedure-level context in-         ing. These datasets primarily reﬂect the culture of only a
+formation as shown in Fig. 4. The procedural knowledge          portion of the world’s population, and may contain that cul-
+conveyed by TCL and NRL is the general prior knowl-             ture’s socioeconomic biases on gender, race, ethnicity, or
+edge about the step and task of the current segment, and        other features. These biases may be present in the generated
+the knowledge is not constrained to the current step, task,     pseudo labels, subgraphs, and/or overall video understand-
+or video. In other words, steps shown in the TCL or the         ing capabilities of the resulting system.
+NRL blocks can be absent in this video demonstration.
+                                                                   Acknowledgments: Prof. Mubbasir Kapadia was sup-
+   In Fig. 5, we show pseudo labels of one video segment        ported in part by NSF awards: IIS-1703883, IIS-1955404,
+and the subgraph of the PKG that the segment belongs to.        IIS-1955365, RETTL-2119265, and EAGER-2122119.
+The top 3 matched nodes’s step headlines come from dif-
+
+                                                                10734
+References                                                                instructional videos. In Proceedings of the IEEE/CVF Con-
+                                                                          ference on Computer Vision and Pattern Recognition, pages
+ [1] Hassan Akbari, Liangzhe Yuan, Rui Qian, Wei-Hong                     868–878, 2020. 2
+      Chuang, Shih-Fu Chang, Yin Cui, and Boqing Gong. Vatt:
+      Transformers for multimodal self-supervised learning from     [13] Nikita Dvornik, Isma Hadji, Hai Pham, Dhaivat Bhatt, Brais
+      raw video, audio and text. Advances in Neural Information           Martinez, Afsaneh Fazly, and Allan D Jepson. Graph2vid:
+      Processing Systems, 34:24206–24221, 2021. 1, 2, 3                   Flow graph to video grounding for weakly-supervised multi-
+                                                                          step localization. arXiv preprint arXiv:2210.04996, 2022. 2
+ [2] Jean-Baptiste Alayrac, Piotr Bojanowski, Nishant Agrawal,
+      Josef Sivic, Ivan Laptev, and Simon Lacoste-Julien. Unsu-     [14] Ehsan Elhamifar and Dat Huynh. Self-supervised multi-task
+      pervised learning from narrated instruction videos. In Pro-         procedure learning from instructional videos. In European
+      ceedings of the IEEE Conference on Computer Vision and              Conference on Computer Vision, pages 557–573. Springer,
+      Pattern Recognition, pages 4575–4583, 2016. 2                       2020. 2
+
+ [3] Jean-Baptiste Alayrac, Jeff Donahue, Pauline Luc, Antoine      [15] Ehsan Elhamifar and Zwe Naing. Unsupervised procedure
+      Miech, Iain Barr, Yana Hasson, Karel Lenc, Arthur Mensch,           learning via joint dynamic summarization. In Proceedings
+      Katie Millican, Malcolm Reynolds, et al. Flamingo: a vi-            of the IEEE/CVF International Conference on Computer Vi-
+      sual language model for few-shot learning. arXiv preprint           sion, pages 6341–6350, 2019. 2
+      arXiv:2204.14198, 2022. 3
+                                                                    [16] Basura Fernando, Hakan Bilen, Efstratios Gavves, and
+ [4] Jean-Baptiste Alayrac, Adria Recasens, Rosalia Schneider,            Stephen Gould. Self-supervised video representation learn-
+      Relja Arandjelovic´, Jason Ramapuram, Jeffrey De Fauw, Lu-          ing with odd-one-out networks. In Proceedings of the
+      cas Smaira, Sander Dieleman, and Andrew Zisserman. Self-            IEEE conference on computer vision and pattern recogni-
+      supervised multimodal versatile networks. Advances in Neu-          tion, pages 3636–3645, 2017. 2
+      ral Information Processing Systems, 33:25–37, 2020. 2
+                                                                    [17] Yuying Ge, Yixiao Ge, Xihui Liu, Dian Li, Ying Shan, Xi-
+ [5] Humam Alwassel, Dhruv Mahajan, Bruno Korbar, Lorenzo                 aohu Qie, and Ping Luo. Bridging video-text retrieval with
+      Torresani, Bernard Ghanem, and Du Tran. Self-supervised             multiple choice questions. In Proceedings of the IEEE/CVF
+      learning by cross-modal audio-video clustering. Advances            Conference on Computer Vision and Pattern Recognition,
+      in Neural Information Processing Systems, 33:9758–9770,             pages 16167–16176, 2022. 2
+      2020. 2
+                                                                    [18] Deepti Ghadiyaram, Du Tran, and Dhruv Mahajan. Large-
+ [6] Sagie Benaim, Ariel Ephrat, Oran Lang, Inbar Mosseri,                scale weakly-supervised pre-training for video action recog-
+      William T Freeman, Michael Rubinstein, Michal Irani, and            nition. In Proceedings of the IEEE/CVF conference on com-
+      Tali Dekel. Speednet: Learning the speediness in videos.            puter vision and pattern recognition, pages 12046–12055,
+      In Proceedings of the IEEE/CVF Conference on Computer               2019. 2
+      Vision and Pattern Recognition, pages 9922–9931, 2020. 2
+                                                                    [19] Reza Ghoddoosian, Isht Dwivedi, Nakul Agarwal, Chiho
+ [7] Gedas Bertasius, Heng Wang, and Lorenzo Torresani. Is                Choi, and Behzad Dariush. Weakly-supervised online action
+      space-time attention all you need for video understanding?          segmentation in multi-view instructional videos. In Proceed-
+      In ICML, volume 2, page 4, 2021. 5                                  ings of the IEEE/CVF Conference on Computer Vision and
+                                                                          Pattern Recognition, pages 13780–13790, 2022. 2
+ [8] Jing Bi, Jiebo Luo, and Chenliang Xu. Procedure planning
+      in instructional videos via contextual modeling and model-    [20] Reza Ghoddoosian, Saif Sayed, and Vassilis Athitsos. Hi-
+      based policy learning. In Proceedings of the IEEE/CVF In-           erarchical modeling for task recognition and action segmen-
+      ternational Conference on Computer Vision, pages 15611–             tation in weakly-labeled instructional videos. In Proceed-
+      15620, 2021. 2                                                      ings of the IEEE/CVF Winter Conference on Applications of
+                                                                          Computer Vision, pages 1922–1932, 2022. 2
+ [9] Rishi Bommasani, Drew A Hudson, Ehsan Adeli, Russ Alt-
+      man, Simran Arora, Sydney von Arx, Michael S Bernstein,       [21] Rohit Girdhar and Kristen Grauman. Anticipative video
+      Jeannette Bohg, Antoine Bosselut, Emma Brunskill, et al.            transformer. In Proceedings of the IEEE/CVF International
+      On the opportunities and risks of foundation models. arXiv          Conference on Computer Vision, pages 13505–13515, 2021.
+      preprint arXiv:2108.07258, 2021. 2, 3                               2
+
+[10] Chien-Yi Chang, De-An Huang, Danfei Xu, Ehsan Adeli,           [22] Neil Houlsby, Andrei Giurgiu, Stanislaw Jastrzebski, Bruna
+      Li Fei-Fei, and Juan Carlos Niebles. Procedure planning in          Morrone, Quentin De Laroussilhe, Andrea Gesmundo, Mona
+      instructional videos. In European Conference on Computer            Attariyan, and Sylvain Gelly. Parameter-efﬁcient transfer
+      Vision, pages 334–350. Springer, 2020. 2                            learning for nlp. In International Conference on Machine
+                                                                          Learning, pages 2790–2799. PMLR, 2019. 3
+[11] Brian Chen, Andrew Rouditchenko, Kevin Duarte, Hilde
+      Kuehne, Samuel Thomas, Angie Boggust, Rameswar Panda,         [23] De-An Huang, Shyamal Buch, Lucio Dery, Animesh Garg,
+      Brian Kingsbury, Rogerio Feris, David Harwath, et al. Multi-        Li Fei-Fei, and Juan Carlos Niebles. Finding” it”: Weakly-
+      modal clustering networks for self-supervised learning from         supervised reference-aware visual grounding in instructional
+      unlabeled videos. In Proceedings of the IEEE/CVF Inter-             videos. In Proceedings of the IEEE Conference on Computer
+      national Conference on Computer Vision, pages 8012–8021,            Vision and Pattern Recognition, pages 5948–5957, 2018. 2
+      2021. 2
+                                                                    [24] Andrew Jaegle, Sebastian Borgeaud, Jean-Baptiste Alayrac,
+[12] Hazel Doughty, Ivan Laptev, Walterio Mayol-Cuevas, and               Carl Doersch, Catalin Ionescu, David Ding, Skanda Kop-
+      Dima Damen. Action modiﬁers: Learning from adverbs in               pula, Daniel Zoran, Andrew Brock, Evan Shelhamer, et al.
+
+                                                                    10735
+      Perceiver io: A general architecture for structured inputs &  [38] Xudong Lin, Fabio Petroni, Gedas Bertasius, Marcus
+      outputs. arXiv preprint arXiv:2107.14795, 2021. 2                   Rohrbach, Shih-Fu Chang, and Lorenzo Torresani. Learning
+[25] Lei Ji, Chenfei Wu, Daisy Zhou, Kun Yan, Edward Cui, Xilin           to recognize procedural activities with distant supervision. In
+      Chen, and Nan Duan. Learning temporal video procedure               Proceedings of the IEEE/CVF Conference on Computer Vi-
+      segmentation from an automatically collected large dataset.         sion and Pattern Recognition, pages 13853–13863, 2022. 2,
+      In Proceedings of the IEEE/CVF Winter Conference on Ap-             3, 4, 5, 6, 7
+      plications of Computer Vision, pages 1506–1515, 2022. 2
+[26] Baoxiong Jia, Ting Lei, Song-Chun Zhu, and Siyuan Huang.       [39] William Lotter, Gabriel Kreiman, and David Cox. Deep pre-
+      Egotaskqa: Understanding human tasks in egocentric videos.          dictive coding networks for video prediction and unsuper-
+      arXiv preprint arXiv:2210.03929, 2022. 2                            vised learning. arXiv preprint arXiv:1605.08104, 2016. 2
+[27] Evangelos Kazakos, Jaesung Huh, Arsha Nagrani, Andrew
+      Zisserman, and Dima Damen. With a little help from my         [40] Zijia Lu and Ehsan Elhamifar. Weakly-supervised action
+      temporal context: Multimodal egocentric action recognition.         segmentation and alignment via transcript-aware union-of-
+      arXiv preprint arXiv:2111.01024, 2021. 2                            subspaces learning. In Proceedings of the IEEE/CVF Inter-
+[28] Dahun Kim, Donghyeon Cho, and In So Kweon. Self-                     national Conference on Computer Vision, pages 8085–8095,
+      supervised video representation learning with space-time cu-        2021. 2
+      bic puzzles. In Proceedings of the AAAI conference on arti-
+      ﬁcial intelligence, volume 33, pages 8545–8552, 2019. 2       [41] Zijia Lu and Ehsan Elhamifar. Set-supervised action learn-
+[29] Diederik P Kingma and Jimmy Ba. Adam: A method for                   ing in procedural task videos via pairwise order consistency.
+      stochastic optimization. arXiv preprint arXiv:1412.6980,            In Proceedings of the IEEE/CVF Conference on Computer
+      2014. 5                                                             Vision and Pattern Recognition, pages 19903–19913, 2022.
+[30] Mahnaz Koupaee and William Yang Wang. Wikihow:                       2
+      A large scale text summarization dataset. arXiv preprint
+      arXiv:1810.09305, 2018. 2, 4                                  [42] Huaishao Luo, Lei Ji, Botian Shi, Haoyang Huang, Nan
+[31] Hsin-Ying Lee, Jia-Bin Huang, Maneesh Singh, and Ming-               Duan, Tianrui Li, Jason Li, Taroon Bharti, and Ming Zhou.
+      Hsuan Yang. Unsupervised representation learning by sort-           Univl: A uniﬁed video and language pre-training model for
+      ing sequences. In Proceedings of the IEEE international con-        multimodal understanding and generation. arXiv preprint
+      ference on computer vision, pages 667–676, 2017. 2                  arXiv:2002.06353, 2020. 2
+[32] Jie Lei, Linjie Li, Luowei Zhou, Zhe Gan, Tamara L Berg,
+      Mohit Bansal, and Jingjing Liu. Less is more: Clipbert for    [43] Antoine Miech, Jean-Baptiste Alayrac, Lucas Smaira, Ivan
+      video-and-language learning via sparse sampling. In Pro-            Laptev, Josef Sivic, and Andrew Zisserman. End-to-end
+      ceedings of the IEEE/CVF Conference on Computer Vision              learning of visual representations from uncurated instruc-
+      and Pattern Recognition, pages 7331–7341, 2021. 2                   tional videos. In Proceedings of the IEEE/CVF Conference
+[33] Dongxu Li, Junnan Li, Hongdong Li, Juan Carlos Niebles,              on Computer Vision and Pattern Recognition, pages 9879–
+      and Steven CH Hoi. Align and prompt: Video-and-language             9889, 2020. 1, 2, 3, 4, 5, 6, 7
+      pre-training with entity prompts. In Proceedings of the
+      IEEE/CVF Conference on Computer Vision and Pattern            [44] Antoine Miech, Ivan Laptev, Josef Sivic, Heng Wang,
+      Recognition, pages 4953–4963, 2022. 1, 2, 3                         Lorenzo Torresani, and Du Tran. Leveraging the present
+[34] Linjie Li, Yen-Chun Chen, Yu Cheng, Zhe Gan, Licheng Yu,             to anticipate the future in videos. In Proceedings of the
+      and Jingjing Liu. Hero: Hierarchical encoder for video+ lan-        IEEE/CVF Conference on Computer Vision and Pattern
+      guage omni-representation pre-training. In Proceedings of           Recognition Workshops, pages 0–0, 2019. 2
+      the 2020 Conference on Empirical Methods in Natural Lan-
+      guage Processing (EMNLP), pages 2046–2065, 2020. 1, 2         [45] Antoine Miech, Dimitri Zhukov, Jean-Baptiste Alayrac,
+[35] Muheng Li, Lei Chen, Yueqi Duan, Zhilan Hu, Jianjiang                Makarand Tapaswi, Ivan Laptev, and Josef Sivic.
+      Feng, Jie Zhou, and Jiwen Lu. Bridge-prompt: Towards or-            HowTo100M: Learning a Text-Video Embedding by
+      dinal action understanding in instructional videos. In Pro-         Watching Hundred Million Narrated Video Clips. In ICCV,
+      ceedings of the IEEE/CVF Conference on Computer Vision              2019. 2, 5
+      and Pattern Recognition, pages 19880–19889, 2022. 2
+[36] Muheng Li, Lei Chen, Jiwen Lu, Jianjiang Feng, and Jie         [46] Pedro Morgado, Nuno Vasconcelos, and Ishan Misra. Audio-
+      Zhou. Order-constrained representation learning for instruc-        visual instance discrimination with cross-modal agreement.
+      tional video prediction. IEEE Transactions on Circuits and          In Proceedings of the IEEE/CVF Conference on Computer
+      Systems for Video Technology, 2022. 2                               Vision and Pattern Recognition, pages 12475–12486, 2021.
+[37] Kevin Qinghong Lin, Alex Jinpeng Wang, Mattia Soldan,                2
+      Michael Wray, Rui Yan, Eric Zhongcong Xu, Difei Gao,
+      Rongcheng Tu, Wenzhe Zhao, Weijie Kong, Chengfei Cai,         [47] AJ Piergiovanni, Anelia Angelova, Michael S Ryoo, and Ir-
+      Hongfa Wang, Dima Damen, Bernard Ghanem, Wei Liu, and               fan Essa. Unsupervised discovery of actions in instructional
+      Mike Zheng Shou. Egocentric video-language pretraining.             videos. arXiv preprint arXiv:2106.14733, 2021. 2
+      arXiv preprint arXiv:2206.01670, 2022. 2
+                                                                    [48] Rui Qian, Tianjian Meng, Boqing Gong, Ming-Hsuan Yang,
+                                                                          Huisheng Wang, Serge Belongie, and Yin Cui. Spatiotempo-
+                                                                          ral contrastive video representation learning. In Proceedings
+                                                                          of the IEEE/CVF Conference on Computer Vision and Pat-
+                                                                          tern Recognition, pages 6964–6974, 2021. 2
+
+                                                                    [49] Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya
+                                                                          Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry,
+                                                                          Amanda Askell, Pamela Mishkin, Jack Clark, et al. Learn-
+                                                                          ing transferable visual models from natural language super-
+
+                                                                    10736
+      vision. In International Conference on Machine Learning,       [63] Yi-Lin Sung, Jaemin Cho, and Mohit Bansal. Vl-adapter:
+      pages 8748–8763. PMLR, 2021. 2                                       Parameter-efﬁcient transfer learning for vision-and-language
+                                                                           tasks. In Proceedings of the IEEE/CVF Conference on Com-
+[50] Adria Recasens, Pauline Luc, Jean-Baptiste Alayrac, Luyu              puter Vision and Pattern Recognition, pages 5227–5237,
+      Wang, Florian Strub, Corentin Tallec, Mateusz Malinowski,            2022. 3
+      Viorica Pa˘tra˘ucean, Florent Altche´, Michal Valko, et al.
+      Broaden your views for self-supervised video learning. In      [64] Yansong Tang, Dajun Ding, Yongming Rao, Yu Zheng,
+      Proceedings of the IEEE/CVF International Conference on              Danyang Zhang, Lili Zhao, Jiwen Lu, and Jie Zhou. Coin:
+      Computer Vision, pages 1255–1265, 2021. 2                            A large-scale dataset for comprehensive instructional video
+                                                                           analysis. In Proceedings of the IEEE/CVF Conference
+[51] Ludan Ruan and Qin Jin. Survey: Transformer based video-              on Computer Vision and Pattern Recognition, pages 1207–
+      language pre-training. AI Open, 2022. 2, 3                           1216, 2019. 5
+
+[52] Madeline C Schiappa, Yogesh S Rawat, and Mubarak Shah.          [65] Yansong Tang, Jiwen Lu, and Jie Zhou. Comprehensive in-
+      Self-supervised learning for videos: A survey. arXiv preprint        structional video analysis: The coin dataset and performance
+      arXiv:2207.00419, 2022. 2                                            evaluation. IEEE transactions on pattern analysis and ma-
+                                                                           chine intelligence, 43(9):3138–3153, 2020. 2, 5
+[53] Fadime Sener, Rishabh Saraf, and Angela Yao. Learning
+      video models from text: Zero-shot anticipation for procedu-    [66] Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszko-
+      ral actions. arXiv preprint arXiv:2106.03158, 2021. 2                reit, Llion Jones, Aidan N Gomez, Łukasz Kaiser, and Illia
+                                                                           Polosukhin. Attention is all you need. Advances in neural
+[54] Paul Hongsuck Seo, Arsha Nagrani, Anurag Arnab, and                   information processing systems, 30, 2017. 5
+      Cordelia Schmid. End-to-end generative pretraining for mul-
+      timodal video captioning. In Proceedings of the IEEE/CVF       [67] Carl Vondrick, Hamed Pirsiavash, and Antonio Torralba. An-
+      Conference on Computer Vision and Pattern Recognition,               ticipating visual representations from unlabeled video. In
+      pages 17959–17968, 2022. 2                                           Proceedings of the IEEE conference on computer vision and
+                                                                           pattern recognition, pages 98–106, 2016. 2
+[55] Yuhan Shen and Ehsan Elhamifar. Semi-weakly-supervised
+      learning of complex actions from instructional task videos.    [68] Dong Wang, Di Hu, Xingjian Li, and Dejing Dou. Temporal
+      In Proceedings of the IEEE/CVF Conference on Computer                relational modeling with self-supervision for action segmen-
+      Vision and Pattern Recognition, pages 3344–3354, 2022. 2             tation. In Proceedings of the AAAI Conference on Artiﬁcial
+                                                                           Intelligence, volume 35, pages 2729–2737, 2021. 2
+[56] Yuhan Shen, Lu Wang, and Ehsan Elhamifar. Learning to
+      segment actions from visual and language instructions via      [69] Jiangliu Wang, Jianbo Jiao, Linchao Bao, Shengfeng He,
+      differentiable weak sequence alignment. In Proceedings of            Yunhui Liu, and Wei Liu. Self-supervised spatio-temporal
+      the IEEE/CVF Conference on Computer Vision and Pattern               representation learning for videos by predicting motion and
+      Recognition, pages 10156–10165, 2021. 2                              appearance statistics. In Proceedings of the IEEE/CVF Con-
+                                                                           ference on Computer Vision and Pattern Recognition, pages
+[57] Kaitao Song, Xu Tan, Tao Qin, Jianfeng Lu, and Tie-Yan                4006–4015, 2019. 2
+      Liu. Mpnet: Masked and permuted pre-training for language
+      understanding. Advances in Neural Information Processing       [70] Jiangliu Wang, Jianbo Jiao, and Yun-Hui Liu. Self-
+      Systems, 33:16857–16867, 2020. 7                                     supervised video representation learning by pace prediction.
+                                                                           In European conference on computer vision, pages 504–521.
+[58] Toma´sˇ Soucˇek, Jean-Baptiste Alayrac, Antoine Miech, Ivan           Springer, 2020. 2
+      Laptev, and Josef Sivic. Look for the change: Learning
+      object states and state-modifying actions from untrimmed       [71] Mengmeng Wang, Jiazheng Xing, and Yong Liu. Actionclip:
+      web videos. In Proceedings of the IEEE/CVF Conference                A new paradigm for video action recognition. arXiv preprint
+      on Computer Vision and Pattern Recognition, pages 13956–             arXiv:2109.08472, 2021. 2
+      13966, 2022. 2
+                                                                     [72] Qingyun Wang, Manling Li, Hou Pong Chan, Lifu Huang,
+[59] Nitish Srivastava, Elman Mansimov, and Ruslan Salakhudi-              Julia Hockenmaier, Girish Chowdhary, and Heng Ji. Mul-
+      nov. Unsupervised learning of video representations using            timedia generative script learning for task planning. arXiv
+      lstms. In International conference on machine learning,              preprint arXiv:2208.12306, 2022. 2
+      pages 843–852. PMLR, 2015. 2
+                                                                     [73] Shaojie Wang, Wentian Zhao, Ziyi Kou, Jing Shi, and Chen-
+[60] Chen Sun, Fabien Baradel, Kevin Murphy, and Cordelia                  liang Xu. How to make a blt sandwich? learning vqa towards
+      Schmid. Learning video representations using contrastive             understanding web instructional videos. In Proceedings of
+      bidirectional transformer. arXiv preprint arXiv:1906.05743,          the IEEE/CVF Winter Conference on Applications of Com-
+      2019. 2                                                              puter Vision, pages 1130–1139, 2021. 2
+
+[61] Chen Sun, Austin Myers, Carl Vondrick, Kevin Murphy,            [74] Dejing Xu, Jun Xiao, Zhou Zhao, Jian Shao, Di Xie, and
+      and Cordelia Schmid. Videobert: A joint model for video              Yueting Zhuang. Self-supervised spatiotemporal learning via
+      and language representation learning. In Proceedings of the          video clip order prediction. In Proceedings of the IEEE/CVF
+      IEEE/CVF International Conference on Computer Vision,                Conference on Computer Vision and Pattern Recognition,
+      pages 7464–7473, 2019. 2                                             pages 10334–10343, 2019. 2
+
+[62] Jiankai Sun, De-An Huang, Bo Lu, Yun-Hui Liu, Bolei             [75] Frank F Xu, Lei Ji, Botian Shi, Junyi Du, Graham Neubig,
+      Zhou, and Animesh Garg. Plate: Visually-grounded plan-               Yonatan Bisk, and Nan Duan. A benchmark for structured
+      ning with transformers in procedural tasks. IEEE Robotics            procedural knowledge extraction from cooking videos. arXiv
+      and Automation Letters, 7(2):4924–4930, 2022. 2                      preprint arXiv:2005.00706, 2020. 2
+
+                                                                     10737
+[76] Hu Xu, Gargi Ghosh, Po-Yao Huang, Prahal Arora,                            In Proceedings of the IEEE/CVF Conference on Computer
+      Masoumeh Aminzadeh, Christoph Feichtenhofer, Florian                      Vision and Pattern Recognition, pages 3537–3545, 2019. 2,
+      Metze, and Luke Zettlemoyer. Vlm: Task-agnostic video-                    5
+      language model pre-training for video understanding. arXiv
+      preprint arXiv:2105.09996, 2021. 2
+
+[77] Hu Xu, Gargi Ghosh, Po-Yao Huang, Dmytro Okhonko,
+      Armen Aghajanyan, Florian Metze, Luke Zettlemoyer, and
+      Christoph Feichtenhofer. Videoclip: Contrastive pre-training
+      for zero-shot video-text understanding. In Proceedings of
+      the 2021 Conference on Empirical Methods in Natural Lan-
+      guage Processing, pages 6787–6800, 2021. 1, 2
+
+[78] Yue Yang, Joongwon Kim, Artemis Panagopoulou, Mark
+      Yatskar, and Chris Callison-Burch. Induce, edit, retrieve:
+      Language grounded multimodal schema for instructional
+      video retrieval. arXiv preprint arXiv:2111.09276, 2021. 2
+
+[79] Yue Yang, Artemis Panagopoulou, Qing Lyu, Li Zhang,
+      Mark Yatskar, and Chris Callison-Burch. Visual goal-step
+      inference using wikihow. arXiv preprint arXiv:2104.05845,
+      2021. 2
+
+[80] Zhengyuan Yang, Jingen Liu, Jing Huang, Xiaodong He,
+      Tao Mei, Chenliang Xu, and Jiebo Luo. Cross-modal
+      contrastive distillation for instructional activity anticipation.
+      arXiv preprint arXiv:2201.06734, 2022. 2
+
+[81] Rowan Zellers, Jiasen Lu, Ximing Lu, Youngjae Yu, Yan-
+      peng Zhao, Mohammadreza Salehi, Aditya Kusupati, Jack
+      Hessel, Ali Farhadi, and Yejin Choi. Merlot reserve: Neu-
+      ral script knowledge through vision and language and sound.
+      In Proceedings of the IEEE/CVF Conference on Computer
+      Vision and Pattern Recognition, pages 16375–16387, 2022.
+      2
+
+[82] Rowan Zellers, Ximing Lu, Jack Hessel, Youngjae Yu,
+      Jae Sung Park, Jize Cao, Ali Farhadi, and Yejin Choi. Mer-
+      lot: Multimodal neural script knowledge models. Advances
+      in Neural Information Processing Systems, 34:23634–23651,
+      2021. 2
+
+[83] Li Zhang, Qing Lyu, and Chris Callison-Burch. Intent detec-
+      tion with wikihow. arXiv preprint arXiv:2009.05781, 2020.
+      2
+
+[84] Li Zhang, Qing Lyu, and Chris Callison-Burch. Reason-
+      ing about goals, steps, and temporal ordering with wikihow.
+      arXiv preprint arXiv:2009.07690, 2020. 2
+
+[85] Luowei Zhou, Chenliang Xu, and Jason J Corso. Procnets:
+      Learning to segment procedures in untrimmed and uncon-
+      strained videos. arXiv preprint arXiv:1703.09788, 2(6):7,
+      2017. 2
+
+[86] Luowei Zhou, Chenliang Xu, and Jason J Corso. Towards
+      automatic learning of procedures from web instructional
+      videos. In Thirty-Second AAAI Conference on Artiﬁcial In-
+      telligence, 2018. 2
+
+[87] Shuyan Zhou, Li Zhang, Yue Yang, Qing Lyu, Pengcheng
+      Yin, Chris Callison-Burch, and Graham Neubig. Show me
+      more details: Discovering hierarchies of procedures from
+      semi-structured web data. arXiv preprint arXiv:2203.07264,
+      2022. 2
+
+[88] Dimitri Zhukov, Jean-Baptiste Alayrac, Ramazan Gokberk
+      Cinbis, David Fouhey, Ivan Laptev, and Josef Sivic. Cross-
+      task weakly supervised learning from instructional videos.
+
+                                                                         10738
+

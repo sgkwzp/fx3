@@ -1,0 +1,27 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<feed xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/" xmlns:arxiv="http://arxiv.org/schemas/atom" xmlns="http://www.w3.org/2005/Atom">
+  <id>https://arxiv.org/api/yKNGP/+xJRlCZ88HEUHPufFinPc</id>
+  <title>arXiv Query: search_query=all:"recovery" AND all:"egocentric" AND all:"mistake"&amp;id_list=&amp;start=0&amp;max_results=40</title>
+  <updated>2026-07-26T12:15:00Z</updated>
+  <link href="https://arxiv.org/api/query?search_query=all:%22recovery%22+AND+(all:%22egocentric%22+AND+all:%22mistake%22)&amp;start=0&amp;max_results=40&amp;id_list=" type="application/atom+xml"/>
+  <opensearch:itemsPerPage>40</opensearch:itemsPerPage>
+  <opensearch:totalResults>1</opensearch:totalResults>
+  <opensearch:startIndex>0</opensearch:startIndex>
+  <entry>
+    <id>http://arxiv.org/abs/2604.15134v1</id>
+    <title>How to Correctly Make Mistakes: A Framework for Constructing and Benchmarking Mistake Aware Egocentric Procedural Videos</title>
+    <updated>2026-04-16T15:14:29Z</updated>
+    <link href="https://arxiv.org/abs/2604.15134v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2604.15134v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Reliable procedural monitoring in video requires exposure to naturally occurring human errors and the recoveries that follow. In egocentric recordings, mistakes are often partially occluded by hands and revealed through subtle object state changes, while existing procedural datasets provide limited and inconsistent mistake and correction traces. We present PIE-V (Psychologically Inspired Error injection for Videos), a framework for constructing and benchmarking mistake-aware egocentric procedural videos by augmenting clean keystep procedures with controlled, human-plausible deviations. PIE-V combines a psychology-informed error planner conditioned on procedure phase and semantic step load, a correction planner that models recovery behavior, an LLM writer that performs cascade-consistent rewrites, and an LLM judge that validates procedural coherence and repairs failures. For video segment edits, PIE-V synthesizes replacement clips with text-guided video generation and stitches them into the episode to preserve visual plausibility. Applied to 17 tasks and 50 Ego-Exo4D scenarios, PIE-V injects 102 mistakes and generates 27 recovery corrections. For benchmarking, we introduce a unified taxonomy and a human rubric with nine metrics that cover step-level and procedure-level quality, including plausibility, procedure logic with annotator confidence, state change coherence, and grounding between text and video. Using this protocol, we audit several existing resources and compare PIE-V against a freeform LLM generation baseline under the same criteria. Together, the framework and rubric support post-completion verification for egocentric procedural mistake detection and correction.</summary>
+    <category term="cs.CV" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2026-04-16T15:14:29Z</published>
+    <arxiv:primary_category term="cs.CV"/>
+    <author>
+      <name>Olga Loginova</name>
+    </author>
+    <author>
+      <name>Frank Keller</name>
+    </author>
+  </entry>
+</feed>

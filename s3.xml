@@ -1,0 +1,72 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<feed xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/" xmlns:arxiv="http://arxiv.org/schemas/atom" xmlns="http://www.w3.org/2005/Atom">
+  <id>https://arxiv.org/api/Lu7k6yk1Qab3T1adOhcaIJWt3Ds</id>
+  <title>arXiv Query: search_query=abs:"time to recovery" AND abs:video&amp;id_list=&amp;start=0&amp;max_results=40</title>
+  <updated>2026-07-26T12:15:04Z</updated>
+  <link href="https://arxiv.org/api/query?search_query=abs:%22time+to+recovery%22+AND+abs:video&amp;start=0&amp;max_results=40&amp;id_list=" type="application/atom+xml"/>
+  <opensearch:itemsPerPage>40</opensearch:itemsPerPage>
+  <opensearch:totalResults>2</opensearch:totalResults>
+  <opensearch:startIndex>0</opensearch:startIndex>
+  <entry>
+    <id>http://arxiv.org/abs/2503.11328v1</id>
+    <title>TransiT: Transient Transformer for Non-line-of-sight Videography</title>
+    <updated>2025-03-14T11:56:37Z</updated>
+    <link href="https://arxiv.org/abs/2503.11328v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2503.11328v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>High quality and high speed videography using Non-Line-of-Sight (NLOS) imaging benefit autonomous navigation, collision prevention, and post-disaster search and rescue tasks. Current solutions have to balance between the frame rate and image quality. High frame rates, for example, can be achieved by reducing either per-point scanning time or scanning density, but at the cost of lowering the information density at individual frames. Fast scanning process further reduces the signal-to-noise ratio and different scanning systems exhibit different distortion characteristics. In this work, we design and employ a new Transient Transformer architecture called TransiT to achieve real-time NLOS recovery under fast scans. TransiT directly compresses the temporal dimension of input transients to extract features, reducing computation costs and meeting high frame rate requirements. It further adopts a feature fusion mechanism as well as employs a spatial-temporal Transformer to help capture features of NLOS transient videos. Moreover, TransiT applies transfer learning to bridge the gap between synthetic and real-measured data. In real experiments, TransiT manages to reconstruct from sparse transients of $16 \times 16$ measured at an exposure time of 0.4 ms per point to NLOS videos at a $64 \times 64$ resolution at 10 frames per second. We will make our code and dataset available to the community.</summary>
+    <category term="cs.CV" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2025-03-14T11:56:37Z</published>
+    <arxiv:primary_category term="cs.CV"/>
+    <author>
+      <name>Ruiqian Li</name>
+    </author>
+    <author>
+      <name>Siyuan Shen</name>
+    </author>
+    <author>
+      <name>Suan Xia</name>
+    </author>
+    <author>
+      <name>Ziheng Wang</name>
+    </author>
+    <author>
+      <name>Xingyue Peng</name>
+    </author>
+    <author>
+      <name>Chengxuan Song</name>
+    </author>
+    <author>
+      <name>Yingsheng Zhu</name>
+    </author>
+    <author>
+      <name>Tao Wu</name>
+    </author>
+    <author>
+      <name>Shiying Li</name>
+    </author>
+    <author>
+      <name>Jingyi Yu</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2605.09897v1</id>
+    <title>Tube-Structured Incremental Semantic HARQ for Generative Video Receivers</title>
+    <updated>2026-05-11T02:38:57Z</updated>
+    <link href="https://arxiv.org/abs/2605.09897v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2605.09897v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Generative semantic communication uses receiver-side generative priors to reconstruct visual content from compact semantics, making it attractive for bandwidth-limited multimedia delivery. For video, reliable recovery remains difficult because errors accumulate over time, useful evidence is temporally correlated, and the receiver must make decisions under limited interaction, retransmission, and reconstruction budgets. Existing generative semantic communication studies mainly emphasize representation, compression, or generative reconstruction, while recent error-resilient and semantic-HARQ methods still largely operate on encoder-defined or frame-block retransmission units. This paper studies receiver-driven semantic HARQ for generative video reconstruction under a budget-constrained AoIS-AUC objective and argues that the retransmission primitive is itself an important system design variable. We propose tube-structured package-native requests, in which temporally local packages are the channel-visible HARQ objects and are transmitted, dropped, received, and committed at package granularity. Under a controlled comparison protocol with matched backbone, budgets, and channel model, this primitive yields lower time-weighted recovery cost than competitive block-based baselines in practically relevant moderate-to-harsh regimes, while the gap naturally shrinks in near-clean channels. The gain mainly appears as earlier stabilization of the recovery trajectory, while final-quality endpoints remain broadly comparable, and it persists even against a tube-aware block-ranking baseline.</summary>
+    <category term="eess.IV" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.MM" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2026-05-11T02:38:57Z</published>
+    <arxiv:primary_category term="eess.IV"/>
+    <author>
+      <name>Xuesong Wang</name>
+    </author>
+    <author>
+      <name>Xinyan Xie</name>
+    </author>
+    <author>
+      <name>Runxin Zhang</name>
+    </author>
+  </entry>
+</feed>

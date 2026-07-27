@@ -1,0 +1,616 @@
+This WACV paper is the Open Access version, provided by the Computer Vision Foundation.
+                 Except for this watermark, it is identical to the accepted version;
+
+           the final published version of the proceedings is available on IEEE Xplore.
+
+      IndustReal: A Dataset for Procedure Step Recognition Handling
+    Execution Errors in Egocentric Videos in an Industrial-Like Setting
+
+Tim J. Schoonbeek1, Tim Houben1, Hans Onvlee2, Peter H.N. de With1, Fons van der Sommen1
+     1Eindhoven University of Technology, Netherlands 2ASML Research, Netherlands
+
+                                                          t.j.schoonbeek@tue.nl
+
+                        Abstract                               and summarize the execution of a procedure, thereby elim-
+                                                               inating the need for manual logbook keeping [29]. Under-
+   Although action recognition for procedural tasks has re-    standing procedures is not only highly relevant for indus-
+ceived notable attention, it has a fundamental flaw in that    trial tasks, but to a broad range of procedural tasks, such
+no measure of success for actions is provided. This limits     as tracking the stages of surgeries to enhance post-surgical
+the applicability of such systems especially within the in-    assessment and optimizing procedure workflow [12, 39].
+dustrial domain, since the outcome of procedural actions
+is often significantly more important than the mere execu-        Automated understanding of procedures is a difficult
+tion. To address this limitation, we define the novel task     task in computer vision for various reasons. Firstly, there
+of procedure step recognition (PSR), focusing on recogniz-     is often a limited visual difference between subsequent
+ing the correct completion and order of procedural steps.      steps. For instance, determining whether a screw is cor-
+Alongside the new task, we also present the multi-modal        rectly mounted into a specific component requires a fine-
+IndustReal dataset. Unlike currently available datasets,       grained visual understanding. Additionally, there can be
+IndustReal contains procedural errors (such as omissions)      a high degree of symmetry and a low degree of textural
+as well as execution errors. A significant part of these er-   variation for objects within procedures, especially for in-
+rors are exclusively present in the validation and test sets,  dustrial actions [14]. Secondly, it is not feasible to collect
+making IndustReal suitable to evaluate robustness of algo-     a vast amount of data for many procedures, as they are of-
+rithms to new, unseen mistakes. Additionally, to encourage     ten infrequently performed and rather specialized. Finally,
+reproducibility and allow for scalable approaches trained      procedures can typically be completed correctly via several
+on synthetic data, the 3D models of all parts are publicly     possible execution orders. Therefore, it is frequently not
+available. Annotations and benchmark performance are           sufficient to merely look whether a single, pre-defined step
+provided for action recognition and assembly state detec-      is completed correctly.
+tion, as well as the new PSR task. IndustReal, along with
+the code and model weights, is available at:                      Existing approaches to procedural understanding can
+https://github.com/TimSchoonbeek/IndustReal.                   generally be divided into two groups, one performing ac-
+                                                               tion recognition (AR) [27, 30] and the other assembly state
+1. Introduction                                                detection (ASD) [11, 24, 33]. AR approaches aim to rec-
+                                                               ognize only which actions are being performed, rather than
+   Imagine an engineer who has just finished a service ac-     which actions are actually completed. This is a crucial dif-
+tion on an internal combustion engine, only to discover that   ference, and it is more valuable to know whether a step has
+a step was missed early in the procedure. The service engi-    been actually completed correctly, than to know only if an
+neer has to undo most of the work completed after the mis-     operator spend time on that step. ASD relies on object de-
+take to rectify the forgotten step. The correct servicing of   tection algorithms, detecting the actual phase during an ob-
+an engine is an example of a procedure, i.e., a given set of   ject’s assembly within a procedure. However, the number
+instructions, describing the procedural actions required to    of possible states in ASD explodes with the number of parts
+complete a task. An algorithm would become of significant      in a procedure, limiting the complexity in existing literature
+value if it can understand procedural actions by automati-     to five or six parts only [11, 24, 33]. Furthermore, both AR
+cally recognizing and tracking steps during the execution of   and ASD implementations do not explicitly leverage proce-
+a procedure. A system containing such an algorithm can         dural knowledge, e.g. which actions are to be expected after
+warn users about potential mistakes or forgotten steps [2],    the observation of a preceding action.
+
+                                                                  To address the aforementioned limitations, this work
+                                                               formally defines the novel task of procedure step recog-
+
+                                                               4365
+               Parts                              Components                                        Assembly  Maintenance
+
+              5x nut            1x base     3x    1x front  2x short chassis  1x long chassis
+            1x wing   1x front bracket   chassis  bracket
+     1x acorn nut                                  screw
+          1x pulley    4x short brace       pin
+5x round washer         2x long brace
+ 5x tooth washer                                            1x front wheel assy 1x rear wheel assy
+          4x wheel          1x pin long
+                         1x pin middle   1x base  1x front
+                                                  bracket
+                           3x pin short
+                          1x screw pin
+
+Figure 1. Overview of the construction-toy car’s (3D printed) parts, components, and models used in IndustReal. The maintenance task
+represents a component upgrade and consists of replacing the long braces with short braces on the rear chassis.
+
+nition (PSR) and introduces IndustReal, a publicly avail-        2. Related Work
+able dataset towards solving this task. It is an ego-centric,
+multi-modal dataset where 27 participants are challenged         2.1. Work on procedural action understanding
+to perform assembly and maintenance procedures on a
+construction-toy car, based on STEMFIE [19], demon-                 In (procedural) action recognition tasks, the objective
+strated in Fig. 1. The videos are annotated for action recog-    is to classify a video clip into a set of activities expected
+nition (AR), assembly state detection (ASD), and procedure       within a certain procedure [11,24,33,35]. Examples of such
+step recognition. The placement of IndustReal within liter-      procedures are cooking [3,8,38], instruction videos [23,31],
+ature is outlined in Tab. 1. The IndustReal dataset features     and assembly tasks [13, 15]. Recently, focus has been di-
+four novel aspects:                                              rected towards recognizing procedural actions in industrial-
+                                                                 like settings [1, 5, 25, 27, 30].
+   • Variety of execution errors. IndustReal features 38 er-
+      rors, of which 14 are exclusive to the validation and         Whilst recognizing actions in procedural videos is cer-
+      test sets. Whilst some datasets already include proce-     tainly of some interest in an industrial setting, we argue that
+      dural errors (e.g. omissions) [25, 30], IndustReal is the  it is more valuable to know what was actually completed,
+      first to also include execution errors (e.g. wrong type    rather than only performed (and therefore potentially not
+      of nut used).                                              finished). Therefore, the PSR task is proposed to recog-
+                                                                 nize the correct completion of steps and to track the order
+   • Subgoal oriented execution. Other datasets are ei-          in which those steps were completed.
+      ther “free-style” assemblies [30] or contain a strict,
+      step-by-step execution order [27]. IndustReal com-            Additionally, the comparable datasets outlined in Tab. 1
+      bines these execution types with a subgoal-oriented        generally have restricted sizes, since it is challenging to
+      assembly style, where participants are given flexibil-     record sufficient video data of people executing (nearly) the
+      ity to determine the execution order between subgoals.     same procedural task. This is especially relevant to indus-
+      This approach more closely resembles industrial pro-       trial applications, where a significant portion of the tasks is
+      cedures, since it maintains a hierarchy in procedure ex-   performed rather infrequently. However, procedural knowl-
+      ecution whilst allowing for flexibility where possible.    edge, in the form of work instructions or technical draw-
+      IndustReal contains 48 different execution orders.         ings, is generally available for those tasks. Whilst such pro-
+                                                                 cedural knowledge is not explicitly leveraged by the afore-
+   • Open-source geometries. Scalability is an important         mentioned approaches, we advocate to explicitly use this
+      factor for many industrial tasks, where simultaneously     knowledge in PSR to constrain the number of possible ac-
+      the technical drawings are often available. Therefore,     tions expected at any given moment.
+      3D models for all parts are published, to stimulate use
+      of synthetic data in procedural action understanding,      2.2. Literature on assembly state detection
+      e.g. by sim2real domain adaptation or generalization.
+                                                                    Assembly state detection is a sub-task of object de-
+   • 3D printed parts. To ensure reproducibility, future         tection, where the objective is to recognize and locate
+      availability of the model, and growth via community        the specific state of an object during an assembly proce-
+      effort, all parts are 3D printed and open source [19].     dure [11, 24, 32, 33, 36, 37]. ASD is significantly more chal-
+                                                                 lenging than object detection, since the visual variability be-
+In summary, the contribution of this work is two-fold: we        tween two states is often small. For instance, detecting the
+present the IndustReal dataset, define the task of procedure     object “Car” is significantly less complicated than detect-
+step recognition and provide a benchmark towards this task.      ing the state “Car without window”. Su et al. [33] simul-
+                                                                 taneously detect the state and the pose of a coffee machine
+
+                                                                 4366
+                   Tasks                                         Procedural complexity                                                        Dataset size
+                                                                                                                                                Dur. Participants
+Dataset            Year Ego AR ASD PSR Flex. PEs EEs Parts 3DM Seqs.
+
+IKEA ASM [5]       2021 ✗ ✓ ✗  ✗                                 ✓        ✗✗            7  ✗ 381                                              35.3h  48
+
+MECCANO [26, 27] 2021 ✓ ✓ ✗    ✗                                 ✗ ✓∗ ✗ 49                 ✗ 20                                               6.9h   20
+
+Assembly101 [30] 2022 ✓ ✓ ✗    ✗                                 ✓        ✓ ✓∗ 15          ✗ 1.01K 167.0h                                            53
+
+BRIO-TA [25]       2022 ✗ ✓ ✗  ✗                                 ✓ ✓ ✗ 10                  ✗ 75                                               2.9h   15
+
+HA4M [7]           2022 ✗ ✓ ✗  ✗                                 ✓        ✗ ✗ 17           ✓ 217                                              5.9h   41
+
+ATTACH [1]         2023 ✗ ✓ ✗  ✗                                 ✓ ✗ ✗ 26                  ✗ 378                                              17.2h  42
+
+IndustReal (ours)  2024 ✓ ✓ ✓ ✓                                  ✓ ✓ ✓ 36                  ✓ 84                                               5.8h   27
+
+Table 1. Comparison of industrial-like procedural understanding datasets. AR: action recognition, ASD: assembly state detection, PSR:
+
+procedure step recognition, flex.: more than one single execution order for the task, PEs: procedural errors (omission, execution order),
+EEs: execution errors (component installed incorrectly), 3DM: 3D models made publicly available, ∗rare and not explicitly annotated.
+
+during its assembly. The authors demonstrate a good perfor-         such cases are certainly of interest and are frequently en-
+mance on the task, but the different assembly states consist        countered in the industrial domain. Finally, we argue that
+of visually distinctive objects. Lui et al. [24] demonstrate        the availability of 3D models of all parts represented in
+an attention mechanism for their convolutional neural net-          the dataset is crucial for industrial applications, given the
+work (CNN), detecting object states even if they are visually       wide availability and usage of technical drawings in that
+similar to each other. Both works demonstrate promising             domain. Unfortunately, the MECCANO dataset uses a IP-
+advances on this task. The approaches are trained predom-           protected construction set, prohibiting the publication of
+inantly on synthetic data, which can be readily generated if        such CAD models. BRIO-TA [25] and the large-scale As-
+3D models of each assembly state are already designed.              sembly101 [30] datasets both contain procedural mistakes,
+                                                                    such as omissions and incorrect execution order, but do not
+   Nevertheless, the aforementioned approaches have two             contain (labeled) execution errors. Furthermore, none of the
+important limitations. Firstly, the algorithms must be              mentioned datasets provide labels for ASD. Lastly, to en-
+trained on a dataset of images from each object state. This         sure future availability of the models, all parts in IndustReal
+forces the models to learn a low-dimensional representa-            are 3D printed. An added benefit of 3D printing is that it
+tion for each state. Since the procedures that the authors          allows researchers to print in different scale, colors, or ma-
+selected consist of only 5 parts and, at most, 6 distinctive        terials, to test the limits of their algorithms.
+object states, training a model in such a manner is feasible.
+However, it remains unclear whether this approach scales to         3. Procedure Step Recognition
+procedures with higher complexity and more object states.
+Secondly, no procedural information is leveraged by either             The previous section has identified a gap in the related
+approach. Therefore, the models expect for example, the             work between AR and ASD. By formalizing the task of
+initial state in an assembly equally as much as the very last       procedure step recognition (PSR), along with an evaluation
+state. For tasks with sufficient visual distinction between         scheme, we encourage researchers to develop methods to
+states, this is not a critical limitation. However, for objects     automatically recognize the completion of steps, rather than
+that appear identical from certain viewpoints for several dif-      the (partial) execution of activities. Additionally, PSR sys-
+ferent states, procedural information could be used to de-          tems should explicitly leverage procedural knowledge and
+termine the most likely state. Finally, none of the above-          allow a flexible execution order for procedural tasks, when
+mentioned approaches release their (test) data.                     the procedure allows it.
+
+2.3. Published comparable datasets                                  3.1. Task definition
+
+   The placement of IndustReal within publicly available               The objective of PSR is to extract an estimate of all pro-
+datasets, recorded in industrial-like settings is shown in          cedure steps correctly performed by a person up to time t,
+Tab. 1. The MECCANO dataset [26, 27] is most relevant               based on sensory inputs Xt = (xt, xt−1, . . . , xt−h) and a
+to IndustReal in terms of procedure, task complexity, and           descriptive set of the procedural actions to be performed
+dataset size. Notable differences between these two datasets        P = {a0, a1, . . . , an}. Here, h is the observation horizon
+are that in MECCANO users follow strict, step-by-step in-           and n + 1 the total number of actions ai ∈ P covered in the
+structions, limiting the variety in execution order. Secondly,      procedure. The predicted completed procedure steps yˆt at
+although MECCANO contains some procedure errors, they               time t, given some model F, are defined such that
+are nearly always corrected in the subsequent step. There-
+fore, later states do not have prior errors in them, whilst                                  \hat {y}_t = \mathcal {F} (X_t, \mathcal {P}).              (1)
+
+                                                                    4367
+Here, a “predicted” (recognized) procedure step does not                                             a common problem in spelling error detection [4, 28], since
+refer to the prediction of a future step, but rather the predic-                                     words consist of a sequence of characters, where order and
+tion by a model for a correctly completed step, based on the                                         type of character matters. In temporal action segmentation,
+given inputs. Crucially, this definition allows for real-time                                        the Levenshtein (Lev) distance, normalized over the length
+operation, since contrary to existing tasks, PSR does not re-                                        of the ground-truth sequence, is commonly used [20]. We
+quire a full recording of the procedure as input [20, 23].                                           propose two changes to this metric, by (1) eliminating sub-
+                                                                                                     stitution from the edit distance, preventing the metric from
+   Each unique action ai ∈ P contains information regard-                                            favouring models with many false positives, and (2) us-
+ing this specific action, and can be different for varying ap-                                       ing the Damerau-Levenshtein (DamLev) [9], rather than the
+proaches to PSR. For instance, ai can contain a description,                                         Lev distance because it penalizes transpositions less, since
+an image of what the completed step is supposed to look                                              it is intuitive to penalize “ACB” less compared to “CAB”.
+like, or relative positions between components. Sensory in-
+puts Xt may comprise of camera images, depth maps, or                                                   In contrast to Lea et al. [20], we propose to normalize
+even user interaction with the system, during the execution                                          the edit distance with respect to the length of the ground
+of a procedure. Note that with the given definition, a PSR                                           truth, rather than the length of either the ground truth or
+system can be an ensemble of various computer vision algo-                                           the prediction, depending on which is longer. This prevents
+rithms, e.g. object detection to determine the assembly state                                        models with many false positives from being normalized
+and action recognition to determine the activities.                                                  favourably. Finally, the normalized edit distance is sub-
+                                                                                                     tracted from the unity value, resulting in a similarity met-
+   The predicted procedure steps form an ordered list of el-                                         ric, rather than a distance metric. Thus, the procedure order
+ements, describing the completed steps and is defined as                                             similarity (POS) between y and yˆ is defined as
+
+  \hat {y}_t = (\hat {s}_{\sigma (0)}, \hat {s}_{\sigma (1)}, \dots , \hat {s}_{\sigma (m)}),   (2)
+
+where step sˆσ(i) is the predicted completion of the ac-                                                     \textrm {POS} = 1 - \textrm {min}(\frac {\textrm {DamLev}(y, \hat {y})}{|y|},\hspace {0.1cm}1),   (4)
+tion ai ∈ P, at prediction time tˆσ(i), having a prediction
+confidence cσ(i), with m + 1 the total number of recog-                                              where DamLev(·) is a weighted DamLev edit distance func-
+nized procedure steps. The function σ maps a completed                                               tion. Further clarification on POS may be found in the sup-
+step sˆj ∈ yˆt to the corresponding action ai ∈ P. Therefore,                                        plementary material.
+the first predicted step sˆσ(0) is not necessarily the comple-
+tion of the action a0 ∈ P, but rather the first recognized step                                      Metric 2: F1 score. A false positive is defined as a pro-
+that a person completed.                                                                             cedure step sˆσ(j) that is predicted prior to the actual com-
+                                                                                                     pletion of action ai, or if ai is not at all completed, hence
+   The ground-truth execution order yt at time t describes
+the order in which the steps are actually completed, which                                                   (\hat {t}_{\sigma (j)} < t_{\rho (i)}) \vee (a_i \not \in y). \label {eq: FP}                     (5)
+can differ from the prescribed order in P, and is defined as
+
+  y_t = (s_{\rho (0)}, s_{\rho (1)}, \dots , s_{\rho (k)}),                                     (3)  A false negative is defined as a step sρ(j) for a correspond-
+                                                                                                     ing action ai, that has indeed been completed, but is not
+where sρ(i) is the completion of the action ai ∈ P at                                                represented in yˆ, so that
+time tρ(i). The value k + 1 is the total number of actions
+completed and ρ a function that maps the completed steps                                                     (a_i \in y) \wedge (a_i \not \in \hat {y}). \label {eq: FN}                                       (6)
+from yt to the steps described in P. If the order of the steps
+predicted in yˆt equals that of yt, it follows that σ = ρ, sig-                                      Finally, a true positive is defined as the prediction of a pro-
+nifying a perfect execution order prediction.                                                        cedure step sˆσ(j), that is observed at or after the actual com-
+                                                                                                     pletion of ai, such that
+3.2. Evaluation metrics
+                                                                                                             (\hat {t}_{\sigma (j)} \geq t_{\rho (i)}) \wedge (a_i \in y). \label {eq: TP}                     (7)
+   To quantify the performance of a PSR system, three eval-
+uation metrics are proposed. These metrics focus on pre-                                                PSR systems can explicitly assume that actions have
+dicting the procedure steps in the correct order, the number                                         been completed based on procedural information, without
+of false predictions, and the timeliness of the predictions.                                         relying exclusively on sensory recognition. Therefore, a
+                                                                                                     distinction can be made between F1 score at the recognition
+Metric 1: procedure order similarity. We propose to                                                  and system level. Since this definition does not contain any
+measure the quality of a predicted sequence order for an                                             time restriction on true positives, procedure steps that are
+entire recording, yˆ (e.g., ‘ACB’), by comparing it with a                                           recognized long after the step completion are not penalized.
+similarity measure with respect to the ground-truth y (e.g.,                                         Therefore, comparing only the procedure order similarity
+‘ABC’). This is approached as a string similarity problem,                                           and F1 score lacks a temporal component.
+
+                                                                                                     4368
+RGB + gaze   AR Visible light Stereo left / right + hand joints
+
+Modalities
+
+Depth +
+
+                                                                 take_long_brace     plug_short_pin                                                check_instruction                                            fit_nut  background
+                                                                  State 10000000000                                                                   State 11110110000
+Annotations                                                                                                                                                                                                     State 111101111-1
+
+             ASD
+
+             PSR                                                 Installed rear chassis                                                            Installed front chassis                                                         Installed front bracket
+                                                                 Installed front-rear chassis pin                                                  Installed front chassis pin                                            Installed front bracket screw
+                                                                                                                                                                                                                Incorrectly installed front wheel assy
+                                                                                   Installed rear-rear chassis pin                                                                   Installed rear wheel assy
+
+                                                                                                                  Time
+
+Figure 2. Samples from a clip in the IndustReal dataset, demonstrating the modalities and annotations for all three tasks. Gaze is indicated
+
+by the cross, detected hand joints by the dots. AR: action recognition, ASD: assembly state detection, PSR: procedure step recognition.
+
+Metric 3: average delay. To complement the aforemen-                                                                                                    build from scratch, and a maintenance task, where the par-
+tioned metrics with a temporal component, the average                                                                                                   ticipants have to replace part of the rear chassis of the toy
+delay τ is introduced, quantifying the time between the                                                                                                 car. Printed instructions are provided in a subgoal-oriented
+ground-truth completion and corresponding recognition of a                                                                                              manner, meaning that the participant builds towards sub-
+step. False negatives, defined by Equation 6, have an unde-                                                                                             goals rather than executing strict, step-by-step instructions,
+fined delay, and similarly, false positives (defined in Equa-                                                                                           or “free-style” building towards a final assembly. Unlike re-
+tion 5) have either an undefined delay, or a negative delay.                                                                                            lated datasets, participants are allowed to create subassem-
+Therefore, FPs and FNs are excluded from τ , defines as                                                                                                 blies, as commonly encountered in industrial settings.
+
+                                                                   \tau = \frac {1}{h} \sum _{i=0}^{h-1} (\hat {t}_{\sigma (i)} - t_{\rho (i)}),   (8)     All of the parts are 3D printed on an Ultimaker S5 at
+                                                                                                                                                        200% scale, layer height of 0.3 mm, 15% infill, a print speed
+where h is the number of total TPs in y. Because FPs and                                                                                                of 50 mm/s, and PLA filament and the colors white, silver
+FNs are discarded in the delay, only the combination of the                                                                                             metallic, magenta and black. All parts, as well as the final
+three proposed metrics provides a valuable insight into the                                                                                             models, are published together with the dataset, since part
+performance of a system towards solving PSR.                                                                                                            geometries are commonly available in industrial settings,
+                                                                                                                                                        e.g. CAD models.
+4. IndustReal Dataset
+                                                                                                                                                        4.2. Recording and setting
+4.1. Construction-set car procedures
+                                                                                                                                                           The HoloLens 2 (HL2) [34] mixed reality headset is
+   Figure 1 demonstrates the 36 part models used in the                                                                                                 used as recording rig for the dataset. The front-facing RGB
+IndustReal dataset, based on the STEMFIE construction-                                                                                                  camera records at a resolution of 1280×720 pixels and the
+toy car [19]. The model has significant complexity, consist-                                                                                            stereo cameras provide images at 480×620 pixels. The
+ing of multiple types of washers, pins, and braces. Some                                                                                                long-throw depth and IR sensors record at a resolution of
+components require screwing, others need tightening, and                                                                                                320×288 pixels and contain normalized values. Next to the
+participants frequently have to use both hands. Two proce-                                                                                              images, we also record gaze, hand, and head-pose tracking,
+dures are defined, an assembly task, where the car has to be                                                                                            provided by the HL2 algorithms. All sensors, visualized in
+                                                                                                                                                        Fig. 2, are sampled at 10 fps, except from the depth and IR
+                                                                                                                                                        sensors, as these are limited to 5 fps in hardware. The data
+
+                                                                                                                                                        4369
+are sent from the HL2 to a server in real time, using the        4.4.1 Action recognition
+HL2SS library [16].
+                                                                 AR labels consist of the frame at which the action starts,
+   The dataset is recorded in a setting with consistent back-    ends, and the combination of a verb and noun. Given the re-
+ground and lighting conditions. More specifically, partici-      semblance between MECCANO [27] and the construction-
+pants are asked to perform the procedures on a white desk        toy car used in IndustReal, we adopt the same verbs as uti-
+placed against a white background. Such lack of variety in       lized in MECCANO: take, put, align, plug, pull, screw, un-
+background and lighting conditions is assumed to be con-         screw, tighten, loosen, fit, check, and browse. Using these
+sistent with industrial settings. Redundant washers, nuts,       verbs, the component names described in Fig. 1, and the ad-
+screws, and pins are placed amongst the required parts to        ditional nouns objects, partial model, and instruction, we
+reduce bias towards detecting unused parts. Prior to each        have annotated 75 fine-grained action classes and a total
+recording, all parts are sorted into heaps according to color,   of 9,273 instances. The average action lasts 1.9±1.4 sec-
+and then placed randomly on the desk.                            onds. A long-tail distribution is observed, with 80% of the
+                                                                 data containing 29.3% of the actions, and provided together
+4.3. Participants and protocol                                   with more statistical details in the supplementary materi-
+                                                                 als. Recordings have an average of 110±38 actions per
+   In total, 27 participants were recruited. Each participant    video, with 134±32 actions per assembly and 79±13 ac-
+signed a consent form and the experiment was approved            tions maintenance video. Participants frequently perform
+by the institution’s Ethical Review Board. Each participant      actions simultaneously, resulting in 24.2% of all instances
+was asked to perform the assembly procedure once, without        having an overlap with at least one other action.
+recording, to familiarize themselves with the construction-
+set car. During this practice assembly, feedback was pro-        4.4.2 Assembly state detection
+vided to the participants when required. Subsequently, the
+HL2 was fitted to the participant and the gaze tracking was      To the best of our knowledge, IndustReal is the first pub-
+calibrated. Then, each participant was assigned a correct as-    licly available dataset with ASD annotations. Because the
+sembly instruction, a correct maintenance instruction, and       participants have flexibility in execution order, all labeled
+one or two instructions with errors, to ensure that a variety    states must be explicitly defined. We label the assembly
+of mistakes were introduced. As anticipated, the partici-        states with integers, where a “1” indicates that a component
+pants exhibited errors even when they were provided with         at that index has been correctly installed and a “0” indicates
+the correct instructions, and these mistakes were annotated      that it has not (yet) been correctly installed. Additionally,
+as well. The recorded errors in the dataset vary from mi-        we assign “-1” to components that have been incorrectly
+nor, difficult-to-observe mistakes (e.g. installing the wheels   installed. Rather than labeling each assembly part individu-
+without washers), to large mistakes, such as forgetting a        ally with such a code, we divide the toy car into 11 compo-
+wheel. To minimize “learners bias” of the participants in        nents (in order): base, front chassis, front chassis pin, rear
+the dataset, each participant was given the instructions in      chassis, short-rear chassis, front-rear chassis pin, rear-rear
+a random order. Participants were asked to remove their          chassis pin, front bracket, front bracket screw, front wheel
+hands from the assembly after completing a step, to ensure       assy, and rear wheel assy (see Fig. 1). For example, the as-
+a minimally occluded view on the assembly state.                 sembly state 11100000000 consists of a correctly installed
+                                                                 base, front chassis and front chassis pin.
+4.4. Annotation
+                                                                    Bounding boxes and labels are provided for all 22 la-
+   Since IndustReal is intended to be closely representative     beled (defined) states in IndustReal, as well as 27 different
+of industrial use cases, significant importance is given to      error states. Intermediate states, which occur during the as-
+evaluation and robustness to unseen, out-of-distribution er-     sembly of components, are not labeled, as outlined in Fig. 2.
+rors. Additionally, a large real-world test set is desired when  Whilst those states could be annotated as partial model,
+training exclusively on synthetic data. Therefore, a dataset     such labels empirically appear to hold little value. Inter-
+split of 12/5/10 (No. of train/val/test participants) is cho-    mediate states differ from erroneous states in that partic-
+sen, which is heavily focused on the test set. Furthermore,      ipants in intermediate states are actively progressing to-
+numerous errors are exclusively present in the validation or     wards completing a state, whereas participants in erroneous
+test sets. Note that the split is made on participants, rather   states are not trying to further complete that step. In total,
+than videos, to ensure sufficient variation in viewpoint, ex-    26.9K video frames (13% of total) are annotated for ASD,
+ecution, and head movements between the three sets.              of which 3,569 frames show error states.
+
+   Although IndustReal is specifically presented to address
+PSR, annotations are also provided for AR and ASD, en-
+abling researchers to use IndustReal for various tasks, or to
+combine tasks for better PSR performance in future work.
+
+                                                                 4370
+Model           Modalities        Top-1 Top-5                          Pre-trained Fine-tuned   mAP    mAP
+                                 acc. [%] acc. [%]
+                                                                                                (b-boxed) (entire videos)
+
+SlowFast [10]∗  RGB              57.83  82.87                          COCO       Synthetic     0.573  0.341
+SlowFast [10]†  RGB              60.39  85.21                          COCO       IndustReal    0.753  0.553
+MViTv2 [21]∗    RGB              62.43  85.62                          Synthetic  IndustReal    0.779  0.575
+MViTv2 [21]†    RGB              65.25  87.93                                     IndustReal +
+                                                                       COCO       synthetic     0.838  0.641
+
+SlowFast [10]†  RGB, VL, stereo  62.34  85.97                    Table 3. ASD performance benchmark on IndustReal using
+MViTv2 [21]†    RGB, VL, stereo  66.45  88.43                    YOLOv8-m [17] for various training schemes.
+
+Table 2. AR benchmark on IndustReal. ∗MECCANO [27] pre-          performance. Each model is trained on IndustReal after
+trained, †Kinetics [18] pre-trained, VL: visible light.          Kinetics [18] pre-training. Additionally, since the MEC-
+                                                                 CANO dataset for action recognition is closely related to
+4.4.3 Procedure step recognition                                 the IndustReal dataset, we also report baselines pre-trained
+                                                                 on MECCANO. Finally, both networks are trained on depth,
+The PSR labels consist of the frame at which a step com-         visible light (VL), and stereo images, and combined to cre-
+pletion occurs and the new assembly state, as defined in         ate an ensemble of models trained on various modalities.
+the previous section. The difference between two assembly
+states can directly be used to determine which procedure            Top-1 and top-5 accuracy are reported in Tab. 2 for the
+steps are completed. A procedure step is defined as com-         aforementioned experiments. Pre-training on the MEC-
+pleted when the component relating to that step is correctly     CANO dataset does not provide a performance benefit. The
+installed, which includes actions such as the tightening of a    MViTv2 transformer outperforms the SlowFast architec-
+nut. Although the explicit detection of incorrect step execu-    ture. The best performance is observed for the MViTv2
+tion is not included in the PSR task definition (Sec. 3.1), an-  ensemble of the modalities RGB, VL, and stereo images.
+notations of incorrect assembly states are included for qual-    As motivated in supplementary material, depth is excluded
+itative analysis and future work. Therefore, two sets of PSR     from this ensemble. Notably, for both architectures, each
+labels are provided, one with only correctly executed proce-     individual modality is outperformed by the ensemble, in-
+dure steps (e.g. “Installed front chassis”), and one that also   dicating that each modality contains some complementary
+includes incorrectly completed steps, such as “Incorrectly       form of relevant information.
+installed front wing”. An example of a PSR-annotated se-
+quence is outlined in Fig. 2. In total, IndustReal consists      5.2. Assembly state detection benchmark
+of 724 correct procedure step completions (8.6±1.2 correct
+completions per recording) and 38 incorrect step comple-         Definition. Given a video frame Xi and a set of assembly
+tions. In total, 35 videos (42%) contain a missing or in-        states Za = {z0, z1, ..., zn}, the objective of ASD is to de-
+correctly completed procedure step. IndustReal contains          tect the bounding box and assembly state zi ∈ Za for the
+22 different correctly completed procedure execution or-         sample Xi. The states Za are defined in Sec. 4.4.2.
+ders, plus an additional 26 different execution orders con-      Benchmark. For this benchmark, the state-of-the-art ob-
+taining error states.                                            ject detection network YOLOv8-m [17] is employed. Since
+                                                                 geometries of all parts are published with IndustReal
+5. Benchmark Experiments                                         to stimulate synthetic learning, we provide four train-
+                                                                 ing schemes. First, we train the model, pre-trained
+   This section outlines the benchmark performance of            on COCO [22], exclusively on a synthetically generated
+state-of-the-art approaches to AR and ASD on IndustReal.         dataset. To generate the synthetic data, Unity Perception [6]
+Furthermore, a PSR benchmark implementation is outlined          is used to generate 100K training samples, each containing
+and evaluated, providing a baseline performance for more         one assembly state in Za. Secondly, we train the model
+sophisticated approaches towards this task.                      (pre-trained on COCO) directly on IndustReal. Then, we
+                                                                 pre-train on the synthetic dataset, after which we fine-tune
+5.1. Action recognition benchmark                                on the IndustReal dataset. Finally, the synthetic and real-
+                                                                 world datasets are combined for the last baseline.
+Definition. Given a video segment Xi = [xtsi , xtei ] and
+a set of action classes Ca = {c0, c1, ..., cn}, the objective       The results are quantified using the mAP metric and
+of action recognition is to classify segment Xi to the correct   reported on frames of the IndustReal test set containing
+class ci ∈ Ca [27]. Here, xtsi and xtei indicate the start and   ground-truth bounding-box annotations, as well as the en-
+end frame for action ci ∈ Ca, respectively.                      tire test set. As outlined in Tab. 3, combining the synthetic
+Benchmark. For this task, the SlowFast [10] CNN and              and real-world images results in the highest performance. A
+MViTv2-S [21] transformer are chosen to benchmark the            significant performance drop of 27% is observed when eval-
+
+                                                                 4371
+All recordings  Recordings with errors                              Installed rear-rear chassis pin           Installed front wheel assy
+                                                                    Installed rear chassis                    Installed front bracket screw
+POS F1 τ [s] POS F1 τ [s]                                                                                     Installed front bracket
+                                                                                           State 10010010000
+    B1 0.570 0.779 14.9 0.480 0.698 14.4
+    B1-S 0.014 0.206 36.9 0.000 0.174 48.4                                                                    State 11110111111
+    B2 0.731 0.860 22.3 0.636 0.784 20.2
+    B2-S 0.240 0.573 44.4 0.107 0.516 60.5                          (a) ASD predict: base, rear-rear pin (b) ASD predict: entire assembly
+    B3 0.797 0.883 22.4 0.731 0.816 20.4                            and rear chassis correctly installed. procedure correctly installed.
+    B3-S 0.597 0.734 49.5 0.571 0.731 71.4
+                                                                    Figure 3. Visualization of ASD and PSR results for two cases.
+Table 4. PSR performance benchmark on IndustReal with ASD           Bounding boxes and captions indicate the ASD predictions, text
+backbone, expressed by procedure order similarity (POS), F1         boxes indicate PSR predictions (B3). Both ASD predictions are
+score, and average delay τ . B1-3 denote the three baseline models  false positives. (a) Front-rear pin orientation is incorrect, whilst
+and S indicates exclusive training on synthetic data.               the ASD predicts the absence of this pin. (b) Nut instead of screw
+                                                                    is incorrectly used for the front brace, which is not recognized.
+uating entire videos, rather than only frames with a ground-
+truth annotation. The decreased performance is caused by            trained counterpart, it notably outperforms B2-S. This in-
+false positive predictions on states with fine-grained visual       dicates that using procedural information to restrict the set
+differences, predominantly error states and directly prior to       of possible step completions can considerably improve the
+the completion of a procedural step. Notably, the best per-         model performance.
+forming model has a false positive rate of 65% and average
+precision (AP) of 0.23 for assembly states containing an er-        6. Conclusion
+ror. Two such error states, and their corresponding ASD
+predictions, are visualized in Fig. 3, and further analysis is         This paper proposes the novel task of procedure step
+provided in the supplementary materials.                            recognition (PSR). This task bridges the gap that currently
+                                                                    existing action recognition and assembly state detection
+5.3. Procedure step recognition benchmark                           tasks leave in procedural activity understanding, by explic-
+                                                                    itly leveraging procedural information and recognizing cor-
+Definition. The task definition is given in Sec. 3.1.               rectly completed steps. This paves the way for the de-
+                                                                    velopment of upcoming, increasingly powerful procedure-
+Benchmark. For the PSR benchmark, we provide three                  assistive systems.
+baseline implementations relying on the ASD model output
+outlined in the previous section. The first baseline B1 deter-         Along with the PSR task, the IndustReal dataset is pre-
+mines for each change in detected assembly state which cor-         sented. IndustReal differs from existing datasets in the wide
+responding steps must have been completed since the last            variety of procedural and execution errors, subgoal-oriented
+detected state, and assumes these actions to be executed cor-       procedure execution, and 3D printed parts to ensure fu-
+rectly. The second baseline B2 accumulates the confidence           ture reproducibility. Additionally, the geometries of object
+for each predicted step completion (obtained from B1) over          parts are published to stimulate sim2real domain adapta-
+time, until a threshold T is reached, upon which an action          tion and generalization, as this is crucial to scalability in
+is deemed correctly completed. Baseline 3 uses the same             industrial settings. Furthermore, performance benchmarks
+confidence aggregation as B2, but limits the number of pos-         are provided for AR, ASD, and PSR based on the proposed
+sible step completions to those expected in the correct ex-         IndustReal dataset with various pre-training techniques.
+ecution of the given procedure. For each baseline, the best
+performing ASD model from Tab. 3 is used. Additionally,                The PSR baseline shows promising results on procedural
+each baseline is evaluated with the ASD approach trained            videos where participants do not make mistakes, but fails to
+exclusively on synthetic data. The detection pipeline (ASD          generalize to (out-of-distribution) execution errors. Future
++ PSR) yields real-time operation at 178 fps on a v100 GPU.         work will focus on improving upon this baseline perfor-
+                                                                    mance and increase scalability, such that PSR becomes vi-
+   The POS, F1, and τ metrics for all baselines are outlined        able and indeed attractive towards more industrial use cases.
+in Tab. 4. The best performing approach achieves relatively
+high POS and F1 scores (0.797 and 0.883 on all recordings,          Acknowledgment
+respectively), due to under-representation of execution er-
+rors compared to correctly executed steps. On recordings               The authors sincerely express their gratitude to Dr. Jacek
+with errors, all baselines show a distinctive decrease in per-      Kustra, Goutham Balachandran, and all participants for
+formance, as shown in Fig. 3, thereby highlighting the need         their contributions. This work is partially executed at
+for approaches that better handle (out-of-distribution) er-         ASML Research and has received funding from ASML and
+rors. Although the performance of B3-S trained entirely             the TKI research grant (project number TKI2112P07).
+on synthetic data is significantly lower than its real-world
+
+                                                                    4372
+References                                                           [13] Tengda Han, Jue Wang, Anoop Cherian, and Stephen Gould.
+                                                                           Human action forecasting by learning task grammars. arXiv
+ [1] Dustin Aganian, Benedict Stephan, Markus Eisenbach,                   preprint arXiv:1709.06391, 2017. 2
+      Corinna Stretz, and Horst-Michael Gross. Attach dataset:
+      Annotated two-handed assembly actions for human action         [14] Toma´sˇ Hodan, Pavel Haluza, Sˇ tepa´n Obdrzˇa´lek, Jiri Matas,
+      understanding. arXiv preprint arXiv:2304.08210, 2023. 2, 3           Manolis Lourakis, and Xenophon Zabulis. T-LESS: An
+                                                                           RGB-D dataset for 6D pose estimation of texture-less ob-
+ [2] Siddhant Bansal, Chetan Arora, and CV Jawahar. My view                jects. In Proc. WACV, pages 880–888, Los Alamitos, 2017.
+      is the best view: Procedure learning from egocentric videos.         IEEE. 1
+      In Computer Vision–ECCV 2022: 17th European Confer-
+      ence, Tel Aviv, Israel, October 23–27, 2022, Proceedings,      [15] Youngkyoon Jang, Brian Sullivan, Casimir Ludwig, Iain
+      Part XIII, pages 657–675. Springer, 2022. 1                          Gilchrist, Dima Damen, and Walterio Mayol-Cuevas. EPIC-
+                                                                           Tent: An egocentric video dataset for camping tent assem-
+ [3] Siddhant Bansal, Chetan Arora, and CV Jawahar. My view                bly. In Proc. ICCVW, pages 4461–4469, Los Alamitos, 2019.
+      is the best view: Procedure learning from egocentric videos.         IEEE. 2
+      arXiv preprint arXiv:2207.10883, 2022. 2
+                                                                     [16] Dibene J.C. HoloLens 2 Sensor Stream. GitHub repository:
+ [4] Gregory V Bard. Spelling-error tolerant, order-independent            https://github.com/jdibenes/hl2ss, 2022. 6
+      pass-phrases via the damerau-levenshtein string-edit distance
+      metric. Cryptology ePrint Archive, 2006. 4                     [17] Glenn Jocher, Ayush Chaurasia, and Jing Qiu. YOLO by
+                                                                           Ultralytics, Jan. 2023. 7
+ [5] Yizhak Ben-Shabat, Xin Yu, Fatemeh Saleh, Dylan Camp-
+      bell, Cristian Rodriguez-Opazo, Hongdong Li, and Stephen       [18] Will Kay, Joao Carreira, Karen Simonyan, Brian Zhang,
+      Gould. The ikea asm dataset: Understanding people assem-             Chloe Hillier, Sudheendra Vijayanarasimhan, Fabio Viola,
+      bling furniture through actions, objects and pose. In Pro-           Tim Green, Trevor Back, Paul Natsev, et al. The kinetics hu-
+      ceedings of the IEEE/CVF Winter Conference on Applica-               man action video dataset. arXiv preprint arXiv:1705.06950,
+      tions of Computer Vision, pages 847–859, 2021. 2, 3                  2017. 7
+
+ [6] Steve Borkman, Adam Crespi, Saurav Dhakad, Sujoy Gan-           [19] P. Kiefe. STEMFIE construction-set toy. https://
+      guly, Jonathan Hogins, You-Cyuan Jhang, Mohsen Ka-                   stemfie.org/sps-000001, 2022. 2, 5
+      malzadeh, Bowen Li, Steven Leal, Pete Parisi, et al. Unity
+      perception: Generate synthetic data for computer vision.       [20] Colin Lea, Austin Reiter, Rene´ Vidal, and Gregory D Hager.
+      arXiv preprint arXiv:2107.04259, 2021. 7                             Segmental spatiotemporal cnns for fine-grained action seg-
+                                                                           mentation. In European conference on computer vision,
+ [7] Grazia Cicirelli, Roberto Marani, Laura Romeo,                        pages 36–52. Springer, 2016. 4
+      Manuel Garc´ıa Dom´ınguez, Jo´nathan Heras, Anna G
+      Perri, and Tiziana D’Orazio. The ha4m dataset: Multi-          [21] Yanghao Li, Chao-Yuan Wu, Haoqi Fan, Karttikeya Man-
+      modal monitoring of an assembly task for human action                galam, Bo Xiong, Jitendra Malik, and Christoph Feichten-
+      recognition in manufacturing. Scientific Data, 9(1):745,             hofer. MViTv2: Improved multiscale vision transformers for
+      2022. 3                                                              classification and detection. In Proceedings of the IEEE/CVF
+                                                                           Conference on Computer Vision and Pattern Recognition,
+ [8] Dima Damen, Hazel Doughty, Giovanni Maria Farinella,                  pages 4804–4814, 2022. 7
+      Sanja Fidler, Antonino Furnari, Evangelos Kazakos, Da-
+      vide Moltisanti, Jonathan Munro, Toby Perrett, Will Price,     [22] Tsung-Yi Lin, Michael Maire, Serge Belongie, James Hays,
+      and Michael Wray. Scaling egocentric vision: The EPIC-               Pietro Perona, Deva Ramanan, Piotr Dolla´r, and C Lawrence
+      KITCHENS dataset. In Proc. ECCV, Los Alamitos, 2018.                 Zitnick. Microsoft coco: Common objects in context. In
+      IEEE. 2                                                              Computer Vision–ECCV 2014: 13th European Conference,
+                                                                           Zurich, Switzerland, September 6-12, 2014, Proceedings,
+ [9] Fred J Damerau. A technique for computer detection and                Part V 13, pages 740–755. Springer, 2014. 7
+      correction of spelling errors. Communications of the ACM,
+      7(3):171–176, Mar. 1964. 4                                     [23] Xudong Lin, Fabio Petroni, Gedas Bertasius, Marcus
+                                                                           Rohrbach, Shih-Fu Chang, and Lorenzo Torresani. Learning
+[10] Christoph Feichtenhofer, Haoqi Fan, Jitendra Malik, and               to recognize procedural activities with distant supervision. In
+      Kaiming He. SlowFast networks for video recognition. In              Proceedings of the IEEE/CVF Conference on Computer Vi-
+      Proc. ICCV, pages 6202–6211, Los Alamitos, 2019. IEEE.               sion and Pattern Recognition, pages 13853–13863, 2022. 2,
+      7                                                                    4
+
+[11] Mingyu Fu, Wei Fang, Shan Gao, Jianhao Hong, and Yizhou         [24] Hangfan Liu, Yongzhi Su, Jason Rambach, Alain Pagani,
+      Chen. Edge computing-driven scene-aware intelligent aug-             and Didier Stricker. TGA: Two-level group attention for as-
+      mented reality assembly. The International Journal of Ad-            sembly state detection. In Proc. ISMAR-Adjunct, pages 258–
+      vanced Manufacturing Technology, 119:7369—-7381, Apr.                263, Los Alamitos, 2020. IEEE. 1, 2, 3
+      2022. 1, 2
+                                                                     [25] Kosuke Moriwaki, Gaku Nakano, and Tetsuo Inoshita. The
+[12] Carly R Garrow, Karl-Friedrich Kowalewski, Linhong Li,                brio-ta dataset: Understanding anomalous assembly process
+      Martin Wagner, Mona W Schmidt, Sandy Engelhardt,                     in manufacturing. In 2022 IEEE International Conference
+      Daniel A Hashimoto, Hannes G Kenngott, Sebastian Boden-              on Image Processing (ICIP), pages 1991–1995. IEEE, 2022.
+      stedt, Stefanie Speidel, et al. Machine learning for surgical        2, 3
+      phase recognition: a systematic review. Annals of surgery,
+      273(4):684–693, Apr. 2021. 1                                   [26] Francesco Ragusa, Antonino Furnari, and Giovanni Maria
+                                                                           Farinella. Meccano: A multimodal egocentric dataset for hu-
+                                                                           mans behavior understanding in the industrial-like domain.
+
+                                                                     4373
+      Computer Vision and Image Understanding, page 103764,          [39] Odysseas Zisimopoulos, Evangello Flouty, Imanol Luengo,
+      2023. 3                                                              Petros Giataganas, Jean Nehme, Andre Chow, and Danail
+[27] Francesco Ragusa, Antonino Furnari, Salvatore Livatino,               Stoyanov. DeepPhase: surgical phase recognition in
+      and Giovanni Maria Farinella. The MECCANO dataset:                   cataracts videos. In Proc. MICCAI, pages 265–272. Springer,
+      Understanding human-object interactions from egocentric              2018. 1
+      videos in an industrial-like domain. In Proc. WACV, pages
+      1569–1578, Los Alamitos, 2021. IEEE. 1, 2, 3, 6, 7
+[28] Komang Rinartha, Wayan Suryasa, and Luh Gede Surya Kar-
+      tika. Comparative analysis of string similarity on dynamic
+      query suggestions. In Proc. EECCIS, pages 399–404, Los
+      Alamitos, 2018. IEEE. 4
+[29] Tim J. Schoonbeek, Hans Onvlee, Pierluigi Frisco, Pe-
+      ter H.N. De With, and Fons Van der Sommen. Beyond action
+      recognition: Extracting meaningful information from proce-
+      dure recordings. In 2023 IEEE Conference on Virtual Real-
+      ity and 3D User Interfaces Abstracts and Workshops (VRW),
+      pages 881–882, 2023. 1
+[30] Fadime Sener, Dibyadip Chatterjee, Daniel Shelepov, Kun
+      He, Dipika Singhania, Robert Wang, and Angela Yao. As-
+      sembly101: A large-scale multi-view video dataset for un-
+      derstanding procedural activities. In Proc. CVPR, pages
+      21096–21106, Los Alamitos, 2022. IEEE. 1, 2, 3
+[31] Yuhan Shen, Lu Wang, and Ehsan Elhamifar. Learning to
+      segment actions from visual and language instructions via
+      differentiable weak sequence alignment. In Proc. CVPR,
+      pages 10156–10165, Los Alamitos, 2021. IEEE. 2
+[32] Yongzhi Su, Mingxin Liu, Jason Rambach, Antonia Pehrson,
+      Anton Berg, and Didier Stricker. IKEA object state
+      dataset: A 6DoF object pose estimation dataset and bench-
+      mark for multi-state assembly objects. arXiv preprint
+      arXiv:2111.08614, 2021. 2
+[33] Yongzhi Su, Jason Rambach, Nareg Minaskan, Paul Lesur,
+      Alain Pagani, and Didier Stricker. Deep multi-state object
+      pose estimation for augmented reality assembly. In Proc.
+      ISMAR-Adjunct, pages 222–227, Los Alamitos, 2019. IEEE.
+      1, 2
+[34] Dorin Ungureanu, Federica Bogo, Silvano Galliani, Pooja
+      Sama, Xin Duan, Casey Meekhof, Jan Stu¨hmer, Thomas J
+      Cashman, Bugra Tekin, Johannes L Scho¨nberger, et al.
+      Hololens 2 research mode as a tool for computer vision re-
+      search. arXiv preprint arXiv:2008.11239, 2020. 5
+[35] Zihui Xue, Yale Song, Kristen Grauman, and Lorenzo Tor-
+      resani. Egocentric video task translation. In Proceedings of
+      the IEEE/CVF Conference on Computer Vision and Pattern
+      Recognition, pages 2310–2320, 2023. 2
+[36] Xuyue Yin, Xiumin Fan, Wenmin Zhu, and Rui Liu. Syn-
+      chronous AR assembly assistance and monitoring system
+      based on ego-centric vision. Assembly Automation, 39(1):1–
+      16, Apr. 2018. 2
+[37] Bing Zhou and Sinem Gu¨ven. Fine-grained visual recog-
+      nition in mobile augmented reality for technical support.
+      IEEE Transactions on Visualization and Computer Graph-
+      ics, 26(12):3514–3523, Dec. 2020. 2
+[38] Dimitri Zhukov, Jean-Baptiste Alayrac, Ramazan Gokberk
+      Cinbis, David Fouhey, Ivan Laptev, and Josef Sivic. Cross-
+      task weakly supervised learning from instructional videos. In
+      Proc. CVPR, pages 3537–3545, Los Alamitos, 2019. IEEE.
+      2
+
+                                                                     4374
+

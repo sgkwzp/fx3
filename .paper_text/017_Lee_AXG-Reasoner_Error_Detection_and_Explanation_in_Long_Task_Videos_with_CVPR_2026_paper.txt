@@ -1,0 +1,804 @@
+This CVPR paper is the Open Access version, provided by the Computer Vision Foundation.
+                 Except for this watermark, it is identical to the accepted version;
+
+          the final published version of the proceedings is available on IEEE Xplore.
+
+AXG-Reasoner: Error Detection and Explanation in Long Task Videos
+                          with Vision–Language Models
+
+         Shih-Po Lee                                                           Ehsan Elhamifar
+  Northeastern University                                                 Northeastern University
+
+lee.shih@northeastern.edu                                             e.elhamifar@northeastern.edu
+
+                        Abstract                                               <Prompt>: Your goal is to ‘make tea’. You have finished the following steps: Measure water. Pour water into
+                                                                               kettle. … Now you are trying to do action ‘stir using spoon’. Given a sequence of images for ‘stir using spoon',
+Virtual task assistants must recognize and explain users’                      output a score to show the correctness of the action and determine if there has been an error during execution
+mistakes to provide effective and corrective guidance. In                      and your reason. The score ranges from 0 to 1. Higher score indicates the action in the images is more correct.
+this paper, we address the problem of error reasoning in                       The output format: Score: <score>, Reason: <reason>"
+long task videos, which is to detect and explain errors.
+Although recent Vision–Language Models (VLMs) demon-                                                                    VLM
+strate strong capabilities in visual question answering, they
+struggle to attend to the sparse spatiotemporal cues asso-                     Score: 0.8, Reason: The person is holding a spoon and appears to be stirring the contents of the mug, which is
+ciated with errors in long task videos. We introduce an                        consistent with the action of stirring tea. However, the score is not a perfect 1 because the stirring motion is not
+error reasoning framework, AXG-Reasoner, that leverages                        explicitly shown in the still image, and we cannot confirm the thoroughness of the stirring action. The overall
+a frozen VLM in conjunction with a proposed Action eX-                         setup and the person's hand position indicate a high likelihood of correct execution, hence the score of 0.8.
+ecution Graph (AXG) and a temporal action segmentation                         There does not appear to be any error in the execution based on the provided image.
+(TAS) model, obtained and learned from normal (error-free)                     <Prompt>: Your goal is to ‘make tea. You have finished the following steps: Measure water. … Pour water into
+videos. To enable VLMs to attend to the sparse spatiotem-                      mug. Now you are trying to do action ‘place tea bag in mug’. Given a sequence of images for ‘place tea bag in
+poral cues associated with errors, we decompose each ac-                       mug', output a score to show the correctness of the action and determine if there has been an error during
+tion segment of the video, obtained by TAS, into a sequence                    execution and your reason. The score ranges from 0 to 1. Higher score indicates the action in the images is more
+of fine-grained subactions by aligning it with the AXG.                        correct. The output format: Score: <score>, Reason: <reason>"
+For each subaction segment, we query the VLM using a
+small number of keyframes and enhanced prompts to de-                                                                   VLM
+tect and explain errors, enabling data efficiency. To avoid
+costly manual subaction annotations, we develop a method                       Score: 0.8, Reason: The sequence of images shows the person handling a tea bag and placing it into a blue
+to automatically construct AXG from training videos us-                        mug, which aligns with the action of 'Place tea bag in mug'. However, the score is not a perfect 1 because the
+ing foundation models. Extensive experiments on EgoPER                         images do not explicitly show the tea bag being fully submerged or the string being left outside the mug, which
+and CaptainCook4D show that our method consistently im-                        are typical steps in this process. Overall, the action is mostly correct, hence the score of 0.8. There does not
+proves over VLM baselines in error explanation by effec-                       appear to be any significant error in the execution based on the provided images.
+tively identifying spatiotemporal cues and achieves state-
+of-the-art performance in error detection. 1                          Figure 1. VLMs can fail to recognize and explain errors in long task
+                                                                      videos. In the top row, the VLM (Qwen2.5-VL-32B) fails to recognize
+1. Introduction                                                       spatially subtle error (using knife instead of spoon). In the bottom row, the
+                                                                      VLM fails to recognize a temporally subtle, short error (dropping tea bag).
+People continually acquire new skills to enrich their daily
+lives and enhance their professional activities. To support           52, 54, 61, 62, 69], video grounding [2, 9, 11, 29, 36, 40, 55,
+this learning process, AI task assistants have emerged to             66, 70], progress prediction [8, 63], and learning from in-
+analyze users’ behaviors over time and provide adaptive,              structional videos [5, 12, 13, 22, 39, 41, 42, 48, 51, 53, 65].
+context-aware guidance. This has motivated research on ac-            A key required capability of AI task assistants is the ability
+tion recognition [3, 4, 15, 16, 28, 30, 38, 56], temporal ac-         to detect and explain user errors, enabling users to under-
+tion segmentation [14, 19, 23, 26, 27, 32, 34, 35, 47, 49, 50,        stand and correct their mistakes effectively. This has mo-
+                                                                      tivated recent research on error understanding, which has
+    1code: https://github.com/robert80203/AXG-Reasoner                primarily focused on error detection [7, 17, 18, 21, 25, 37,
+                                                                      43, 58] and error recognition [24]. However, the problem of
+                                                                      providing error explainability remains largely unsolved.
+
+                                                                         In this paper, we address the problem of error reason-
+                                                                      ing — the task of detecting errors in long task videos and
+                                                                      explaining why they have been detected as errors. This
+                                                                      capability offers two key advantages. First, it facilitates
+                                                                      task learning by helping users clearly understand the mis-
+                                                                      takes they make during the process. Second, it reveals
+
+                                                                3421
+the model’s rationale when identifying potential errors, en-          fine-grained subactions and then infer possible errors based
+abling more accurate improvements and promoting inter-                on their prior knowledge. Therefore, our third objective is to
+pretable and trustworthy behavior. Despite recent advances            design precise prompts based on fine-grained action de-
+in Vision–Language Models (VLMs) for addressing Visual                composition to more effectively leverage VLMs’ reasoning
+Question Answering (VQA) in videos [1, 6, 33, 45, 57, 68],            capabilities for detecting and explaining errors.
+significant challenges remain, particularly for error reason-
+ing in long task videos.                                              Paper Contributions. We propose a framework to address
+                                                                      the aforementioned challenges of error reasoning in long
+   First, errors in task videos are often spatially and tem-          task videos using frozen VLMs. We first segment long
+porally subtle compared to their corresponding correct ac-            task videos into action segments using a TAS model learned
+tions, making them challenging for VLMs to detect and in-             from only normal (error-free) training videos. To mitigate
+terpret. For example, using an incorrect tool or object in            VLMs’ limitations in attending to subtle spatial and tem-
+part of a long video may involve only a minor spatial differ-         poral cues associated with errors in long video clips, we
+ence between two small objects (e.g., spoon versus knife),            automatically decompose each action segment into a se-
+posing a challenge for error detection and explanation via            quence of subactions and leverage the strengths of VLMs
+VLMs (the top row in Fig. 1). Similarly, when most of                 in understanding short clips to reason about subaction cor-
+an action execution is correct but a short temporal segment           rectness. We make the inference data-efficient by calling
+contains an error (e.g., picking up a tea bag but dropping it         VLMs to reason about keyframes of the small number of
+in the middle of the clip, picking up another one, and trans-         subactions. We incorporate the subactions themselves into
+ferring it to the mug), understanding the error becomes dif-          VLM prompts to enhance error reasoning.
+ficult for VLMs (the bottom row in Fig. 1). Consequently,
+VLMs exhibit performance degradation in error detection                  To avoid costly manual subaction annotations, we intro-
+and explanation for long videos, as they fail to focus on the         duce an Action eXecution Graph (AXG) built automati-
+sparse spatial and temporal cues associated with errors, in           cally from training videos using foundation models. The
+contrast to the abundant cues available for correct actions.          AXG captures subactions and encodes feasible execution
+Therefore, our first objective is to enhance the ability of           paths. It is also training-free (requiring no parameter op-
+pretrained VLMs to focus on sparse spatiotemporal cues                timization) and can be seamlessly integrated with any off-
+indicative of errors.                                                 the-shelf TAS model and VLM.
+
+   Second, due to limited computational resources and the                During inference, we perform graph-to-video alignment
+need to maintain efficiency, VLMs can process only a small            to segment each action clip produced by TAS into subac-
+subset of frames at inference time from the large number              tions, apply VLM-based reasoning on their keyframes, and
+of frames present in long task videos. Selecting keyframes            aggregate the results for error detection and explanation.
+that effectively capture the essential content of each action         Extensive experiments on the EgoPER and CaptainCook4D
+can therefore help alleviate computational bottlenecks and            datasets show that our method surpasses state-of-the-art ap-
+mitigate the aforementioned loss of focus on temporal cues.           proaches in error detection and explanation, while maintain-
+Prior work on long-video reasoning has explored various               ing high data efficiency.
+keyframe selection strategies [31, 59], such as hierarchi-
+cal tree structures for identifying keyframes corresponding           2. Related Work
+to both coarse- and fine-grained activities [59]. However,
+these approaches fail to specify the precise actions that must        Error Understanding for Procedural Tasks. Recent stud-
+be correctly performed in the selected keyframes, which is            ies have explored various directions in understanding errors
+crucial for guiding VLMs in detecting and explaining er-              within procedural tasks, including online/offline error de-
+rors. Thus, our second objective is to improve data effi-             tection [17, 21, 25, 37], error recognition [24], and error
+ciency by selecting most informative keyframes and in-                explanation [43]. Specifically, EgoPED [25] and AMNAR
+voking VLMs only on them.                                             [21] focus on offline error detection, primarily targeting ex-
+                                                                      ecution errors by utilizing action feature prototypes. In con-
+   Third, general action descriptions in VLM prompts lack             trast, PREGO [17] and DTGL [37] perform online detection
+the precise contextual details necessary for error reason-            for procedural errors by leveraging action recognition mod-
+ing. For example, the general action “place tea bag in mug”           els with LLMs and the pre-conditions based on the learned
+may involve several subactions, such as “grab a tea bag,”             task graph, respectively. Beyond detection, GTG2Vid [24]
+“open the package,” “remove the tea bag from the pack-                jointly detects errors and classifies their types to provide
+age,” and “place the tea bag in the mug,” each of which               precise feedback to users. Moreover, MistSense [43] trains
+can lead to different types of errors. Prompting VLMs with            a framework that integrates an error detection model with a
+high-level actions often yields unpredictable and imprecise           large language model (LLM) to both identify errors and ex-
+outputs, as the models must first decompose the action into           plain their causes, enhancing user understanding and expe-
+                                                                      rience. In contrast, we address error reasoning in long task
+
+                                                                3422
+videos by leveraging VLMs with our training-free AXG,                                𝑡𝑙𝑜𝑐 = 10               𝑡𝑙𝑜𝑐 = 95              𝑡𝑙𝑜𝑐 = 7            𝑡𝑙𝑜𝑐 = 90
+enabling generalizable and interpretable reasoning.
+                                                                                                                                                                              𝑷𝒂𝒄𝒕𝒊𝒐𝒏
+Long Video Understanding via VLMs/LLMs. Recent de-
+velopments of large language models (LLMs) and vision-                                                                         VLM
+language models (VLMs) has advanced research in long
+video understanding [31, 33, 59, 60, 64]. Due to limited                             <action>            <action>                   <action>            <action>
+computational resources and the need for flexibility, sev-                           Open a plastic bag  Place tea bag in mug       Open a plastic bag  Place tea bag in mug
+eral recent works have explored training-free frameworks                             <objects>           <objects>                  <objects>           <objects>
+that leverage VLMs for different vision tasks over long                              Plastic bag         Blue mug                   Plastic bag         Blue mug
+videos. For instance, LAVAD [64] tackles video anomaly                               Tea package         Tea bag                    Honey bottle        Tea bag
+detection by employing VLMs for frame-level captioning                               Kettle              Bowl                       Kettle
+and LLMs for temporal aggregation and anomaly score es-
+timation. Other training-free approaches focus on identi-                            Sinusiodal  𝑡𝑙𝑜𝑐 = 10            Sentence BERT           𝑡𝑙𝑜𝑐 = 7             𝑡𝑙𝑜𝑐 = 90
+fying frames that provide precise visual cues for effective                          embedding                       𝑡𝑙𝑜𝑐 = 95
+video understanding. For example, VIDEOTREE [59] con-                                                        Kmeans and Cluster Pruning
+structs a hierarchical tree to model video activities at mul-
+tiple granularities, using Adaptive Breadth Expansion to                                                 Subaction clusters              <action> place tea bag in mug
+extract key information and Relevance-guided Depth Ex-                                                                                                    <subaction>
+pansion to capture finer visual details. BOLT [31] investi-                                                  cluster k
+gates different frame selection strategies and demonstrates                                                                                           Open a plastic bag
+that inverse transform sampling improves performance by                                                  𝑂𝑘  𝐶𝑘                                       Put tea bag in mug
+increasing the sampling probability of frames with higher
+relevance to the given query. Our method jointly consid-                             LLM                 <object> tea bag, …        LLM
+ers keyframe selection and prompt generation to effectively
+address error reasoning in long task videos.                                                                 Repeating for all clusters
+
+                                                                                     Figure 2. Our subaction generation pipeline consists of 1) action and ob-
+                                                                                     ject description generation via a VLM, 2) clustering with temporal-aware
+                                                                                     text embeddings and cluster pruning, 3) subaction generation via a LLM.
+
+3. Proposed Method                                                                   the package,” “remove the tea bag from the package,” and
+                                                                                     “place the tea bag in the mug”. We do not assume training
+3.1. Problem Setting and Overview                                                    videos come with ground-truth subactions, which is very
+                                                                                     costly to gather.
+Problem Setting. Assume we have a video that con-
+                                                                                     Framework Overview. We first train a temporal ac-
+sists of multiple actions from a given task, and that some                           tion segmentation (TAS) model ϕ on the available training
+                                                                                     videos using any existing architecture [24, 25, 34]. A key
+of its frames may` contain user errors during task˘ execu-                           observation is that frames containing errors are typically
+tion. Let X “ pI1, x1q, pI2, x2q, . . . , pIT , xT q denote                          classified as one of the action classes (rather than back-
+                                                                                     ground) in the TAS output (see Figure 5). This is because
+the sequence of video frames and their corresponding pre-                            errors are often spatially and temporally subtle relative to
+                                                                                     their corresponding correct actions. Our goal is to leverage
+extracted features. We represent the segmentation of the                             frozen VLMs to efficiently analyze each action segment for
+                                                                                     error reasoning: (1) detecting if a segment contains an error
+video into distinct actions as V “ pv1, v2, . . . , vN q, where                      and (2) generating a corresponding textual explanation.
+
+N is the number of action segments and each segment                                     To help VLMs focus on the sparse spatial and temporal
+                                                                                     cues associated with errors, while also improving data effi-
+vn  “  pa   n  ,  ts  ,  te  q  consists  of  the  action  class  an  and its        ciency by reducing the number of VLM queries, we divide
+                                                                                     each action segment into a sequence of subaction segments
+                   n      n               ts  and ten, respectively.                 and select keyframes from each subaction as input to the
+                                                                                     VLM. This enables the VLM to reason over short, infor-
+start  and  end   frame         indices    n                          Here,          mative clips rather than long, redundant action sequences,
+                                                                                     providing both stronger reasoning and faster inference.
+an P t0, . . . , Au, where A is the number of actions and
+                                                                                        To automatically obtain subaction segments, we con-
+class 0 indicates background (task-irrelevant actions). For                          struct an Action eXecution Graph (AXG) from the train-
+                                                                                     ing videos using foundation models. In brief, this involves
+error reasoning, our goal is twofold: (1) Error detection:                           captioning the frames of each action using a VLM, perform-
+                                                                                     ing temporally aware clustering of the resulting text embed-
+predict segment-wise errors Y “ py1, y2, . . . , yN q, where                         dings, and extracting subactions using an LLM. The nodes
+                                                                                     of the AXG represent subactions, while the edges encode
+yn P t0, 1u and yn “ 1 indicates the presence of an error                            predecessor–successor relationships, defining feasible sub-
+
+in segment n; and (2) Error explanation: generate tex-
+
+tual justifications Z “ pz1, z2, . . . , zN q, where each zn is a
+
+free-form description explaining why (or why not) the cor-
+
+responding segment is erroneous.
+
+    For training, we assume we have only normal (error-free)
+
+videos of the task with ground-truth framewise action la-
+
+bels. As discussed in the introduction, each coarse-level ac-
+
+tion can be decomposed into fine-grained subactions, e.g.,
+
+“put tea bag in mug” may consist of “grab a tea bag,” “open
+
+                                                                               3423
+             AXG                             𝐺𝑜                                 Algorithm 1 Inference Procedure for Error Reasoning
+
+                  𝒔′                           𝑖                                                                                               s        e
+                                                                                                                                               n        n
+          𝒔                                                                     1:   I`nputs:  V  “  pv1, v2, . . . , vN q˘, vn  “  pan  ,  t     ,  t     q,  X  “
+
+          Subactions                                                                 pI1, x1q, pI2, x2q, . . . , pIT , xT q , and G1, . . . , GA
+
+          Open plastic bag             𝒔                              𝒔′        2: Outputs: Z “ pz1, z2, . . . , zN q, Y “ py1, y2, . . . , yN q
+
+          put tea bag in mug                                                    3: for n “ 1 to N do
+
+          tear package                                                          4: Segments Ð G2VpGan , pxtsn , . . . , xten qq                            Ź TSS
+                                                                                5: for Segment in Segments do
+
+                                                                                6:   Frames Ð Sampling Framespsegmentq
+
+                                                                                7:   if Assigned segment then
+
+                                                                                8:             score, reason Ð F pFrames, P cq
+
+                              Graph-to-Video Alignment                          9:   else
+                                        Frequent subaction sequences
+                                                                                10:            score Ð 0
+
+                              = 2 + 1             𝐺𝑖                            11:            reason Ð F pFrames, P rq
+                              = 0
+Counters                                                                        12:  end if
+                              = 1
+                                          𝒔                           𝒔′        13:  yn Ð 1, if score ď 0.5
+
+                                                                                14:  zn Ð zn‘ reason
+
+                                                                                15: end for
+
+Figure 3. The illustration of our AXG construction process. We constrcut        16: end for
+AXG by enumerating all possible subaction sequences and retain the paths
+that commonly observed in training videos.                                      17: return Y, Z
+
+action sequences. By aligning this graph with a given action                    denotes the total number of action descriptions in cluster k.2
+clip (graph-to-video alignment), we segment the clip into                          Next, for objects in each valid cluster (associated with a
+subactions. Finally, we enrich VLM prompts with the iden-
+tified subactions to improve the quality of error reasoning.                    subaction), we use an LLM to obtain the most common ob-
+                                                                                jects in that subaction (we use the prompt “output at most
+3.2. Learning Subactions from Training Videos                                   five object names that commonly occur in Ok”, where Ok
+                                                                                consists of all object names identified by VLM in cluster
+Our goal is to automatically extract the subactions involved                    k). We then use these common objects to better summa-
+in performing each action. To do so, we take ground-truth                       rize the action descriptions in the same cluster using an
+segments of an action across training videos, sample one                        LLM. More specifically, we use an LLM with the prompt
+every β frame and use a VLM with the prompt Paction (e.g.,                      “output an action that most commonly occurs in the descrip-
+“describe the action the person is doing and the name for ev-                   tions: Ck by focusing on the object names in Ok”, where
+ery object the person is interacting with”) to produce action                   Ck denotes all VLM-based action descriptions in cluster k.
+descriptions and object names for those. We use Sentence                        Repeating this process across all valid clusters and remov-
+BERT [46] to embed descriptions of actions and objects for                      ing repetitions of the same subaction summary, we produce
+the selected frames, see Figure 2.                                              final textual list of subactions and their features by perform-
+                                                                                ing average over pre-extracted features corresponding to the
+   We apply Kmeans clustering on temporally-aware tex-                          frames in each cluster associated with an action.
+tual embeddings to produce K temporally contiguous and
+coherent subaction clusters. More specifically, we embed                        3.3. Action eXecution Graph (AXG)
+the time-stamp tloc “ roundp te´ts t´t ˆ s 100q of each text
+embedding using a sinusoidal embedding and combine it                           We build the AXG of each action, which encodes feasible
+with textual embedding by summation, where t, ts, te de-                        sequences of subactions to perform it, see Figure 3. It is a
+note the timestamps of the frame associate to the text, and                     directed acyclic graph G “ pU, Eq, where each node u P U
+the start and end of the associated action segment, respec-                     denotes a subaction in an action and each edge puj, uiq P E
+tively. This allows distinguishing similar actions that have                    indicates that the subaction ui can start only after subaction
+different context (e.g., holding a kettle before moving it                      uj is done. In the AXG, each path from the source node s
+close to mug vs holding it after pouring water from it to                       to the sink node s1 represents a valid subaction sequence to
+the mug), thereby facilitating more accurate subaction lo-                      execute the action. To construct the AXG for action i, de-
+calization across varying temporal contexts. Some subac-                        noted by Gi, we first construct an initial graph Goi by using
+tion clusters, however, may be invalid (e.g., irrelevant to                     the set of subactions obtained from our clustering approach
+the action) due to noisy or inconsistent action descriptions                    (discussed in the previous subsection) and enumerating all
+generated by VLMs. A key characteristic of such clusters                        possible subaction sequences as paths in this graph. We
+is having a small size. Therefore, to obtain valid clusters,
+we discard clusters whose size is less than Tk{K, where Tk                          2In our experiments, this choice worked well. Smaller thresholds in-
+                                                                                creased the number of both good and noisy (bad) clusters.
+
+                                                                          3424
+Method      VLM                             EgoPER                                      Method                      TAS VLM EgoPER                                                Cook4D
+
+                                 Quesadilla Oatmeal Pinwheel Coffee Tea All                                                                        N. E. F1@.5 N. E. F1@.5
+
+Naive       InternVL Qwen2.5-VL  4.0   4.0  4.0 0.0 6.0 3.6                             EgoPED [25] ACTF                        N/A             24.0 21.1 22.5 13.4 7.5 10.5
+VTREE [59]                                                                              GTG2Vid [24] GTG2Vid                                    42.8 23.2 33.0 18.0 14.3 16.2
+AXG                              5.0   6.0  4.0 1.0 9.0 5.0
+                                                                                                                                                10.6 24.0 17.3 20.4 21.0 20.7
+Naive                            22.0  17.0 18.0 17.0 13.0 17.4                         Naive                    ACTF                           27.4 24.4 25.9 18.1 28.0 21.1
+AXG                                                                                     AXG                      ACTF
+                                 22.0  19.0 18.0 22.0 18.0 19.8                                                                 Qwen2.5-VL      30.6 10.2 20.4 13.3 17.4 15.3
+                                                                                                                                                36.4 30.4 33.4 19.0 38.2 28.5
+                                 31.0  22.0 27.0 20.0 23.0 24.6                         Naive                 GTG2Vid
+                                                                                        AXG                   GTG2Vid                           31.0 10.2 20.6 18.0 15.7 16.9
+                                                            Cook4D                                                                              30.5 20.7 25.6 18.7 28.8 23.8
+                                 Hot Chocolate Sandwich Burritos Ramen Raita All        Naive                    ACTF           InternVL3.5
+                                                                                        AXG                      ACTF                           30.1 9.1 19.6 15.9 21.4 18.7
+Naive       InternVL Qwen2.5-VL  8.0   4.0  4.0 2.0 3.0 4.0                                                                                     38.3 25.2 31.8 19.0 39.1 29.0
+VTREE [59]                                                                              Naive                 GTG2Vid
+AXG                              3.0   3.0  6.0 2.0 1.0 3.0                             AXG                   GTG2Vid
+
+Naive                            18.0  21.0 20.0 18.0 19.0 19.2
+AXG
+                                 19.0  16.0 24.0 19.0 12.0 18.0                         Table 2. Average Error Detection results of different methods over all
+                                                                                        tasks in each dataset for EgoPER and CaptainCook4D.
+                                 23.0  21.0 19.0 18.0 25.0 21.2
+
+Table 1. Error explanation performance (%) on GT action segments.                                      5 clusters (K=5)         10 clusters (K=10)                       20 clusters (K=20)
+                                                                                                                                                                       tea
+                                                                                                       10     oatmeal                                 76
+                                                                                                                                                      65             43
+                                                                                        10                                                            54           2 212 1
+                                                                                                                                                54
+then obtain the AXG Gi using graph-to-video alignment by                                            87
+pruning Goi via retaining the subaction sequences that are                                          46 5 5 4 4                                                  3
+commonly observed in the training videos of action i.
+                                                                                  Count of Actions                          21               2     2
+
+                                                                                                    2                                              1
+
+More specifically, we perform graph-to-video align-                                                 01 2 3 4                                       01 2 3 4
+                                                                                                                                                          breakfastburritos
+ment (G2V) to associate frames within each ground-truth                                             5 spicedhotchocolate
+                                                                                                                                                   98
+segment of action i in the training videos with their corre-                                        44        4
+sponding subactions in Goi . In practice, we use [10] as the                                                                                       8
+G2V method, which allows dropping frames when no sub-                                               3      3     3
+                                                                                                                                                   7 66
+                                                                                                    22
+                                                                                                    1 11 1               1                      1  6
+actions are matched. G2V also provides the optimal path                                                                                            5
+
+                                                                                                                                                   34 3 2 2 1 1 2 1 2 1
+
+                                                                                                                                                   1
+
+that best aligns with the sequence of frames. We record the                                         01 2 3 4 5 6 01 2 3 4 5 6
+                                                                                                                   Number of Subactions per Action
+occurrence count of each subaction sequence, and construct
+
+Gi by retaining only sequeYnces] whose occurrence counts                                Figure 4. Distribution of the number of subactions per action. Each bar
+                                       Ni                                               shows how many actions contain a given number of subactions.
+are greater than or equal to           Mi  , where Ni denotes the to-
+
+tal number of training action i segments and Mi is the num-                             pv1, v2, . . . , vN q, with vn                             “  pan  ,       ts  ,  te  q.  For a non-
+ber of paths of Goi that occur at least once in the training
+                                                                                                                                                                    n      n
+videos. This ensures that only consistently observed sub-
+                                                                                        background action segment vn with action an “ i, we per-
+action sequences are preserved, yielding a robust and rep-
+                                                                                        form TSS using graph-to-video (G2V) alignment [10] us-
+resentative AXG structure that captures the common proce-
+                                                                                        ing the AXG Gi. We ignore background segments, since
+dural flow while discarding outlier or noisy variations.
+                                                                                        they are task-irrelevant actions by definition and most error
+
+An alternative yet naive approach to build AXG is to                                    frames are classified as action segments (see the analysis
+
+aggregate subaction sequences from training videos by as-                               in the experimental section). We perform TSS for all action
+
+signing subactions to frames according to their correspond-                             segments and obtain their corresponding subaction segmen-
+
+ing subaction clusters. However, the obtained subaction                                 tations. In the output of G2V, each subaction segment is ei-
+
+segmentations often contain noise, as they may include re-                              ther assigned to a subaction or dropped (not matched with
+
+peated or interleaved subactions that deviate from the order-                           any subaction, hence considered as error).
+
+ing typically observed in the action.                                                   Reasoning with VLMs. We use a VLM F to perform er-
+                                                                                        ror reasoning on subaction segments. We uniformly sample
+3.4. Error Reasoning Inference                                                          α frames from each subaction segment as keyframes for F.
+                                                                                        We design two types of prompts for F to handle assigned
+At test time, we leverage VLMs with our actionwise-AXGs                                 and dropped segments, respectively. A segment assigned
+(we have one AXG per action) to perform error detection                                 to a subaction may contain subtle errors related spatial or
+and explanation in long task videos. Inference consists of                              temporal deviations (e.g., using spoon versus knife) as they
+two stages: (1) Temporal Subaction Segmentation (TSS)                                   are visually similar to the associated subaction. To han-
+and (2) Reasoning with VLMs, see Algorithm 1.                                           dle them, we use F to obtain the correctness score and tex-
+                                                                                        tual justification. We use the subaction and action to create
+Temporal Subaction Segmentation (TSS). We use a tem-                                    an enhanced prompt P c: “You are performing subaction
+poral action segmentation model ϕ to segment the test
+video into actions and obtain action segments V “
+
+                                                                                  3425
+                                                                                                                                                         EgoPER  Cook4D
+
+Method VLM EgoPER                  Cook4D                                                                                                                                 88.6
+                    N. E. F1   N. E. F1                                                                                                                                 83.2
+       InternVL Qwen2.5-VL
+                                                                                                                                    InternVL Qwen2.5-VL53.0 29.9 41.5
+                              52.8 34.7 43.7
+                                                                                                                                GTG2Vid ACTF FACT24.7 65.5 45.1
+                                                       Method VLM EgoPER Cook4D
+                              67.5 22.2 44.9
+Naive  87.1 26.3 56.7         33.8 58.0 45.9           Naive         3.4   5.4                                                                                   82.0
+VTREE  85.6 22.2 53.9                                  VTREE                                                                                                     83.8
+AXG    80.1 47.0 63.6                                  AXG           4.8   2.8
+
+                                                       Naive         16.8  26.6
+                                                       AXG
+Naive  88.2 13.7 50.9                                                18.4  19.4                                                                          89.0
+AXG    79.2 44.1 61.6                                                                                                                                 84.0
+                                                                     25.0  21.4
+                                                                                                          0 20 40 60 80 100
+Table 3. Error detection performance of methods on GT  Table 4. Error explanation (%) for ac-                           Percentage (%)
+action segments for EgoPER and CaptainCook4D.          tions with one subaction on GT segments.
+                                                                                                 Figure 5. The percentages (%) of error frames
+                                                                                                 classified as actions by different TAS models.
+
+ă subaction ą of action ă action ą. Given a sequence of              to 1”. For error detection evaluation, we follow GTG2Vid
+images, output a score that measures the correctness of the          [24] to compute the segment-wise F1 score using an overlap
+subaction being performed and provide your reason, where             threshold γ to determine whether a predicted segment is a
+the score ranges from 0 to 1”.                                       correct match. To address data imbalance, we report two F1
+                                                                     scores, N. and E., which treat normal and error segments as
+   On the other hand, we consider segments dropped by                the positive class, respectively. Their average is reported as
+G2V as errors, since they do not correspond to any valid             F1@γ. Also, we report F1 score with GT action segments
+subaction. We use F to produce the textual description               to show the upper-bound performance of error detection.
+describing the error and with the correctness score set to
+0. We use the prompt P r: “You are performing action                 Baselines. For error explanation, we compare our meth-
+ă action ą and you have made a mistake. Given a se-                  ods with a keyframe selection method, VIDEOTREE [59]
+quence of images, describe the mistake being made.”. See             (VTREE), and a naive baseline (Naive) that uniformly sam-
+our supplementary materials for the details of the prompts.          ple α frames from action segment as keyframe for F with
+                                                                     prompt “You are performing action ă action ą. Given a
+   Finally, we predict action segment vn as erroneous if             sequence of images, output a score that measures the cor-
+the correctness score of any subaction within vn is less than        rectness of the action being performed and provide your
+or equal to 0.5 and generate the justification zn by combin-         reason, where the score ranges from 0 to 1”. We use
+ing all descriptions of subaction segments within vn.                two VLMs as F for error reasoning: Qwen2.5-VL-32B-
+                                                                     Instruct [45] (Qwen2.5-VL) and InternVL3 5-14B [57] (In-
+4. Experiments                                                       ternVL3.5). For error detection, we report the performance
+                                                                     of Qwen2.5VL, InternVL3.5, and other two non-VLM er-
+4.1. Experimental Setup                                              ror detection baselines GTG2Vid [24] and EgoPED [25].
+                                                                     Since GTG2Vid also performs TAS, we use ActionFormer
+Dataset. We evaluate our proposed method on EgoPER                   (ACTF) [67] and GTG2Vid [24] as TAS model ϕ.
+[25] and CaptainCook4D [44] for error reasoning, includ-
+ing error detection and explanation. EgoPER consists of              Implementation Details. We use Timesformer [3] pre-
+5 procedural tasks with 386 egocentric videos, 5 types               trained on Ego4D [20] to extract frame features from videos
+of errors, and the corresponding error descriptions, which           as in [24]. We set the number of sampling frames α to 8 and
+we use as ground-truth error explanation text. Captain-              3 for Qwen2.5-VL and InternVL3.5, respectively across all
+Cook4D contains egocentric procedural tasks videos among             datasets. We set the number of clusters K “ 5 to obtain
+24 tasks with various types of errors and their descriptions         a decent performance across different datasets for both er-
+as well. For EgoPER, we use all 5 tasks for evaluation               ror detection and explanation. To avoid noisy reasoning
+with the same training and testing split in [25]. For Cap-           on oversegmented subaction segments, in practice, we ig-
+tainCook4D (Cook4D), we follow [24] to select task Spiced            nore the subaction segments whose duration is less than
+Hot Chocolate (Hot Chocolate), Microwave Egg Sandwich                2 seconds. We set the sampling frame rate β “ 6. We
+(Sandwich), Breakfast Burritos (Burritos), Ramen, and Cu-            use Qwen2.5VL as the VLM for generating action descrip-
+cumber Raita (Raita) for evaluation as they have sufficient          tions and object names from frames. We use Qwen2.5-32B-
+normal and erroneous videos for both training and evalua-            Instruct (Qwen2.5) as the LLM for object/subaction gener-
+tion. For each dataset, we report the average score over all         ation and error explanation evaluation. We train different
+its asks, referred to as All.                                        TAS models on EgoPER and CaptainCook4D, respectively.
+                                                                     We do the training and evaluation on a NVIDIA H100 GPU.
+Evaluation Metrics. For error explanation evaluation, we
+use an LLM to evaluate free-form descriptions Z based on
+ground-truth (GT) action segments. We use the prompt
+“output a similarity score based on the semantics between
+GT and predicted descriptions, where the score is from 0
+
+                                                               3426
+K Oatmeal         Tea  Hot Chocolate  Burritos
+         S F1  S F1                   S F1
+                       S  F1                                                                                                      AXG GT
+
+5 20.0 65.1 17.0 77.1 22.0 39.0 27.0 39.7                                          Hold     Open      Place bowl into     Close
+10 18.0 63.2 18.0 74.4 19.0 42.2 29.0 41.4                                         bowl  microwave      microwave      microwave
+20 22.0 61.3 19.0 74.8 26.0 40.2 30.0 39.9
+
+                                                                                                                                  Put down honey bottle
+
+Table 5. Error detection (F1) and explanation (similarity score, S) perfor-                                                       AXG GT
+mance of AXG across different values of K.
+
+                                                                                   Open honey bottle  pouring honey into the mug
+
+4.2. Experimental Results                                                          Figure 6. Visualization of AXG (left) and GT subactions (right) for the
+                                                                                   actions “put bowl in microwave” (top) and “add honey to mug” (bottom).
+Error explanation. Table 1 shows the error explanation
+performance of different methods on GT action segments                             they encounter errors mentioned in Section 3.4. Figure 5
+for EgoPER and CaptainCook4D. For All in EgoPER, our                               presents the percentage of error frames classified as any
+method outperforms VTREE and Naive (Qwen2.5-VL) by                                 action class rather than background class by TAS models.
+achieving 17.4% and 24.6%, compared to their gains of                              Across both datasets, the most error frames are categorized
+5.0% and 3.6%. For All in CaptainCook4D, our method                                as actions, accounting for over 80% in all cases. This ob-
+achieves improvements of 19.2% and 21.1%, exceeding the                            servation indicates that errors predominantly occur within
+4.0% and 18.0% obtained by Naive (Qwen2.5-VL and In-                               action segments rather than background ones, consistent
+ternVL3.5).                                                                        with the intuition that procedural mistakes are more simi-
+                                                                                   lar to normal actions, justifying our claim in Section 3.4.
+   Our experiments yield three main findings. First, AXG                           Among the models, GTG2Vid and a recent TAS model,
+consistently improves the error explanation performance of                         FACT [34], achieve slightly higher action-error ratios than
+both Qwen2.5-VL and InternVL3.5, demonstrating its ef-                             EgoPED, implying that their segmentation boundaries align
+fectiveness in keyframe selection and enriched prompt con-                         more closely with actual error regions.
+struction. Second, VTREE struggles to identify keyframes
+in task videos, as it primarily relies on LLM-based cluster-                       Detailed Analysis for Subactions in AXG. In this section,
+ing without explicitly modeling procedural action structure.                       we 1) analyze how the number of subactions generated by
+Third, InternVL3.5 reliably outperforms Qwen2.5-VL in er-                          AXG varies with the number of clusters K and how this
+ror explanation across all settings.                                               relates to error detection and explanation performance and
+                                                                                   2) visualize the subactions.
+Error Detection. Table 2 compares error detection per-
+formance across different methods on EgoPER and Cap-                                  Figure 2 shows the distribution of subaction counts per
+tainCook4D using various TAS models. Overall, AXG                                  action under different clustering settings (K “ 5, 10, 20).
+consistently outperforms the na¨ıve baseline, improving                            Across the four tasks, most actions contain only a single
+F1@0.5 by roughly 13% on both datasets when paired                                 subaction with k “ 5 or 10. This trend suggests that the
+with GTG2Vid as TAS model and Qwen2.5-VL. Moreover,                                majority of actions are either (1) simple, (2) temporally
+AXG achieves state-of-the-art performance, yielding gains                          short, or (3) dominated by one long subaction, with only a
+of 33.4% and 29.0% with Qwen2.5-VL and InternVL3.5,                                small portion requiring multiple subactions to capture finer
+respectively, higher than the 33.0% and 16.2% reported by                          procedural structure. Table 4 reports the error explanation
+GTG2Vid on EgoPER and CaptainCook4D. These results                                 performance specifically for actions whose AXGs contain
+indicate that our method enhances VLMs’ ability to detect                          only one subaction. Specifically, AXG achieves 25.0% and
+errors without over-flagging normal segments.                                      21.4% higher F1 scores than the naive baseline with In-
+                                                                                   ternVL3.5. This demonstrates that performing TSS with
+   Next, Table 3 reports error detection performance on GT                         a single-subaction AXG can effectively localize a refined
+action segments, reflecting the upper-bound capability of                          subaction segment and erroneous frames within an action,
+the models. Under this setting, AXG achieves 63.6% and                             improving error explanation.
+45.1% F1@.5, outperforming VTREE (53.9% and 43.7%)
+and Naive (56.7% and 41.5%) on EgoPER and Captain-                                    As the number of clusters increases, we observe a rise in
+Cook4D with Qwen2.5-VL. AXG also improves over In-                                 actions containing more subactions, reflecting the finer pro-
+ternVL3.5, reaching 61.6% and 45.9%, compared with the                             cedural granularity captured by larger values of K. Table
+naive baseline scores of 50.9% and 44.9%. Although AXG                             5 reports error explanation and detection performance on
+shows a drop in N., indicating that it over-flags normal seg-                      GT action segments across different cluster sizes for Oat-
+ments as errors, it achieves superior overall error detection                      meal and Tea in EgoPER, and Hot Chocolate and Burritos
+performance compared to the naive baseline and VTREE.                              in CaptainCook4D. The results show that larger K gener-
+                                                                                   ally improves AXG’s error explanation performance, sug-
+Temporal Action Segmentation on Errors. We investi-
+gate the prediction behaviors of different TAS models when
+
+                                                                             3427
+       Naive (Qwen2.5-VL)                                      Action frames  Subaction frames        AXG (Qwen2.5-VL)
+
+Score: 0.5, Reason: The images           Stir mug using spoon                 Stir using spoon  Score: 1.0, Reason: The image shows a person using a spoon to stir a blue mug, which
+show a person interacting with a                                                                contains a dark liquid, likely tea. The hand is actively moving the spoon in a circular
+mug and a spoon, but the specific                                                               motion, indicating the action of stirring. This aligns perfectly with the subaction "The
+action of stirring the tea is not                                                               person is stirring a cup with a spoon." Therefore, the action is correctly depicted, and the
+clearly depicted. The person                                                                    score is 1.
+appears to be handling the spoon
+near the mug, which is consistent                                             <Dropped>         Score: 0.0, Reason: You are attempting to stir the tea using a knife instead of a spoon,
+with the task of stirring, but there is                                                         which is not the correct utensil for stirring.
+no clear indication of the stirring
+motion itself. Therefore, the score is
+0.5, as the context suggests the
+action is being attempted but the
+execution is not fully visible.
+
+Score: 0.8, Reason: The sequence                                              Ope n             Score: 0.8, Reason: The images show a person handling a plastic bag, which is consistent
+of images shows a person handling                                                plastic bag    with the action of opening a plastic bag. However, the score is not a perfect 1 because the
+a tea bag and placing it into a mug,                                                            images do not explicitly show the bag being fully opened or the contents being revealed
+which aligns with the step "Place        Place tea mug in mug                 <Dropped>         Score: 0.0, Reason: You are attempting to place the tea bag in the mug, but you
+tea bag in mug.“. … However, the                                                                accidentally drop it on the floor, which is a mistake as it can contaminate the tea bag.
+score is not a perfect 1 because the                                          Tear a tea        Score: 1.0, Reason: The images show a person holding a tea bag and using their fingers to
+images do not explicitly show the                                                bag            tear it open, which is a clear indication of the subaction "The person is tearing a tea bag."
+tea bag being fully submerged or                                                                The person is carefully manipulating the tea bag, which is consistent with the action of
+the mug being filled with water,                                              Place tea         tearing it to prepare for steeping
+which are typically part of the                                                  bag in mug     Score: 1.0, Reason: The sequence of images shows a person holding a tea bag and placing
+complete action. The focus is                                                                   it into a mug, which aligns perfectly with the subaction "The person is placing a tea bag in
+mainly on the placement of the tea                                                              a mug."
+bag.
+
+Figure 7. Qualitative results on error reasoning for action “stir mug using spoon” (top) and “place tea bag in mug” (bottom) of task Tea in EgoPER.
+
+gesting that finer subactions offer more temporal cues for                                            the correct object and localize the source of the error.
+identifying errors. However, increasing the number of clus-
+ters degrades error detection performance, indicating that                                               On the other hand, the frames at the bottom of the fig-
+excessive granularity introduces noisy subactions that may                                            ure shows the error “drop tea bag on floor” for the correct
+cause AXG to over-flag normal segments as errors.                                                     action “place tea bag in mug”, demonstrating the error oc-
+                                                                                                      curring shortly in the action. Naive baseline recognizes the
+   Finally, we manually construct the ground-truth (GT)                                               action as correct because the action is performed eventually
+AXGs for two actions in EgoPER and provide qualitative                                                but provides bad explanation “the images do not explicitly
+comparisons in Figure 6, which demonstrate that our AXGs                                              show the tea bag being fully submerged or the mug being
+are semantically meaningful. However, GT AXGs may                                                     filled with water” (in red). Our method segments the action
+have annotator bias, as their structure can vary based on                                             into three subactions (first, third, and fourth one) with ex-
+subjective interpretations of subactions. Overall, our AXGs                                           planations that correctly describe the associated subactions
+closely align with those constructed by human annotators.                                             and one dropped segment (second one) with correct expla-
+                                                                                                      nation “you accidentally drop it on the floor” for describing
+Qualitative Results. Figure 7 (left) shows the explana-                                               errors. AXG effectively localizes the short segment con-
+tion generated by Qwen2.5-VL, while the right panel dis-                                              taining errors with good explanation.
+plays the subaction segments and corresponding explana-
+tions produced by AXG. The frames in the gray box at the                                              5. Conclusions
+top of the figure illustrate the error “stir mug using knife”
+for the correct action “stir mug using spoon”, demonstrat-                                            We investigated error reasoning in long task videos, by
+ing the minor spatial difference between the two objects.                                             proposing and incorporating into VLMs the Action eXecu-
+The naive baseline fails to distinguish this subtle difference.                                       tion Graph (AXG), a training-free method that decomposes
+Although AXG also struggles to correctly classify the ac-                                             each action into subactions and encodes their possible ex-
+tion due to the underlying VLM’s limited capability, it suc-                                          ecution sequences. By performing temporal subaction seg-
+cessfully drops the erroneous frames (hence we declare the                                            mentation, AXG identifies keyframes and enriches prompts
+segment as error) and generates an accurate explanation:                                              with subactions to facilitate error reasoning. Experiments
+“You are attempting to stir the tea using a knife instead of a                                        on two datasets demonstrate that our framework effectively
+spoon” (shown in green). A key observation is that prompt-                                            detects errors when combined with various temporal action
+ing the model with phrases such as “You have made a mis-                                              segmentation models and consistently enhances error expla-
+take” significantly improves the VLM’s ability to attend to                                           nation performance across different VLMs.
+
+                                                                                                3428
+6. Acknowledgments                                                              Stepformer: Self-supervised step discovery and localization
+                                                                                in instructional videos. IEEE Conference on Computer Vi-
+This work was funded, in part, by ARPA-H                                        sion and Pattern Recognition, 2023. 1
+(1AY2AX000062), NSF (IIS-2115110), ONR                                    [12] E. Elhamifar and D. Huynh. Self-supervised multi-task pro-
+(N000142512287) and DARPA (HR00112220001).                                      cedure learning from instructional videos. European Confer-
+The views and conclusions contained in this document                            ence on Computer Vision, 2020. 1
+are those of the authors and should not be interpreted                    [13] E. Elhamifar and Z. Naing. Unsupervised procedure learning
+as representing the official policies, either expressed or                      via joint dynamic summarization. International Conference
+implied, of the US Government.                                                  on Computer Vision, 2019. 1
+                                                                          [14] Yazan Abu Farha and Jurgen Gall. Ms-tcn: Multi-stage tem-
+References                                                                      poral convolutional network for action segmentation. In Pro-
+                                                                                ceedings of the IEEE/CVF conference on computer vision
+ [1] Jean-Baptiste Alayrac, Jeff Donahue, Pauline Luc, Antoine                  and pattern recognition, pages 3575–3584, 2019. 1
+      Miech, Iain Barr, Yana Hasson, Karel Lenc, Arthur Mensch,           [15] C. Feichtenhofer. X3d: Expanding architectures for efficient
+      Katherine Millican, Malcolm Reynolds, et al. Flamingo: a                  video recognition. In 2020 IEEE/CVF Conference on Com-
+      visual language model for few-shot learning. Advances in                  puter Vision and Pattern Recognition (CVPR), 2020. 1
+      Neural Information Processing Systems, 35:23716–23736,              [16] C. Feichtenhofer, H. Fan, J. Malik, and K. He. Slowfast net-
+      2022. 2                                                                   works for video recognition. In 2019 IEEE/CVF Interna-
+                                                                                tional Conference on Computer Vision (ICCV), 2019. 1
+ [2] Kumar Ashutosh, Santhosh Kumar Ramakrishnan, Tri-                    [17] Alessandro Flaborea, Guido Melendugno, Leonardo Pliniq,
+      antafyllos Afouras, and Kristen Grauman. Video-mined task                 Luca Scofanoq, Edoardo Matteisq, Antonino Furnari, Gio-
+      graphs for keystep recognition in instructional videos. Neu-              vanni Farinella, and Fabio Galasso. Prego: online mistake
+      ral Information Processing Systems, 2023. 1                               detection in procedural egocentric videos. IEEE Conference
+                                                                                on Computer Vision and Pattern Recognition, 2024. 1, 2
+ [3] Gedas Bertasius, Heng Wang, and Lorenzo Torresani. Is                [18] Reza Ghoddoosian, Isht Dwivedi, Nakul Agarwal, and Be-
+      space-time attention all you need for video understanding?                hzad Dariush. Weakly-supervised action segmentation and
+      In Proceedings of the International Conference on Machine                 unseen error detection in anomalous instructional videos. In
+      Learning (ICML), 2021. 1, 6                                               Proceedings of the IEEE/CVF International Conference on
+                                                                                Computer Vision, pages 10128–10138, 2023. 1
+ [4] J. Carreira and A. Zisserman. Quo vadis, action recognition?         [19] Uzay Go¨kay, Federico Spurio, Dominik R. Bach, and Juer-
+      a new model and the kinetics dataset. In IEEE Conference                  gen Gall. Skeleton motion words for unsupervised skeleton-
+      on Computer Vision and Pattern Recognition, 2017. 1                       based temporal action segmentation. In Proceedings of the
+                                                                                IEEE/CVF International Conference on Computer Vision
+ [5] Chien-Yi Chang, De-An Huang, Danfei Xu, Ehsan Adeli,                       (ICCV), 2025. 1
+      Li Fei-Fei, and Juan Carlos Niebles. Procedure planning in          [20] Kristen Grauman, Andrew Westbury, Eugene Byrne,
+      instructional videos. In Computer Vision – ECCV 2020: 16th                Zachary Chavis, Antonino Furnari, Rohit Girdhar, Jackson
+      European Conference, Glasgow, UK, August 23–28, 2020,                     Hamburger, Hao Jiang, Miao Liu, Xingyu Liu, Miguel Mar-
+      Proceedings, Part XI, 2020. 1                                             tin, Tushar Nagarajan, Ilija Radosavovic, Santhosh K. Ra-
+                                                                                makrishnan, Fiona Ryan, Jayant Sharma, Michael Wray,
+ [6] Wenliang Dai, Junnan Li, Dongxu Li, Anthony Tiong,                         Mengmeng Xu, Eric Z. Xu, Chen Zhao, Siddhant Bansal,
+      Junqi Zhao, Weisheng Wang, Boyang Li, Pascale Fung,                       Dhruv Batra, Vincent Cartillier, Sean Crane, Tien Do, Morrie
+      and Steven Hoi. InstructBLIP: Towards general-purpose                     Doulaty, Akshay Erapalli, Christoph Feichtenhofer, Adriano
+      vision-language models with instruction tuning. In Thirty-                Fragomeni, Qichen Fu, Christian Fuegen, Abrham Gebre-
+      seventh Conference on Neural Information Processing Sys-                  selasie, Cristina Gonza´lez, James M. Hillis, Xuhua Huang,
+      tems, 2023. 2                                                             Yifei Huang, Wenqi Jia, Weslie Khoo, Ja´chym Kola´r, Satwik
+                                                                                Kottur, Anurag Kumar, Federico Landini, Chao Li, Yang-
+ [7] Guodong Ding, Fadime Sener, Shugao Ma, and Angela Yao.                     hao Li, Zhenqiang Li, Karttikeya Mangalam, Raghava Mod-
+      Every mistake counts in assembly. arXiv: 2307.16453, 2023.                hugu, Jonathan Munro, Tullie Murrell, Takumi Nishiyasu,
+      1                                                                         Will Price, Paola Ruiz Puentes, Merey Ramazanova, Leda
+                                                                                Sari, Kiran K. Somasundaram, Audrey Southerland, Yusuke
+ [8] G. Donahue and E. Elhamifar. Learning to predict activity                  Sugano, Ruijie Tao, Minh Vo, Yuchen Wang, Xindi Wu,
+      progress by self-supervised video alignment. IEEE Confer-                 Takuma Yagi, Yunyi Zhu, Pablo Arbela´ez, David J. Crandall,
+      ence on Computer Vision and Pattern Recognition, 2024. 1                  Dima Damen, Giovanni Maria Farinella, Bernard Ghanem,
+                                                                                Vamsi Krishna Ithapu, C. V. Jawahar, Hanbyul Joo, Kris
+ [9] Nikita Dvornik, Isma Hadji, Konstantinos G Derpanis, Ani-                  Kitani, Haizhou Li, Richard A. Newcombe, Aude Oliva,
+      mesh Garg, and Allan D Jepson. Drop-dtw: Aligning com-                    Hyun Soo Park, James M. Rehg, Yoichi Sato, Jianbo Shi,
+      mon signal between sequences while dropping outliers. In                  Mike Zheng Shou, Antonio Torralba, Lorenzo Torresani,
+      NeurIPS, 2021. 1                                                          Mingfei Yan, and Jitendra Malik. Ego4d: Around the world
+
+[10] Nikita Dvornik, Isma Hadji, Hai Pham, Dhaivat Bhatt, Brais
+      Martinez, Afsaneh Fazly, and Allan D Jepson. Flow graph
+      to video grounding for weakly-supervised multi-step local-
+      ization. In European Conference on Computer Vision, pages
+      319–335. Springer, 2022. 5
+
+[11] Nikita Dvornik, Isma Hadji, Ran Zhang, Konstantinos Der-
+      panis, Animesh Garg, Richard Wildes, and Allan Jepson.
+
+                                                                    3429
+      in 3,000 hours of egocentric video. 2022 IEEE/CVF Confer-             [33] Yujie Lu, Yale Song, William Wang, Lorenzo Torresani, and
+      ence on Computer Vision and Pattern Recognition (CVPR),                     Tushar Nagarajan. Vited: Video temporal evidence distil-
+      pages 18973–18990, 2021. 6                                                  lation. In Proceedings of the Computer Vision and Pattern
+[21] Wei-Jin Huang, Yuan-Ming Li, Zhi-Wei Xia, Yu-Ming Tang,                      Recognition Conference (CVPR), pages 8501–8511, 2025. 2,
+      Kun-Yu Lin, Jian-Fang Hu, and Wei-Shi Zheng. Modeling                       3
+      multiple normal action representations for error detection in
+      procedural tasks. In IEEE Conference on Computer Vision               [34] Z. Lu and E. Elhamifar. Fact: Frame-action cross-attention
+      and Pattern Recognition, 2025. 1, 2                                         temporal modeling for efficient action segmentation. IEEE
+[22] Mohaiminul Islam, Tushar Nagarajan, Huiyu Wang, Fu-Jen                       Conference on Computer Vision and Pattern Recognition,
+      Chu, Kris Kitani, Gedas Bertasius, and Xitong Yang. Pro-                    2024. 1, 3, 7
+      pose, assess, search: Harnessing llms for goal-oriented plan-
+      ning in instructional videos. European Conference on Com-             [35] Z. Lu and E. Elhamifar. Multi-modal few-shot temporal ac-
+      puter Vision, 2024. 1                                                       tion segmentation. International Conference on Computer
+[23] C. Lea, M. D. Flynn, R. Vidal, A. Reiter, and G. D. Hager.                   Vision, 2025. 1
+      Temporal convolutional networks for action segmentation
+      and detection. IEEE Conference on Computer Vision and                 [36] Z. Lu, A. Iftekhar, G. Mittal, T. Meng, X. Wang, C. Zhao,
+      Pattern Recognition, 2017. 1                                                R. Kukkala, E. Elhamifar, and M. Chen. Decafnet: Delegate
+[24] S. Lee and E. Elhamifar. Error recognition in procedural                     and conquer for efficient temporal grounding in long videos.
+      videos using generalized task graph. International Confer-                  IEEE Conference on Computer Vision and Pattern Recogni-
+      ence on Computer Vision, 2025. 1, 2, 3, 5, 6                                tion, 2025. 1
+[25] S. Lee, Z. Lu, Z. Zhang, M. Hoai, and E. Elhamifar. Error
+      detection in egocentric procedural task videos. IEEE Con-             [37] Antonino Furnari Luigi Seminara, Giovanni Maria Farinella.
+      ference on Computer Vision and Pattern Recognition, 2024.                   Differentiable task graph learning: Procedural activity rep-
+      1, 2, 3, 5, 6                                                               resentation and online mistake detection from egocentric
+[26] M. Li, L. Chen, Y. Duarr, Z. Hu, J. Feng, J. Zhou, and J.                    videos. Neural Information Processing Systems, 2024. 1,
+      Lu. Bridge-prompt: Towards ordinal action understanding                     2
+      in instructional videos. In 2022 IEEE/CVF Conference on
+      Computer Vision and Pattern Recognition (CVPR), 2022. 1               [38] K. Mangalam, H. Fan, Y. Li, C. Wu, B. Xiong, C. Feicht-
+[27] Shi-Jie Li, Yazan AbuFarha, Yun Liu, Ming-Ming Cheng,                        enhofer, and J. Malik. Reversible vision transformers. In
+      and Juergen Gall. Ms-tcn++: Multi-stage temporal convolu-                   2022 IEEE/CVF Conference on Computer Vision and Pat-
+      tional network for action segmentation. IEEE Transactions                   tern Recognition (CVPR), 2022. 1
+      on Pattern Analysis and Machine Intelligence, pages 1–1,
+      2020. 1                                                               [39] A. Miech, J-B. Alayrac, L. Smaira, I. Laptev, J. Sivic, and
+[28] Yanghao Li, Chao-Yuan Wu, Haoqi Fan, Karttikeya Man-                         A. Zisserman. End-to-end learning of visual representations
+      galam, Bo Xiong, Jitendra Malik, and Christoph Feichten-                    from uncurated instructional videos. IEEE Conference on
+      hofer. Mvitv2: Improved multiscale vision transformers for                  Computer Vision and Pattern Recognition, 2020. 1
+      classification and detection. In 2022 IEEE/CVF Conference
+      on Computer Vision and Pattern Recognition (CVPR), 2022.              [40] Fangzhou Mu, Sicheng Mo, and Yin Li. Snag: Scalable and
+      1                                                                           accurate video grounding. IEEE Conference on Computer
+[29] Zeqian Li, Qirui Chen, Tengda Han, Ya Zhan, Yanfeng                          Vision and Pattern Recognition, 2024. 1
+      Wang, and Weidi Xie. Multi-sentence grounding for long-
+      term instructional video. European Conference on Computer             [41] Tushar Nagarajan and Lorenzo Torresani. Step differences
+      Vision, 2024. 1                                                             in instructional video. IEEE Conference on Computer Vision
+[30] Ji Lin, Chuang Gan, and Song Han. Tsm: Temporal shift                        and Pattern Recognition, 2024. 1
+      module for efficient video understanding. In Proceedings
+      of the IEEE International Conference on Computer Vision,              [42] Kumaranage Ravindu Yasas Nagasinghe, Honglu Zhou,
+      2019. 1                                                                     Malitha Gunawardhana, Martin Renqiang Min, Daniel
+[31] Shuming Liu, Chen Zhao, Tianqi Xu, and Bernard Ghanem.                       Harari, and Muhammad Haris Khan. Why not use your text-
+      Bolt: Boost large vision-language model without training for                book? knowledge-enhanced procedure planning of instruc-
+      long-form video understanding. In Proceedings of the Com-                   tional videos. IEEE Conference on Computer Vision and Pat-
+      puter Vision and Pattern Recognition Conference (CVPR),                     tern Recognition, 2024. 1
+      pages 3318–3327, 2025. 2, 3
+[32] Yang Liu, Jiayu Huo, Jingjing Peng, Rachel Sparks, Prokar              [43] Constantin Patsch, Yuankai Wu, Marsil Zakour, Driton Sal-
+      Dasgupta, Alejandro Granados, and Sebastien Ourselin.                       ihu, and Eckehard Steinbach. Mistsense: Versatile online de-
+      Skit: a fast key information video transformer for online sur-              tection of procedural and execution mistakes. In Proceedings
+      gical phase recognition. In Proceedings of the IEEE/CVF                     of the IEEE/CVF International Conference on Computer Vi-
+      International Conference on Computer Vision, pages 21074–                   sion (ICCV), 2025. 1, 2
+      21084, 2023. 1
+                                                                            [44] Rohith Peddi, Shivvrat Arya, Bharath Challa, Likhitha Pal-
+                                                                                  lapothula, Akshay Vyas, Bhavya Gouripeddi, Jikai Wang,
+                                                                                  Qifan Zhang, Vasundhara Komaragiri, Eric Ragan, Nicholas
+                                                                                  Ruozzi, Yu Xiang, and Vibhav Gogate. CaptainCook4D: A
+                                                                                  Dataset for Understanding Errors in Procedural Activities,
+                                                                                  2024. 6
+
+                                                                            [45] Qwen-Team. Qwen2. 5-vl technical report. arXiv preprint
+                                                                                  arXiv:2502.13923, 2025. 2, 6
+
+                                                                            [46] Nils Reimers and Iryna Gurevych. Sentence-BERT: Sen-
+                                                                                  tence embeddings using Siamese BERT-networks. In Pro-
+                                                                                  ceedings of the 2019 Conference on Empirical Methods
+
+                                                                      3430
+      in Natural Language Processing and the 9th International                    Dahua Lin, Jifeng Dai, Weijie Su, Bowen Zhou, Kai Chen,
+      Joint Conference on Natural Language Processing (EMNLP-                     Yu Qiao, Wenhai Wang, and Gen Luo. Internvl3.5: Advanc-
+      IJCNLP), 2019. 4                                                            ing open-source multimodal models in versatility, reasoning,
+                                                                                  and efficiency. arXiv preprint arXiv:2508.18265, 2025. 2, 6
+[47] M. Rohrbach, S. Amin, M. Andriluka, and B. Schiele. A                  [58] Xin Wang, Taein Kwon, Mahdi Rad1 Bowen Pan, Ishani
+      database for fine grained activity detection of cooking ac-                 Chakraborty, and Sean Andrist. Holoassist: an egocentric
+      tivities. IEEE Conference on Computer Vision and Pattern                    human interaction dataset for interactive ai assistants in the
+      Recognition, 2012. 1                                                        real world. IEEE International Conference on Computer Vi-
+                                                                                  sion, 2023. 1
+[48] Y. Shen and E. Elhamifar. Semi-weakly-supervised learn-                [59] Ziyang Wang, Shoubin Yu, Elias Stengel-Eskin, Jaehong
+      ing of complex actions from instructional task videos. IEEE                 Yoon, Feng Cheng, Gedas Bertasius, and Mohit Bansal.
+      Conference on Computer Vision and Pattern Recognition,                      Videotree: Adaptive tree-based video representation for llm
+      2022. 1                                                                     reasoning on long videos. In Proceedings of the Computer
+                                                                                  Vision and Pattern Recognition Conference (CVPR), pages
+[49] Y. Shen and E. Elhamifar. Progress-aware online action seg-                  3272–3283, 2025. 2, 3, 5, 6
+      mentation for egocentric procedural task videos. IEEE Con-            [60] Muchao Ye, Weiyang Liu, and Pan He. Vera: Explainable
+      ference on Computer Vision and Pattern Recognition, 2024.                   video anomaly detection via verbalized learning of vision-
+      1                                                                           language models. In Proceedings of the Computer Vision
+                                                                                  and Pattern Recognition Conference (CVPR), 2025. 3
+[50] Y. Shen and E. Elhamifar. Understanding multi-task activi-             [61] S. Yeung, O. Russakovsky, N. Jin, M. Andriluka, G. Mori,
+      ties from single-task videos. IEEE Conference on Computer                   and L. Fei-Fei. Every moment counts: Dense detailed label-
+      Vision and Pattern Recognition, 2025. 1                                     ing of actions in complex videos. International Journal of
+                                                                                  Computer Vision, 2018. 1
+[51] Y. Shen, L. Wang, and E. Elhamifar. Learning to segment ac-            [62] Fangqiu Yi, Hongyu Wen, and Tingting Jiang. Asformer:
+      tions from visual and language instructions via differentiable              Transformer for action segmentation. In The British Machine
+      weak sequence alignment. IEEE Conference on Computer                        Vision Conference (BMVC), 2021. 1
+      Vision and Pattern Recognition, 2021. 1                               [63] P. Zameni, Y. Shen, and E. Elhamifar. Moscato: Predicting
+                                                                                  multiple object state change through actions. International
+[52] Yaser Souri, Mohsen Fayyaz, Luca Minciullo, Gianpiero                        Conference on Computer Vision, 2025. 1
+      Francesca, and Juergen Gall. Fast Weakly Supervised Ac-               [64] Luca Zanella, Willi Menapace, Massimiliano Mancini, Yim-
+      tion Segmentation Using Mutual Consistency. PAMI, 2021.                     ing Wang, and Elisa Ricci. Harnessing large language mod-
+      1                                                                           els for training-free video anomaly detection. IEEE Confer-
+                                                                                  ence on Computer Vision and Pattern Recognition, 2024. 3
+[53] Tomavs Souvcek, Dima Damen, Michael Wray, Ivan Laptev,                 [65] Ali Zare, Yulei Niu, Hammad Ayyubi, and Shih-Fu Chang.
+      and Josef Sivic. Genhowto: Learning to generate actions and                 Rap: Retrieval-augmented planner for adaptive procedure
+      state transformations from instructional videos. IEEE Con-                  planning in instructional videos. European Conference on
+      ference on Computer Vision and Pattern Recognition, 2024.                   Computer Vision, 2024. 1
+      1                                                                     [66] Runhao Zeng, Jiaqi Mao, Minghao Lai, Minh Hieu Phan,
+                                                                                  Yanjie Dong, Wei Wang, Qi Chen, and Xiping Hu. Ovg-
+[54] Yuhao Su and Ehsan Elhamifar. Two-stage active learning                      hq: Online video grounding with hybrid-modal queries. In
+      for efficient temporal action segmentation. pages 161–183,                  Proceedings of the IEEE/CVF International Conference on
+      2024. 1                                                                     Computer Vision (ICCV), 2025. 1
+                                                                            [67] Chen-Lin Zhang, Jianxin Wu, and Yin Li. Actionformer:
+[55] Yansong Tang, Dajun Ding, Yongming Rao, Yu Zheng,                            Localizing moments of actions with transformers. European
+      Danyang Zhang, Lili Zhao, Jiwen Lu, and Jie Zhou. Coin:                     Conference on Computer Vision, 2022. 6
+      A large-scale dataset for comprehensive instructional video           [68] Hang Zhang, Xin Li, and Lidong Bing. Video-llama: An
+      analysis. IEEE Conference on Computer Vision and Pattern                    instruction-tuned audio-visual language model for video un-
+      Recognition, 2019. 1                                                        derstanding. arXiv preprint arXiv:2306.02858, 2023. 2
+                                                                            [69] Junbin Zhang, Pei-Hsuan Tsai, and Meng-Hsun Tsai. Se-
+[56] Mengmeng Wang, Jiazheng Xing, and Yong Liu. Actionclip:                      mantic2graph: Graph-based multi-modal feature fusion for
+      A new paradigm for video action recognition. CoRR, 2021.                    action segmentation in videos, 2022. 1
+      1                                                                     [70] D. Zhukov, J. B. Alayrac, R. G. Cinbis, D. Fouhey, I. Laptev,
+                                                                                  and J. Sivic. Cross-task weakly supervised learning from
+[57] Weiyun Wang, Zhangwei Gao, Lixin Gu, Hengjun Pu, Long                        instructional videos. IEEE Conference on Computer Vision
+      Cui, Xingguang Wei, Zhaoyang Liu, Linglin Jing, Sheng-                      and Pattern Recognition, 2019. 1
+      long Ye, Jie Shao, Zhaokai Wang, Zhe Chen, Hongjie Zhang,
+      Ganlin Yang, Haomin Wang, Qi Wei, Jinhui Yin, Wenhao Li,
+      Erfei Cui, Guanzhou Chen, Zichen Ding, Changyao Tian,
+      Zhenyu Wu, Jingjing Xie, Zehao Li, Bowen Yang, Yuchen
+      Duan, Xuehui Wang, Zhi Hou, Haoran Hao, Tianyi Zhang,
+      Songze Li, Xiangyu Zhao, Haodong Duan, Nianchen Deng,
+      Bin Fu, Yinan He, Yi Wang, Conghui He, Botian Shi, Jun-
+      jun He, Yingtong Xiong, Han Lv, Lijun Wu, Wenqi Shao,
+      Kaipeng Zhang, Huipeng Deng, Biqing Qi, Jiaye Ge, Qipeng
+      Guo, Wenwei Zhang, Songyang Zhang, Maosong Cao, Jun-
+      yao Lin, Kexian Tang, Jianfei Gao, Haian Huang, Yuzhe Gu,
+      Chengqi Lyu, Huanze Tang, Rui Wang, Haijun Lv, Wanli
+      Ouyang, Limin Wang, Min Dou, Xizhou Zhu, Tong Lu,
+
+                                                                      3431
+

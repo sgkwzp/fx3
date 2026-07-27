@@ -1,0 +1,1024 @@
+                                       Active Video Perception: Iterative Evidence Seeking
+                                               for Agentic Long Video Understanding
+
+arXiv:2512.05774v2 [cs.CV] 4 Jun 2026  Ziyang Wang1,2* Honglu Zhou1 Shijie Wang1 Junnan Li1 Caiming Xiong1
+                                         Silvio Savarese1 Mohit Bansal2 Michael S. Ryoo1 Juan Carlos Niebles1
+                                                                          1Salesforce AI Research
+                                                              2University of North Carolina at Chapel Hill
+
+                                                                    https://activevideoperception.github.io/
+
+                                                               Abstract                                (a) Caption-based Agentic Frameworks (VideoTree, DVD)
+                                                                                                       Step 1: Passive perception via query-agnostic captioner
+                                          Long video understanding (LVU) is challenging because
+                                       answering real-world queries often depends on sparse, tem-                                                                                                    Low Efficiency
+                                       porally dispersed cues buried in hours of mostly redundant
+                                       and irrelevant content. While agentic pipelines improve         Caption   Caption Caption          ……    Caption  Captions (Caption Database )
+                                       video reasoning capabilities, prevailing frameworks rely on
+                                       a query-agnostic captioner to perceive video information,       Step 2: Evidence searching via caption database             Imprecise Grounding
+                                       which wastes computation on irrelevant content and blurs                                                                          Answer
+                                       fine-grained temporal and spatial information. Motivated by     Query                      Localize Key           Extract
+                                       active perception theory, we argue that LVU agents should       Captions                     Segment              Evidence
+                                       actively decide what, when, and where to observe, and con-
+                                       tinuously assess whether the current observation is sufficient  (b) Active Video Perception (Ours)
+                                       to answer the query. We present Active Video Perception
+                                       (AVP), an evidence-seeking framework that treats the video      Planning                           Observation              Reflection
+                                       as an interactive environment and acquires compact, query-
+                                       relevant evidence directly from pixels. Concretely, AVP runs                                                                               Sufficient
+                                       an iterative plan–observe–reflect process with MLLM agents.
+                                       In each round, a planner proposes targeted video interac-                     What                          Key Evidence                        OR
+                                       tions, an observer executes them to extract time-stamped                      Where                Iterative plan-observe-reflect process
+                                       evidence, and a reflector evaluates the sufficiency of the                    How                                                              Lack
+                                       evidence for the query, either halting with an answer or                                                                                   information
+                                       triggering further observation. Across five LVU benchmarks,     Query
+                                       AVP achieves highest overall accuracy with significant im-
+                                       provements. Notably, AVP outperforms the best agentic                     Active Evidence Seeking        Iterative Perception via Reflection
+                                       method by 5.7% in average accuracy while only requires
+                                       18.4% inference time and 12.4% input tokens.                    Figure 1. Motivation of Active Video Perception. Prior meth-
+                                                                                                       ods follow a passive perception paradigm which leverage query-
+                                       1. Introduction                                                 agonistic captioner to perceive the video information, leading to
+                                                                                                       low efficiency and imprecise visual grounding. Instead, we actively
+                                       From streaming platforms to TV programs, video has be-          perceive query-relevant content by treating the long video as an
+                                       come a primary medium for capturing and conveying infor-        interactive environment to be explored in a goal-directed manner.
+                                       mation. However, long video understanding (LVU) remains
+                                       challenging because it demands the ability to localize and      integrate sparse, temporally dispersed cues across long time
+                                                                                                       spans. Although recent multimodal large language models
+                                           *Work done during internship at Salesforce.                 (MLLMs) [3, 23–25, 36, 53, 55, 61] substantially improve
+                                                                                                       visual recognition, naively applying them to densely sam-
+                                                                                                       pled, full-length videos is both computationally costly and
+                                                                                                       brittle for complex queries: most video tokens are redundant,
+                                                                                                       while the brief, localized evidence that actually matters is
+                                                                                                       diluted or overlooked in the long sequence.
+
+                                                                                                          These limitations have motivated a recent surge of agentic
+                                                                                                       approaches for long video understanding [62, 65, 75, 78].
+                                                                                                       Rather than treating the video as a single monolithic input,
+these methods use LLMs to orchestrate perception and rea-       executes these plans to extract compact, time-stamped evi-
+soning over the video through planning. However, recent         dence. Finally, a reflector evaluates the query-sufficiency of
+leading methods [46, 82, 88] still rely on captioners to con-   the extracted evidence and decide whether additional round
+vert visual information into text space as the primary inter-   of observation is needed. If the extracted evidence is insuffi-
+face for LLM reasoning and tool calling. This caption-based     cient, it appends the current plan, evidence, and justification
+framework leverages LLMs’ strengths in text processing but      to the running history to guide the planner in deciding the
+introduces two inherent limitations:                            next plan. This closed-loop process enables AVP to pro-
+                                                                gressively refine its focus, revisit uncertain moments, and
+1. High Computational Cost: Query-agnostic captioning           allocate computation adaptively, leading to more efficient
+    generates large amounts of irrelevant information, ex-      processing and reliable reasoning on long, complex videos.
+    pending computation on unrelated content and resulting
+    in low efficiency.                                             We demonstrate the effectiveness and efficiency of AVP
+                                                                by evaluating it on five long video understanding bench-
+2. Imprecise Grounding via Captions: Existing ap-               marks, including MINERVA [34], LVBench [70], Video-
+    proaches use captions to localize key events, which         MME [16], MLVU [84] and LongVideoBench [68]. Com-
+    may discard fine-grained temporal and spatial cues and      pared to the existing agentic approaches, AVP attains higher
+    weaken causal tracing.                                      accuracy while using substantially less compute by formu-
+                                                                lating LVU as goal-conditioned observations. Specifically,
+These limitations underscore the need for an agentic frame-     compared to the leading agentic method DeepVideoDiscov-
+work that adaptively focuses on informative video regions,      ery (DVD) [82], AVP achieves an average accuracy gain
+seeks query-related evidence directly over video pixels while   of 5.7%. What’s more, on LVBench, AVP achieves better
+maintaining high efficiency.                                    performance while only consuming 18.4% inference time
+                                                                and 12.4% input tokens compared to DVD, validating the
+   We take inspiration from how humans inspect long videos:     efficiency of AVP. We further conduct extensive ablation
+we do not need to watch every frame; instead, we plan our       studies that highlight and justify the key design choices of
+observation based on the query. For instance, given a ques-     AVP.
+tion about a specific plot, we first skim the video for coarse
+cues (plot localization), then take targeted observation by     2. Related Work
+focusing on the key video regions for detail clues. Active
+perception theory [1, 4, 5] formalizes this behavior: “An       Long Video Understanding The advancement in long
+agent is an active perceiver if it knows why it wishes to       video understanding (LVU) benchmarks [7, 16, 68, 70, 84]
+sense, and then chooses what to perceive, and determines        has extended video reasoning problem from short clips
+how, when and where to achieve that perception”. Even           to realistic scenarios, involving multi-minute or hour-long
+though active perception concept is mainly used in robotics     videos. To address this, previous video-specific MLLMs
+domain [44, 50, 69], We argue that agentic LVU frame-           [27, 42, 43, 56, 58, 83] mainly focus on the challenge of ex-
+works can similarly benefit from query-driven, temporally       cessive token inputs by extending the context length [9, 81],
+grounded observation that decides what, when, and where         reducing the video tokens [26, 45, 49, 63] or keyframe se-
+to look, while continually assessing whether the accumu-        lection [2, 6, 51, 59, 72, 74, 76, 87]. Notably, VAP [30]
+lated evidence is sufficient for the query or whether further   also introduce the concept of “action perception” to LVU
+observation is required.                                        task, they treats key frame selection as data acquisition in ac-
+                                                                tive perception and leverages a lightweight text-conditioned
+   Building on this view, we propose Active Video Per-          video generation model to represent prior world knowledge.
+ception (AVP), an agentic evidence seeking framework for        Instead, AVP treats LVU as query-driven evidence seeking
+long video understanding. As shown in Fig. 1, rather than       in video environments. As a result, AVP tackles complex
+passively perceiving the video by captioning, AVP treats        LVU task by focus perception in key regions, achieves sig-
+the video as an interactive environment and actively decides    nificantly better efficiency.
+what/where/how to observe the video to acquire the query-
+related information. This targeted observation design allows       Recently, inspired by the great success of DeekSeek-
+AVP to focus on the key informative segments, avoid redun-      R1 [10], several works [15, 57, 64, 67] explore the Chain-
+dant processing over static or irrelevant content, ultimately   of-thoughts video reasoning model. Later works [17–
+improving both efficiency and reliability on complex long-      19, 39, 52, 60, 77, 80] explore the idea of “Thinking with
+horizon queries.                                                Video”, which incorporate visual CoT strategy to conduct
+                                                                coarse-to-fine video exploration. Compared to these meth-
+   Since complex queries often depend on sparse or ambigu-      ods, AVP has two clear advantages: (1) query-adaptive, pre-
+ous cues that cannot be resolved in a single round of observa-  vious work mainly follows a coarse-to-fine schema with fixed
+tion, AVP adopts an iterative plan–observe–reflect process      FPS/resolution setup, instead, AVP decides what/where/how
+with MLLM agents. In each round, a planner proposes tar-
+geted interactions with the video by deciding what to inspect,
+where to focus, and at what granularity. Then, a observer
+to observe the video based on the query; (2) training-free,      Query-Conditioned Action Planning
+instead of generating large-scale training samples with rea-
+soning trace, we directly employ an agentic approach and                  What: Observe instruction
+significantly reduce compute cost.                                                                        Re-Plan
+
+Agentic Frameworks for Long Video Understanding                           Where: [Start, End]
+LLM-based agents that combine reasoning, planning, and
+action have been widely studied [12, 48, 73] in NLP domain,      Planner  How: FPS, Resolution
+which also draws growing attention in LVU community. To
+decouple the complex LVU task, early agentic frameworks          Targeted Video Observation
+[13, 20, 21, 31, 41, 65, 66, 78, 79] adopt a captioner–LLM
+design: video segments are converted into captions, which        [Start, End]: Key Evidence Description Observer
+an LLM then uses the generated caption to answer the video
+query. Meanwhile, several works [14, 22, 28, 32, 33, 47, 86]     Evidence Reflection and Re-Planning
+utilize the idea of “visual programming”, decompose the
+complex query into multiple steps to leverage expert mod-                         Sufficient?      Plan
+ules. Reflection-based frameworks [8, 85] add a verifi-          Reflector Answer              Justification
+cation agent after the initial answering process to refine
+the reasoning. . Building on these works, recent studies                                        Evidence
+[8, 11, 29, 40, 46, 71, 82, 88] aim to improve evidence
+retrieval and reasoning efficiency in text space. Notably,       Figure 2. Framework of Active Video Perception (AVP). AVP
+VGent [46] constructs a caption-based graph to enable long-      operates by an iterative plan-observe-reflect process with MLLM
+range retrieval and relational reasoning across segments.        agents. At each round, the planner decide what/where/how to in-
+VideoLucy [88]introduces a memory backtracking mecha-            teract with the video, the observer extract structured query-related
+nism that allows the model to revisit earlier multi-scale text   evidence by executing the plan and the reflector evaluates the ex-
+captions during multi-step reasoning. Deep Video Discov-         tracted evidence to decide whether an additional round is need.
+ery [82] uses tool-based search to iteratively refine textual
+evidence over long videos. Instead of relying on captioners,     video purposefully. A reflector verifies evidence against the
+AVP reasons directly over visual inputs through an itera-        query to estimate the confidence; if it exceeds the confidence
+tive plan–observe–reflect process, selectively watching only     threshold, AVP outputs the answer and stops, otherwise it
+what the query requires and maintaining a compact evidence       returns a justification to guide the next round of observation
+record. This active, iterative video observation design pre-     planning. We iterate this process until either a sufficiently
+serves fine-grained grounding while avoiding the redundancy      confident answer is obtained or the round limit is reached.
+and overhead of caption-based LVU pipelines.                     We introduce each component in detail as follow.
+
+3. Method                                                        3.1. Query-Conditioned Action Planning
+
+We present Active Video Perception (AVP), an iterative ev-       Inspired by active perception concept, instead of passively
+idence seeking framework for agentic LVU. AVP is inspired        processing frames uniformly or converting into caption list,
+by the concept of active perception [1, 4, 5], which argues      AVP first plans deciding what, where, and how to observe the
+“a complete artificial agent necessarily must include the abil-  long video to obtain the query-related evidence. Specifically,
+ity of knowing why it wishes to sense, and then choosing         AVP leverage a planner (PLANNER) to decide what to look
+what to perceive, and determining how, when and where to         for, where to look, and how to observe in order to solve the
+achieve that perception”. Through the lens of active per-        give query.
+ception, we formulate LVU task as query-driven evidence
+seeking in video environments, where the LVU agent itera-        Initial Plan. At round r=1, given query Q and video V ,
+tively decides what, where and how to interact with the video    the PLANNER instantiates a concrete observation specifica-
+to find the key evidence based on previous observation.          tion that states what to observe, the region to inspect, and
+                                                                 how to sample. We initialize
+    Concretely, as shown in Fig. 2, given a query Q and a
+video V , AVP runs an iterative plan-observe-reflect process                       P (1) ← PLANNER.INIT(Q),
+with MLLM agents. In each round, a planner first proposes
+observation plan by choosing what to inspect, where to focus,    and represent it as
+and how to sample. An observe agent executes that plan to
+extract compact, time-stamped evidence by observing the                       P (1) = what(1), where(1), how(1) .
+• what is a brief, query-conditioned instruction naming the    evidence list:                     E ← E ∪ Er.
+  key evidence to seek (e.g., “locate the moment the coach           Er = OBSERVER(V, Q, P (r)),
+  enters,” “determine who hands over the box,” “verify the
+  scoreboard change”). For complex query which requires        This cumulative evidence list E serves as the working mem-
+  multi-step reasoning, we prompt the PLANNER to first         ory of AVP, allowing the reflector to assess sufficiency based
+  plan the initial observation and leave the following steps   on all past evidence and guiding the PLANNER’s subsequent
+  in the next rounds. By decomposing the complex queries,      updates. Compared with free-form captioning, this design
+  AVP achieves better handling in multi-hop reasoning and      yields more stable, query-relevant evidence and leads to bet-
+  temporally dispersed evidence seeking.                       ter grounded reasoning over long videos. This targeted video
+                                                               observation design allows AVP to perceive only the most
+• where is a targeted temporal region [ts, te]. It is seeded   query-relevant portions of the video, keeping it efficient and
+  from: (i) explicit timestamps in Q (e.g., “1:00–1:30”),      avoiding redundant or irrelevant information.
+  (ii) soft textual cues (“opening scene,” “final minutes”).
+  When no prior is available, we first sweep the entire video  3.3. Evidence Reflection and Re-Planning
+  at low cost (low fps and spatial_res) to gather coarse
+  evidence. Across rounds, this region can be tightened or     After each observation round, AVP employs a reflector
+  shifted based on the Reflector’s feedback, enabling coarse-  (REFLECTOR) to evaluate the sufficiency of the accumu-
+  to-fine localization without dense scanning.                 lated evidence and decide whether additional observation is
+                                                               required. The REFLECTOR verifies how well the collected
+• how specifies sampling granularity for the long video ob-    evidence supports an answer, and when confidence is insuffi-
+  servation, where how = (fps, spatial_res). The PLAN-         cient, it provides feedback for the next round of planning.
+  NER determines the granularity of the targeted evidence
+  and accordingly decides the sampling strategy. By default,   Evidence Reflection. At round r, given the query Q and
+  it adopts coarse settings (lower fps and spatial_res) to     the current cumulative evidence list E, the REFLECTOR
+  perform low-cost exploration across the video and quickly    jointly produces a query confidence score C(r)and a jus-
+  identify potential evidence regions. When finer details      tification J (r):
+  are required—such as subtle object interactions or small
+  spatial cues, the PLANNER increases sampling density to                    (C(r), J (r)) = REFLECTOR(Q, E ),
+  ensure more precise perception. This adaptive design al-
+  lows AVP to allocate computation efficiently across gran-    where C(r) ∈ [0, 1] measures the confidence in evidence suf-
+  ularities while maintaining high fidelity.                   ficiency to answer the given query, and J(r) specifies which
+   The resulting P serves as a compact, executable target      answer the current evidence supports or what information
+                                                               is still missing. If the confidence is higher than the confi-
+observation that guides the Observer on what to looking for,   dence threshold τconf, the REFLECTOR directly extracts the
+which region of the video to inspect, and how to sample for    final answer from J(r); otherwise, the justification highlights
+efficient, query-focused observation.                          missing or uncertain cues to guide the next round of planning
+                                                               step.
+3.2. Targeted Video Observation
+                                                               History Update and Re-Planning. When confidence re-
+Once the plan is generated, the observer (OBSERVER, a          mains below the threshold, the Reflector appends the current
+MLLM) executes the plan to gather detailed, time-stamped       observation and justification to the running history H. The
+evidence from the video. Specifically, in round r, given the   history provides the PLANNER with a concise summary of
+plan P (r) = (what(r), where(r), how(r)), the OBSERVER         what has been inspected, verified, or left unresolved. The
+inputs the the query Q and instruction in what(r), the video   PLANNER then refines its next plan using this feedback:
+segment defined by the temporal where and uses the sam-
+pling strategy in how (fps and spatial resolution). Instead            P (r+1) = PLANNER.REPLAN(Q, H, J (r)),
+of generating free-form text responses, the OBSERVER is
+prompted to produce structured, timestamp-aware evidence       shifting attention toward the regions, entities, or temporal
+text in the form of                                            spans identified as uncertain by the Reflector.
+
+                E ∈ {([starti, endi], di)}Ni=1,                   By iteratively running the plan-observe-reflect process,
+                                                               AVP forms a closed-loop perception–reasoning cycle that
+where each di is a concise, query-conditioned description      continuously refines its focus until the gathered evidence
+of the visual event within the time interval [starti, endi].   becomes sufficient. This iterative design allows the system
+Specifically, we maintain an evidence list E that accumulates  to adaptively reason over long videos, reducing computation,
+evidence across rounds. At each round r, the OBSERVER          and maintaining grounded, query-aligned understanding. We
+generates new evidence Er and append it to the cumulative      present full algorithm in Algorithm 1.
+Algorithm 1: Active Video Perception(AVP)
+
+    Inputs :Video V , Query Q, Max Rounds Rmax, Confidence Threshold τconf
+
+    Output :Answer A, Justification J, Evidence List E, History H
+
+1 P (1) ← PLANNER.INIT(Q); E ← [ ]; H ← [ ]                        // Init plan, evidence list and history
+
+2 for r ← 1 to Rmax do
+
+3 E(r) ← OBSERVER(V, Q, P (r))
+
+4   E ← E ∪ E(r)                                                            // accumulate this round’s evidence
+
+5   (C(r), J (r)) ← REFLECTOR(Q, E )                            // evidence reflection: confidence & justification
+                                                                                  // answer is entailed by justification
+6 if C(r) ≥ τconf then
+
+7 A ← REFLECTOR.EXTRACTANSWER(J (r))
+
+8   return A, J (r), E, H
+
+9 if r = Rmax then
+
+10  A ← REFLECTOR.FORCEANSWER(Q, E )                               // force to give answer on final round
+
+11  return A, J (r), E, H
+
+12 H ← H ∪ {(P (r), E(r), J (r))}                               // append plan & evidence & justification to history
+                                                                                      // re-plan for additional observation
+13  P (r+1) ← PLANNER.REPLAN(Q, H, J (r))
+
+4. Experimental Setup                                           4.3. Implementation Details
+
+4.1. Datasets                                                   We adopt Gemini-2.5-Pro1 [53] as our default MLLM agent
+                                                                for all components. We also provide the results with
+We evaluate AVP on five diverse long video understanding        lightweight Gemini-2.5-Flash model in Tab. 1 and Tab. 4.
+benchmarks:                                                     We provided more ablation with different backbone models
+(1) MINERVA [34] is a recent challenging video reasoning        (including open-source models) in appendix. For fair com-
+benchmark consisting of 1515 hand-crafted questions. The        parison, we fix the max input token as 128K. If the input
+average video duration is 12 minutes.                           video (region) exceeds this budget, we uniformly sample the
+(2) LVBench [70] is a benchmark specifically designed for       max frames that within the token limit. For spatial token
+long video understanding which includes 1549 multiple-          setup (spatial_res), we follow Gemini’s MediaResolution
+choice questions across 103 hour-long videos.                   setup to have 2 scales (low, medium), where low and medium
+(3) MLVU [84] is a multi-task Long Video Understanding          are 66 and 258 tokens per frame, respectively. We set the
+Benchmark for the comprehensive and in-depth evaluation         max rounds Rmax as 3 and confidence threshold τconf as
+of LVU. We use the multiple-choice QA samples from the          0.7. We provide additional analysis for the design choices
+MLVU test split, containing 2175 video QA samples with          in Sec. 5.2.2. We provided more implementation details
+more than 15 minutes average video duration.                    (including detailed prompts) and analysis in appendix.
+(4) Video-MME [16] is a comprehensive evaluation bench-
+mark for video analysis from short to long videos (average      5. Results
+min for long split video). We use the standard split of Video-
+MME, which contains 2700 samples designed for both per-         5.1. Main Results on Long Video Benchmarks
+ception and reasoning tasks (900 samples with 41min aver-
+age duration for the long split).                               Tab. 1 presents a comprehensive comparison of AVP against
+(5) LongVideoBench (LVB) [68] is a video QA benchmark           existing general-purpose MLLMs [35, 37, 53, 55], video-
+that highlights referred reasoning questions, which are depen-  specific MLLMs [18, 45, 63, 67], and agentic video frame-
+dent on long frame inputs. We test on the public validation     works [8, 46, 62, 65, 79, 82, 88] across five video un-
+split, which contains 1337 video reasoning questions (533       derstanding benchmarks: MINERVA [34], LVBench [70],
+samples with 15-60 min video for long split).                   MLVU [84], Video-MME [16] and LongVideoBench [68].
+
+4.2. Evaluation Metrics                                         Comparison with MLLMs. Among general-purpose mul-
+                                                                timodal LLMs, proprietary systems such as Gemini-2.5-Pro
+We evaluate AVP under the multiple-choice QA setting. We        [53] and Seed-1.5-VL [55] achieve strong overall results but
+use standard accuracy metrics for all experiments. We do        still fall short of our proposed AVP. In particular, AVP (w/
+not include auxiliary subtitle for all benchmarks.
+                                                                    12025-06-17 version
+Methods                         MINERVA       LVBench            MLVU           Video-MME              LongVideoBench
+                                  Overall      Overall             Test
+General-Purpose MLLMs                                                        Overall      Long         Val          Long
+Seed-1.5-VL [55]                      -          64.6              82.1
+Qwen-3-VL [54]                        -          67.7              84.3      77.9          -           74.4         -
+GPT-4o [35]                         45.5         48.9              54.9
+GPT-4.1 [37]                        54.0         63.4                        79.2          -           -            -
+Gemini-2.5-Flash [53]               54.6         56.7                -
+Gemini-2.5-Pro [53]                 61.8         67.4              72.4      71.9         65.3         66.7         60.9
+                                                                   79.6
+Video-Specific MLLMs                  -            -                         72.0          -           -            -
+LongVU [45]                           -          53.3              65.4
+AdaReTaKe [63]                      37.8         43.2              78.1      74.2         69.1         66.2         61.8
+Video-RTS [67]                        -
+FrameMind [18]                                     -                 -       82.4         77.6         69.8         66.6
+                                      -                            48.6
+Agentic Video Frameworks            40.2         29.3                        60.6         59.5         -            -
+VideoAgent [62]                     44.4         28.8              64.4
+VideoTree [65]                                                     60.4      73.5         65.0         67.0         -
+SiLVR [79]                            -            -               45.2
+VideoLucy [88]                        -          58.8              76.1      63.0         54.1         56.6         52.2
+Vgent [46]                            -                            72.1
+LVAgent [8]                           -            -               83.9      60.9         57.5         -            -
+DeepVideoDiscovery (DVD) [82]                      -
+                                 56.9 (+2.3)     74.2                -       -            46.4         -            -
+Active Video Perception (Ours)   65.6 (+3.8)
+AVP w Gemini-2.5-Flash                        63.8 (+7.1)       74.1 (+1.7)  60.6         54.2         -            -
+AVP w Gemini-2.5-Pro                          74.8 (+7.4)       84.3 (+4.7)
+                                                                             74.1         77.7         -            -
+
+                                                                             72.5         66.8         -            -
+
+                                                                             68.9          -           59.7         -
+
+                                                                             81.7         74.3         80.0         -
+
+                                                                             -            67.3         71.6         68.6
+
+                                                                             81.2 (+7.0)  76.7 (+7.6)  70.2 (+4.0)  65.5 (+3.7)
+                                                                             85.3 (+2.9)  81.9 (+4.3)  73.4 (+3.6)  70.0 (+3.4)
+
+Table 1. Comparison with general-purpose MLLMs, Video-specific MLLMs, and agentic video frameworks on five long video understanding
+benchmarks (MINERVA, LVBench, MLVU, Video-MME, LongVideoBench). We bold the best and underline the second-best result in each
+column. Results shows that AVP achieves best overall accuracy on all datasets across different baselines, achieving significant improvements
+on its backbone model (in blue) across all benchmark. We gray out the results that use auxiliary subtitle information.
+
+Gemini-2.5-Pro) surpasses the state-of-the-art Gemini-2.5-      cant improvement compared to the backbone model in all
+Pro model [53] by 4.5% average accuracy over all bench-         benchmarks. Comparing to the recent VideoLucy and DVD
+marks, demonstrating that direct inference over full length     methods, AVP achieves 10.5% and 5.7% average improve-
+remains insufficient for complex, long-horizon queries that     ments while both using strong LLM backbones (DeepSeek-
+require targeted evidence seeking. AVP (w/ Gemini-2.5-          R1 [10] for VideoLucy, and OpenAI-o3 [38] for DVD). We
+Flash) also outperforms its backbone by 4.4%, showing gen-      also compared the efficiency in term of inference time with
+eralization ability of the proposed framework in weaker back-   DVD in Tab. 2, showing AVP is not only more performant,
+bone MLLMs. Meanwhile, AVP significantly outperforms            but also significantly efficient. These results validate the ef-
+the video-specific MLLMs, including compression-based           fectiveness of active perception for long video understanding
+methods [45, 63] and (visual) Chain-of-Thoughts methods         : rather than passively encoding frames, AVP plans what
+[18, 67]. This result highlights the active perception concept  to observe, observes purposefully, and reflects adaptively,
+for long video understanding and encourages future research.    leading to higher accuracy and greater efficiency than both
+                                                                MLLMs and recent agentic frameworks.
+Comparison with Agentic Frameworks. Within the class
+of agentic video reasoning systems, AVP consistently            5.2. Quantitative Analysis
+achieves the best (or second-best) results across all bench-
+marks. We compare AVP with six recent agentic video             In this section, we analyze different aspect of AVP, including
+frameworks, including VideoAgent [62], VideoTree [65],          efficiency analysis, ablation study on AVP’s design choices.
+SiLVR [79], VideoLucy [88], LVAgent [8] and Deep-               We provided more quantitative analysis in the appendix.
+VideoDiscovery (DVD) [82]. We find that AVP achieves
+best performance against all baseline methods and signifi-
+Method      Avg. Inference Time (s) Avg. Input Tokens (K) Acc        PLANNER    OBSERVER    REFLECTOR    MINERVA   LVBench
+
+DVD         790.5                     1071.6    74.2                 2.5-Flash   2.5-Flash    2.5-Flash      56.9     63.8
+AVP (Ours)  145.3                                                     2.5-Pro    2.5-Flash     2.5-Pro       60.2     67.6
+                                      132.5     74.8                 2.5-Flash    2.5-Pro     2.5-Flash      63.6     71.8
+                                                                      2.5-Pro     2.5-Pro      2.5-Pro       65.6     74.8
+Table 2. Efficiency comparison on LVBench. We report average
+inference time in seconds, average input token count, and accuracy.  Table 4. Agent MLLM selection within AVP. We vary Gemini-2.5
+By actively querying the video rather than passively captioning all  Flash/Pro backbones for the PLANNER, OBSERVER, and REFLEC-
+clips, AVP achieves better overall efficiency and accuracy.          TOR, stronger components consistently improve performance on
+                                                                     both benchmarks.
+Method                                MINERVA   LVBench
+                                                                                Max Rounds  MINERVA      LVBench
+Observer (Baseline)                       60.8     67.4
+Planner + Observer                        63.9     72.6                                1        63.9        72.6
+Planner + Observer + Reflector (AVP)      65.6     74.8                                2        65.0        74.6
+                                                                                       3        65.6        74.8
+Table 3. Component ablation of AVP. Adding the Planner and                             5        65.5        74.6
+then the Reflector on top of the Observer baseline consistently
+improves MINERVA and LVBench accuracy, showing that query-           Table 5. Ablation on max round limit. Increasing the number
+conditioned planning and reflection are key to AVP’s performance.    of max round limit improves performance on both benchmarks
+                                                                     and gets best results by three rounds, indicating that only a few
+5.2.1. Efficiency Analysis                                           interaction steps are sufficient.
+
+As shown in Tab. 2, we evaluate inference efficiency on              FLECTOR within AVP under Gemini-2.5 [53] family (we
+LVBench in terms of average runtime, average input token             add additional model ablation in supp.). We observe that
+count, and accuracy. DVD [82] requires 790.5s per video              both benchmarks benefit from stronger components, but their
+and processes on average 1.07M tokens. Notably, a finer              sensitivities differ. Across both benchmarks, the largest gains
+breakdown shows that its captioning stage alone takes 637.2s         consistently come from a stronger Observer. This suggests
+and consumes roughly 0.9M tokens. In contrast, AVP elimi-            that reliable evidence acquisition is the primary bottleneck,
+nates this query-agnostic captioning stage and performs only         even for complex multi-hop reasoning queries, as effective
+targeted query reasoning, reducing inference time to 145.3s,         planning and reflection depend on first locating and gather-
+achieving 5.44× faster (81.6% reduction). Meanwhile, AVP             ing the relevant visual evidence. The best configuration uses
+only consumes 12.4% of the input tokens compared to DVD              stronger models across all three modules, confirming that
+while improving the LVBench accuracy. These results in-              AVP’s active perception design benefits from the synergy
+dicate that actively deciding what, where, and how to ob-            between observation, planning, and reflection.
+serve not only removes redundant caption processing but
+also strengthens reasoning by concentrating computation on           Max Round Limit. Table 5 studies how the number of
+query-relevant content.                                              Plan–Observe–Reflect rounds affects performance. Both
+                                                                     MINERVA and LVBench show steady gains from one to
+5.2.2. Ablation Study                                                three rounds, confirming that iterative reasoning enables
+                                                                     AVP to progressively refine its evidence set and improve
+AVP Components. We conduct a step-wise ablation to as-               decision confidence. The improvement is more pronounced
+sess the contribution of each component in AVP. As shown             on MINERVA, where multi-hop reasoning benefits from
+in Tab. 3, introducing the PLANNER notably improves both             repeated reflection and targeted re-observation. Beyond three
+MINERVA and LVBench accuracy, demonstrating the ben-                 rounds, performance saturates, suggesting that AVP has
+efit of query-conditioned multi-step exploration over static         already acquired sufficient evidence and additional cycles
+observation. The PLANNER guides the agent to allocate                bring limited benefit. This result validates the efficiency of
+computation toward potentially informative regions rather            our design, AVP achieves strong reasoning capability with
+than processing frames uniformly. Adding the REFLECTOR               only a few lightweight interaction rounds.
+yields a further performance gain, confirming that iterative
+process enhances reasoning trustworthy. Together, these              5.3. Visualization
+results highlight that active perception, planning what to
+observe and reflecting on what has been seen substantially           In Fig. 3, we illustrate how AVP acquires and verifies evi-
+strengthens long video understanding.                                dence through a multi-round Plan–Observe–Reflect loop on
+                                                                     a long video. Given the query, “In the clip where the German
+Model Selection. Table 4 examines the impact of varying              woman is introduced by the narrator, where can the Tomb-
+the model selection across Planner, OBSERVER, and RE-
+Query: In the clip where the German woman is introduced by the narrator, where can the Tombstone monument be initially seen on screen?
+
+A. In the middle right midground.  B. In the middle right background.  C. In the lower right foreground.
+
+D. In the upper left background.   E. In the middle right midground
+
+                                                                                                                                        Round 1
+
+Plan                                               Evidence
+
+ What: Scan the entire video to find the           [1:00, 1:10]: The narrator                             Confidence: 0.3
+ scene where the German woman is                   introduces the German couple. A                        Justification: No direct
+ introduced and identify the initial               wide shot shows the ranch, and                         clue the location of
+ location of the Tombstone monument.               the Tombstone monument                                 Tombstone monument
+ Where: entire video
+ How: 0.5FPS, low spatial resolution      Observe                                      Reflect
+
+History (P, E, J)                                                                                         Evidence                      Round 2
+                                                                                                           Region
+
+ Re-Plan                                            Evidence                                              Confidence: 0.7
+                                                   [Previous Evidence]                                    Justification: A small,
+What: Check in detail of this segment,                                                                    conical stone monument is
+where is the Tombstone monument           Observe  [1:04, 1:09]: The Tombstone                            visible on a hill in distance.
+location (+options).                               monument is visible as a small,                        This monument is located in
+Where: [1:00-1:10]                                 conical structure on a hill in the                     the upper left quadrant of
+How: 2FPS, medium spatial resolution               upper left background. The German                      the screen, in the
+                                                   couple is seen standing in the                         background. Answer D
+                                                   midground.
+                                                                                       Reflect
+
+Figure 3. Qualitative example of AVP. Given a multiple-choice query about the Tombstone monument’s first on-screen appearance, Round 1
+performs a coarse scan of the entire video (0.5 FPS, low resolution) and localizes a candidate interval [1:00, 1:10], but the REFLECTOR
+judges the evidence insufficient. Round 2 re-plans a targeted pass over this window (2 FPS, medium resolution), enabling the OBSERVER to
+localize the monument in the upper-left background and the REFLECTOR to confidently select the correct answer (option D) and halt.
+
+stone monument be initially seen on screen?”, Round 1 uses             understanding as an iterative, query-driven evidence seeking
+a coarse, uniform sweep to localize candidate moments (0.5             process. Rather than passively caption the video frames,
+FPS, low resolution). This pass narrows the search to the              AVP treats the video as an interactive environment and
+[1:00, 1:10] interval but the reflector flags the observations as      actively decides what to inspect, where to focus, and at
+insufficient due to lack of detail, prompting a refined follow-        what granularity in order to acquire compact, time-stamped
+up (Round 2). In Round 2, the planner schedules a targeted             evidence directly from pixels. Concretely, AVP runs an
+revisit over [1:00, 1:10] at 2 FPS with medium resolution,             iterative plan–observe–reflect process using MLLM agents.
+and the observer extracts query-relevant cues: the Tombstone           Empirically, AVP achieves best overall accuracy among
+monument appears as a small, conical structure on a hill in            agentic frameworks across five long video benchmarks, and
+the upper-left background while the German couple stands               surpasses the leading agentic method (DVD) by 5.7% in
+in the mid-ground. The evidence list is now sufficient for the         average accuracy while only requiring 18.4% inference
+reflector to stop and produce the final answer, demonstrating          time and 12.4% input tokens. Our ablation study shows
+AVP’s coarse-to-fine scheduling, evidence-grounded verifi-             that AVP achieves significant improvement under different
+cation. We provided additional visualization samples with              MLLM backbones, validating the robustness. Looking
+different scenario (start with a grounded video region from            ahead, an exciting direction is extending active video per-
+query prior and refine the region based on the observation in          ception to embodied agents that must decide what and when
+the next round) and failure case in appendix.                          to observe while acting under real-world physical constraints.
+
+6. Conclusion                                                          References
+
+Inspired by active perception theory, we present Active                 [1] Yiannis Aloimonos. Active perception. Psychology Press,
+Video Perception (AVP), which handles long video                             2013. 2, 3
+ [2] Anurag Arnab, Ahmet Iscen, Mathilde Caron, Alireza Fathi,            Shen, Mengdan Zhang, Peixian Chen, Yanwei Li, Shaohui
+      and Cordelia Schmid. Temporal chain of thought: Long-video          Lin, Sirui Zhao, Ke Li, Tong Xu, Xiawu Zheng, Enhong
+      understanding by thinking in frames, 2025. 2                        Chen, Rongrong Ji, and Xing Sun. Video-mme: The first-ever
+                                                                          comprehensive evaluation benchmark of multi-modal llms in
+ [3] Shuai Bai, Keqin Chen, Xuejing Liu, Jialin Wang, Wenbin Ge,          video analysis, 2024. 2, 5
+      Sibo Song, Kai Dang, Peng Wang, Shijie Wang, Jun Tang,
+      Humen Zhong, Yuanzhi Zhu, Mingkun Yang, Zhaohai Li,           [17] Shenghao Fu, Qize Yang, Yuan-Ming Li, Xihan Wei, Xiaohua
+      Jianqiang Wan, Pengfei Wang, Wei Ding, Zheren Fu, Yiheng            Xie, and Wei-Shi Zheng. Love-r1: Advancing long video
+      Xu, Jiabo Ye, Xi Zhang, Tianbao Xie, Zesen Cheng, Hang              understanding with an adaptive zoom-in mechanism via multi-
+      Zhang, Zhibo Yang, Haiyang Xu, and Junyang Lin. Qwen2.5-            step reasoning, 2025. 2
+      vl technical report. arXiv preprint arXiv:2502.13923, 2025.
+      1                                                             [18] Haonan Ge, Yiwei Wang, Kai-Wei Chang, Hang Wu, and
+                                                                          Yujun Cai. Framemind: Frame-interleaved video reasoning
+ [4] Ruzena Bajcsy. Active perception. Proceedings of the IEEE,           via reinforcement learning, 2025. 5, 6
+      76(8):966–1005, 1988. 2, 3
+                                                                    [19] Zefeng He, Xiaoye Qu, Yafu Li, Siyuan Huang, Daizong Liu,
+ [5] Ruzena Bajcsy, Yiannis Aloimonos, and John K. Tsotsos.               and Yu Cheng. Framethinker: Learning to think with long
+      Revisiting active perception, 2016. 2, 3                            videos via multi-turn frame spotlighting, 2025. 2
+
+ [6] Shyamal Buch, Cristobal Eyzaguirre, Adrien Gaidon, Jiajun      [20] Sullam Jeoung, Goeric Huybrechts, Bhavana Ganesh, Aram
+      Wu, Li Fei-Fei, and Juan Carlos Niebles. Revisiting the             Galstyan, and Sravan Bodapati. Adaptive video understanding
+      “Video” in Video-Language Understanding. In Proceedings of          agent: Enhancing efficiency with dynamic frame sampling
+      the IEEE/CVF Conference on Computer Vision and Pattern              and feedback-driven reasoning, 2024. 3
+      Recognition (CVPR), 2022. 2
+                                                                    [21] Kumara Kahatapitiya, Kanchana Ranasinghe, Jongwoo Park,
+ [7] Keshigeyan Chandrasegaran, Agrim Gupta, Lea M. Hadzic,               and Michael S Ryoo. Language repository for long video
+      Taran Kota, Jimming He, Cristobal Eyzaguirre, Zane Durante,         understanding. In Findings of the Association for Compu-
+      Manling Li, Jiajun Wu, and Li Fei-Fei. Hourvideo: 1-hour            tational Linguistics: ACL 2025, pages 5627–5646, Vienna,
+      video-language understanding. In NeurIPS Datasets and               Austria, 2025. Association for Computational Linguistics. 3
+      Benchmarks Track, 2024. 2
+                                                                    [22] Noriyuki Kugo, Xiang Li, Zixin Li, Ashish Gupta, Arpandeep
+ [8] Boyu Chen, Zhengrong Yue, Siran Chen, Zikang Wang, Yang              Khatua, Nidhish Jain, Chaitanya Patel, Yuta Kyuragi, Ya-
+      Liu, Peng Li, and Yali Wang. Lvagent: Long video under-             sunori Ishii, Masamoto Tanabiki, Kazuki Kozuka, and Ehsan
+      standing by multi-round dynamical collaboration of mllm             Adeli. Videomultiagents: A multi-agent framework for video
+      agents. arXiv preprint arXiv:2503.10200, 2025. 3, 5, 6              question answering, 2025. 3
+
+ [9] Yukang Chen, Fuzhao Xue, Dacheng Li, Qinghao Hu, Ligeng        [23] Dongxu Li, Yudong Liu, Haoning Wu, Yue Wang, Zhiqi Shen,
+      Zhu, Xiuyu Li, Yunhao Fang, Haotian Tang, Shang Yang,               Bowen Qu, Xinyao Niu, Fan Zhou, Chengen Huang, Yanpeng
+      Zhijian Liu, Ethan He, Hongxu Yin, Pavlo Molchanov, Jan             Li, Chongyan Zhu, Xiaoyi Ren, Chao Li, Yifan Ye, Peng
+      Kautz, Linxi Fan, Yuke Zhu, Yao Lu, and Song Han. Longvila:         Liu, Lihuan Zhang, Hanshu Yan, Guoyin Wang, Bei Chen,
+      Scaling long-context visual language models for long videos,        and Junnan Li. Aria: An open multimodal native mixture-of-
+      2024. 2                                                             experts model, 2025. 1
+
+[10] DeepSeek-AI. Deepseek-r1: Incentivizing reasoning capabil-     [24] Junnan Li, Dongxu Li, Caiming Xiong, and Steven Hoi. BLIP:
+      ity in llms via reinforcement learning, 2025. 2, 6                  Bootstrapping language-image pre-training for unified vision-
+                                                                          language understanding and generation. In Proceedings of the
+[11] Zixuan Dong, Baoyun Peng, Yufei Wang, Lin Liu, Xinxin                39th International Conference on Machine Learning, pages
+      Dong, Yunlong Cao, and Xiaodong Wang. See what you need:            12888–12900. PMLR, 2022.
+      Query-aware visual intelligence through reasoning-perception
+      loops, 2025. 3                                                [25] Junnan Li, Dongxu Li, Silvio Savarese, and Steven Hoi. Blip-
+                                                                          2: Bootstrapping language-image pre-training with frozen
+[12] Lutfi Eren Erdogan, Hiroki Furuta, Sehoon Kim, Nicholas              image encoders and large language models. In International
+      Lee, Suhong Moon, Gopala Anumanchipalli, Kurt Keutzer,              conference on machine learning, pages 19730–19742. PMLR,
+      and Amir Gholami. Plan-and-act: Improving planning of               2023. 1
+      agents for long-horizon tasks. In Forty-second International
+      Conference on Machine Learning, 2025. 3                       [26] Xinhao Li, Yi Wang, Jiashuo Yu, Xiangyu Zeng, Yuhan Zhu,
+                                                                          Haian Huang, Jianfei Gao, Kunchang Li, Yinan He, Chenting
+[13] Sunqi Fan, Meng-Hao Guo, and Shuojin Yang. Agentic                   Wang, Yu Qiao, Yali Wang, and Limin Wang. Videochat-flash:
+      keyframe search for video question answering, 2025. 3               Hierarchical compression for long-context video modeling.
+                                                                          arXiv preprint arXiv:2501.00574, 2024. 2
+[14] Yue Fan, Xiaojian Ma, Rujie Wu, Yuntao Du, Jiaqi Li, Zhi
+      Gao, and Qing Li. Videoagent: A memory-augmented multi-       [27] Bin Lin, Bin Zhu, Yang Ye, Munan Ning, Peng Jin, and
+      modal agent for video understanding, 2024. 3                        Li Yuan. Video-llava: Learning united visual represen-
+                                                                          tation by alignment before projection. arXiv preprint
+[15] Kaituo Feng, Kaixiong Gong, Bohao Li, Zonghao Guo, Yib-              arXiv:2311.10122, 2023. 2
+      ing Wang, Tianshuo Peng, Benyou Wang, and Xiangyu Yue.
+      Video-r1: Reinforcing video reasoning in mllms. arXiv         [28] Ye Liu, Kevin Qinghong Lin, Chang Wen Chen, and
+      preprint arXiv:2503.21776, 2025. 2                                  Mike Zheng Shou. Videomind: A chain-of-lora agent for long
+                                                                          video reasoning. arXiv preprint arXiv:2503.13444, 2025. 3
+[16] Chaoyou Fu, Yuhan Dai, Yongdong Luo, Lei Li, Shuhuai
+      Ren, Renrui Zhang, Zihan Wang, Chenyu Zhou, Yunhang
+[29] Yongdong Luo, Xiawu Zheng, Xiao Yang, Guilin Li, Haojia                 Hyunwoo J. Kim, Bilge Soran, Raghuraman Krishnamoorthi,
+      Lin, Jinfa Huang, Jiayi Ji, Fei Chao, Jiebo Luo, and Rongrong          Mohamed Elhoseiny, and Vikas Chandra. Longvu: Spa-
+      Ji. Video-rag: Visually-aligned retrieval-augmented long               tiotemporal adaptive compression for long video-language
+      video comprehension, 2024. 3                                           understanding. arXiv preprint arXiv:2410.17434, 2024. 2, 5,
+                                                                             6
+[30] Martin Q Ma, Willis Guo, Aditya Agrawal, Ankit Gupta,             [46] Xiaoqian Shen, Wenxuan Zhang, Jun Chen, and Mohamed El-
+      Paul Pu Liang, Russ Salakhutdinov, and Louis-Philippe                  hoseiny. Vgent: Graph-based retrieval-reasoning-augmented
+      Morency. Video active perception: Efficient inference-time             generation for long video understanding, 2025. 2, 3, 5, 6
+      long-form video understanding with vision-language models.       [47] Yudi Shi, Shangzhe Di, Qirui Chen, and Weidi Xie. Enhanc-
+      2024. 2                                                                ing video-llm reasoning via agent-of-thoughts distillation,
+                                                                             2025. 3
+[31] Ziyu Ma, Chenhui Gou, Hengcan Shi, Bin Sun, Shutao Li,            [48] Noah Shinn, Federico Cassano, Ashwin Gopinath, Karthik
+      Hamid Rezatofighi, and Jianfei Cai. Drvideo: Document                  Narasimhan, and Shunyu Yao. Reflexion: language agents
+      retrieval based long video understanding, 2024. 3                      with verbal reinforcement learning. In Advances in Neural
+                                                                             Information Processing Systems, pages 8634–8652. Curran
+[32] Sachit Menon, Ahmet Iscen, Arsha Nagrani, Tobias Weyand,                Associates, Inc., 2023. 3
+      Carl Vondrick, and Cordelia Schmid. Caviar: Critic-              [49] Yan Shu, Zheng Liu, Peitian Zhang, Minghao Qin, Junjie
+      augmented video agentic reasoning, 2025. 3                             Zhou, Zhengyang Liang, Tiejun Huang, and Bo Zhao. Video-
+                                                                             xl: Extra-long vision language model for hour-scale video
+[33] Juhong Min, Shyamal Buch, Arsha Nagrani, Minsu Cho, and                 understanding. arXiv preprint arXiv:2409.14485, 2024. 2
+      Cordelia Schmid. Morevqa: Exploring modular reasoning            [50] Venkatesh Sripada, Samuel Carter, Frank Guerin, and Amir
+      models for video question answering, 2025. 3                           Ghalamzan. Scene exploration by vision-language models,
+                                                                             2025. 2
+[34] Arsha Nagrani, Sachit Menon, Ahmet Iscen, Shyamal Buch,           [51] Xi Tang, Jihao Qiu, Lingxi Xie, Yunjie Tian, Jianbin Jiao,
+      Ramin Mehran, Nilpa Jha, Anja Hauth, Yukun Zhu, Carl                   and Qixiang Ye. Adaptive keyframe sampling for long video
+      Vondrick, Mikhail Sirotenko, Cordelia Schmid, and Tobias               understanding, 2025. 2
+      Weyand. Minerva: Evaluating complex video reasoning, 2025.       [52] Sicheng Tao, Jungang Li, Yibo Yan, Junyan Zhang, Yubo
+      2, 5, 13                                                               Gao, Hanqian Li, ShuHang Xun, Yuxuan Fan, Hong Chen,
+                                                                             Jianxiang He, and Xuming Hu. Moss-chatv: Reinforcement
+[35] OpenAI. Gpt-4o system card, 2024. 5, 6                                  learning with process reasoning reward for video temporal
+[36] OpenAI. Gpt-5 system card. https://cdn.openai.com/                      reasoning, 2025. 2
+                                                                       [53] Gemini team. Gemini 2.5: Pushing the frontier with advanced
+      gpt-5-system-card.pdf, 2025. 1                                         reasoning, multimodality, long context, and next generation
+[37] OpenAI. Introducing gpt-4.1 in the api. https://openai.                 agentic capabilities, 2025. 1, 5, 6, 7
+                                                                       [54] Qwen Team. Qwen3-vl: A general vision-language model.
+      com/index/gpt-4-1/, 2025. Accessed: 2025-11-10. 5, 6                   https : / / qwenlm . github . io / blog / qwen3 - vl/, 2025.
+[38] OpenAI. Openai o3 and o4-mini system card. Sys-                         Model card and technical documentation. 6
+                                                                       [55] Seed-VL team. Seed1.5-vl technical report, 2025. 1, 5, 6
+      tem Card v1, OpenAI, 2025. PDF available at:                     [56] Jiawei Wang, Liping Yuan, Yuchen Zhang, and Haomiao
+      https://cdn.openai.com/pdf/2221c875-02dc-4789-800b-                    Sun. Tarsier: Recipes for training and evaluating large video
+      e7758f3722c1/o3-and-o4-mini-system-card.pdf. Accessed:                 description models, 2024. 2
+      2025-11-10. 6                                                    [57] Qi Wang, Yanrui Yu, Ye Yuan, Rui Mao, and Tianfei Zhou.
+[39] Kun Ouyang, Yuanxin Liu, Linli Yao, Yishuo Cai, Hao Zhou,               Videorft: Incentivizing video reasoning capability in mllms
+      Jie Zhou, Fandong Meng, and Xu Sun. Conan: Progressive                 via reinforced fine-tuning, 2025. 2
+      learning to reason like a detective over multi-scale visual      [58] Shijie Wang, Qi Zhao, Minh Quan Do, Nakul Agarwal, Kwon-
+      evidence, 2025. 2                                                      joon Lee, and Chen Sun. Vamos: Versatile action models for
+[40] Ziqi Pang and Yu-Xiong Wang. Mr. video: "mapreduce" is                  video understanding, 2023. 2
+      the principle for long video understanding, 2025. 3              [59] Shihao Wang, Guo Chen, De an Huang, Zhiqi Li, Minghan
+[41] Jongwoo Park, Kanchana Ranasinghe, Kumara Kahatapitiya,                 Li, Guilin Li, Jose M. Alvarez, Lei Zhang, and Zhiding Yu.
+      Wonjeong Ryu, Donghyun Kim, and Michael S. Ryoo. Too                   Videoitg: Multimodal video understanding with instructed
+      many frames, not all useful: Efficient strategies for long-form        temporal grounding, 2025. 2
+      video qa, 2025. 3                                                [60] Shijian Wang, Jiarui Jin, Xingjian Wang, Linxin Song, Run-
+[42] Kanchana Ranasinghe, Xiang Li, Kumara Kahatapitiya, and                 hao Fu, Hecheng Wang, Zongyuan Ge, Yuan Lu, and Xuelian
+      Michael Ryoo. Understanding long videos in one multimodal              Cheng. Video-thinker: Sparking "thinking with videos" via
+      language model pass. In International Conference on Learn-             reinforcement learning, 2025. 2
+      ing Representations, 2025. 2                                     [61] Weiyun Wang, Zhangwei Gao, Lixin Gu, Hengjun Pu, Long
+[43] Michael S. Ryoo, Honglu Zhou, Shrikant Kendre, Can Qin,                 Cui, Xingguang Wei, Zhaoyang Liu, Linglin Jing, Shenglong
+      Le Xue, Manli Shu, Jongwoo Park, Kanchana Ranasinghe,
+      Silvio Savarese, Ran Xu, Caiming Xiong, and Juan Carlos
+      Niebles. xgen-mm-vid (blip-3-video): You only need 32
+      tokens to represent a video even in vlms, 2025. 2
+[44] Jinghuan Shang and Michael S. Ryoo. Active vision rein-
+      forcement learning under limited visual observability, 2023.
+      2
+[45] Xiaoqian Shen, Yunyang Xiong, Changsheng Zhao, Lemeng
+      Wu, Jun Chen, Chenchen Zhu, Zechun Liu, Fanyi Xiao, Bal-
+      akrishnan Varadarajan, Florian Bordes, Zhuang Liu, Hu Xu,
+      Ye, Jie Shao, et al. Internvl3.5: Advancing open-source        [75] Serena Yeung, Olga Russakovsky, Greg Mori, and Li Fei-
+      multimodal models in versatility, reasoning, and efficiency.         Fei. End-to-end learning of action detection from frame
+      arXiv preprint arXiv:2508.18265, 2025. 1                             glimpses in videos. In Proceedings of the IEEE Conference
+                                                                           on Computer Vision and Pattern Recognition (CVPR), 2016.
+[62] Xiaohan Wang, Yuhui Zhang, Orr Zohar, and Serena Yeung-               1
+      Levy. Videoagent: Long-form video understanding with large
+      language model as agent, 2024. 1, 5, 6                         [76] Shoubin Yu, Jaemin Cho, Prateek Yadav, and Mohit Bansal.
+                                                                           Self-chained image-language model for video localization
+[63] Xiao Wang, Qingyi Si, Jianlong Wu, Shiyu Zhu, Li Cao, and             and question answering. In NeurIPS, 2023. 2
+      Liqiang Nie. Adaretake: Adaptive redundancy reduction to
+      perceive longer for video-language understanding, 2025. 2, 5,  [77] Huaying Yuan, Zheng Liu, Junjie Zhou, Hongjin Qian, Yan
+      6                                                                    Shu, Nicu Sebe, Ji-Rong Wen, and Zhicheng Dou. Videoex-
+                                                                           plorer: Think with videos for agentic long-video understand-
+[64] Ye Wang, Boshen Xu, Zihao Yue, Zihan Xiao, Ziheng Wang,               ing, 2025. 2
+      Liang Zhang, Dingyi Yang, Wenxuan Wang, and Qin Jin.
+      Timezero: Temporal video grounding with reasoning-guided       [78] Ce Zhang, Taixi Lu, Md Mohaiminul Islam, Ziyang Wang,
+      lvlm. arXiv preprint arXiv:2503.13377, 2025. 2                       Shoubin Yu, Mohit Bansal, and Gedas Bertasius. A simple llm
+                                                                           framework for long-range video question-answering, 2023. 1,
+[65] Ziyang Wang, Shoubin Yu, Elias Stengel-Eskin, Jaehong                 3
+      Yoon, Feng Cheng, Gedas Bertasius, and Mohit Bansal.
+      Videotree: Adaptive tree-based video representation for llm    [79] Ce Zhang, Yan-Bo Lin, Ziyang Wang, Mohit Bansal, and
+      reasoning on long videos. arXiv preprint arXiv:2405.19209,           Gedas Bertasius. Silvr: A simple language-based video rea-
+      2024. 1, 3, 5, 6                                                     soning framework, 2025. 3, 5, 6
+
+[66] Zikang Wang, Boyu Chen, Zhengrong Yue, Yi Wang, Yu              [80] Haoji Zhang, Xin Gu, Jiawen Li, Chixiang Ma, Sule Bai,
+      Qiao, Limin Wang, and Yali Wang. Videochat-a1: Thinking              Chubin Zhang, Bowen Zhang, Zhichao Zhou, Dongliang He,
+      with long videos by chain-of-shot reasoning, 2025. 3                 and Yansong Tang. Thinking with videos: Multimodal tool-
+                                                                           augmented reinforcement learning for long video reasoning,
+[67] Ziyang Wang, Jaehong Yoon, Shoubin Yu, Md Mohaiminul                  2025. 2
+      Islam, Gedas Bertasius, and Mohit Bansal. Video-RTS: Re-
+      thinking reinforcement learning and test-time scaling for ef-  [81] Peiyuan Zhang, Kaichen Zhang, Bo Li, Guangtao Zeng,
+      ficient and enhanced video reasoning. In Proceedings of the          Jingkang Yang, Yuanhan Zhang, Ziyue Wang, Haoran Tan,
+      2025 Conference on Empirical Methods in Natural Language             Chunyuan Li, and Ziwei Liu. Long context transfer from
+      Processing, pages 28114–28128, Suzhou, China, 2025. Asso-            language to vision. arXiv preprint arXiv:2406.16852, 2024.
+      ciation for Computational Linguistics. 2, 5, 6                       2
+
+[68] Haoning Wu, Dongxu Li, Bei Chen, and Junnan Li.                 [82] Xiaoyi Zhang, Zhaoyang Jia, Zongyu Guo, Jiahao Li, Bin Li,
+      Longvideobench: A benchmark for long-context interleaved             Houqiang Li, and Yan Lu. Deep video discovery: Agentic
+      video-language understanding. Advances in Neural Informa-            search with tool use for long-form video understanding. In
+      tion Processing Systems, 37:28828–28857, 2024. 2, 5                  Advances in Neural Information Processing Systems (NeurIPS
+                                                                           2025), 2025. 2, 3, 5, 6, 7, 13
+[69] Haoyu Xiong, Xiaomeng Xu, Jimmy Wu, Yifan Hou, Jean-
+      nette Bohg, and Shuran Song. Vision in action: Learning        [83] Yuanhan Zhang, Jinming Wu, Wei Li, Bo Li, Zejun Ma, Ziwei
+      active perception from human demonstrations, 2025. 2                 Liu, and Chunyuan Li. Video instruction tuning with synthetic
+                                                                           data. arXiv preprint arXiv:2410.02713, 2024. 2
+[70] Bowen Xu, Yifan Zhang, Yufei Zhao, Yizhou Wang, Yu Qiao,
+      and Hongsheng Li. Lvbench: An extreme long video under-        [84] Junjie Zhou, Yan Shu, Bo Zhao, Boya Wu, Shitao Xiao, Xi
+      standing benchmark. arXiv preprint arXiv:2406.08035, 2024.           Yang, Yongping Xiong, Bo Zhang, Tiejun Huang, and Zheng
+      2, 5                                                                 Liu. Mlvu: A comprehensive benchmark for multi-task long
+                                                                           video understanding. arXiv preprint arXiv:2406.04264, 2024.
+[71] Yuxuan Yan, Shiqi Jiang, Ting Cao, Yifan Yang, Qianqian               2, 5
+      Yang, Yuanchao Shu, Yuqing Yang, and Lili Qiu. Ava: To-
+      wards agentic video analytics with vision language models,     [85] Yiyang Zhou, Yangfan He, Yaofeng Su, Siwei Han, Joel Jang,
+      2025. 3                                                              Gedas Bertasius, Mohit Bansal, and Huaxiu Yao. Reagent-v:
+                                                                           A reward-driven multi-agent framework for video understand-
+[72] Linli Yao, Haoning Wu, Kun Ouyang, Yuanxing Zhang, Caim-              ing, 2025. 3
+      ing Xiong, Bei Chen, Xu Sun, and Junnan Li. Generative
+      frame sampler for long video understanding. arXiv preprint     [86] Muzhi Zhu, Hao Zhong, Canyu Zhao, Zongze Du, Zheng
+      arXiv:2503.09146, 2025. 2                                            Huang, Mingyu Liu, Hao Chen, Cheng Zou, Jingdong Chen,
+                                                                           Ming Yang, and Chunhua Shen. Active-o3: Empowering
+[73] Shunyu Yao, Jeffrey Zhao, Dian Yu, Nan Du, Izhak Shafran,             multimodal large language models with active perception via
+      Karthik Narasimhan, and Yuan Cao. ReAct: Synergizing                 grpo, 2025. 3
+      reasoning and acting in language models. In International
+      Conference on Learning Representations (ICLR), 2023. 3         [87] Yuanhao Zou, Shengji Jin, Andong Deng, Youpeng Zhao, Jun
+                                                                           Wang, and Chen Chen. A.i.r.: Enabling adaptive, iterative, and
+[74] Jinhui Ye, Zihan Wang, Haosen Sun, Keshigeyan Chan-                   reasoning-based frame selection for video question answering,
+      drasegaran, Zane Durante, Cristobal Eyzaguirre, Yonatan              2025. 2
+      Bisk, Juan Carlos Niebles, Ehsan Adeli, Li Fei-Fei, Jiajun
+      Wu, and Manling Li. Re-thinking temporal search for long-      [88] Jialong Zuo, Yongtai Deng, Lingdong Kong, Jingkang Yang,
+      form video understanding, 2025. 2                                    Rui Jin, Yiwei Zhang, Nong Sang, Liang Pan, Ziwei Liu, and
+Changxin Gao. Videolucy: Deep memory backtracking for
+long video understanding. In Advances in Neural Information
+Processing Systems (NeurIPS 2025), 2025. 2, 3, 5, 6
+Appendix                                                        Method          Acc. %            MiRA Score ↑
+                                                                                              P  TLC
+In appendix, we present the following: limitations (Sec. A),                                                    Total
+additional quantitative results and analysis (Sec. B), addi-
+tional qualitative analysis (Sec. C), additional implementa-    OpenAI o1       43.5 0.52 0.52 0.86 0.88 0.69
+tion details (Sec. D).
+                                                                GPT-4o          45.5 0.57 0.67 0.77 0.79 0.70
+A. Limitations
+                                                                Gemini 2.0 Flash 53.5 0.62 0.75 0.83 0.82 0.75
+While AVP achieves strong performance and efficiency gains
+across multiple LVU benchmarks, it also has several practical   Gemini 2.5 Pro  61.8 0.60 0.62 0.97 0.78 0.74
+limitations that point to promising future work rather than
+fundamental constraints.                                        AVP (Ours)      65.6 0.62 0.82 0.97 0.93 0.84
+
+   First, we primarily evaluate AVP in the standard offline     Table 6. Reasoning trace quality check on MINERVA. We report
+video QA setting, where the full video is available. An ex-     multiple-choice accuracy and MiRA scores normalized to be be-
+citing direction for future work is to explore how the same     tween 0 and 1. P: Perceptual Correctness, T: Temporal Localization:
+active evidence-seeking framework operates in broader sce-      L: Logical Reasoning: C: Completeness. The best result is in bold,
+narios, such as embodied or online streaming environments       and the second best is in italic.
+where an agent must perceive and act in real time. Sec-
+ond, AVP currently uses prompting to drive planning and         Methods         ER EU KIR TG Rea Sum Overall
+observation, learning policies that optimize long horizon
+sensing efficiency under resource and latency constraints       GPT-4o      48.9 49.5 48.1 40.9 50.3 50.0 48.9
+(e.g., via reinforcement learning or differentiable planners)
+would be a complementary direction that builds on the same      OpenAI o3 57.6 56.4 62.9 46.8 50.8 67.2 57.1
+architecture.
+                                                                AdaReTAKe 53.0 50.7 62.2 45.5 54.7 37.9 53.3
+B. Additional Quantitative Results and Analysis
+                                                                VideoTree 30.3 25.1 26.5 27.7 31.9 25.5 28.8
+B.1. Reasoning Trace Analysis
+                                                                VideoAgent 28.0 30.3 28.0 29.3 28.0 36.4 29.3
+Proposed by MINERVA [34], the MiRA (MINERVA Reason-
+ing Assessment) score is a reference-based, LLM-as-a-judge      VCA         43.7 40.7 37.8 38.0 46.2 27.3 41.3
+metric for evaluating the quality of multimodal models’ step-
+by-step reasoning traces for video question answering. It as-   MR. Video 59.8 57.4 71.4 58.8 57.7 50.0 60.8
+sesses a model’s generated reasoning against a ground-truth
+trace using the four axes of the MINERVA rubric: Perceptual     DVD         73.4 73.3 80.4 72.3 70.7 74.1 74.2
+Correctness, Temporal Localization, Logical Reasoning, and
+Completeness. This normalized score helps analyze why           AVP (Ours) 71.9 76.7 80.1 73.6 67.7 75.9 74.8
+models succeed or fail beyond just the final answer’s accu-
+racy, specifically highlighting weaknesses in video-centric     Table 7. Results by question type on LVBench. We report per-
+aspects like temporal grounding and perception.                 formance across six official LVBench splits: Entity Recognition
+                                                                (ER), Event Understanding (EU), Key Information Retrieval (KIR),
+   As shown in Tab. 6, AVP achieves the highest overall         Temporal Grounding (TG), Reasoning (Rea), and Summarization
+MiRA score, outperforming all baselines across key reason-      (Sum). Accuracy (%) is computed as Correct / Total for each split.
+ing dimensions. Compared to single-pass MLLMs, AVP
+delivers substantially stronger temporal localization, logical  strongest agentic baseline DVD [82]. The gains are most pro-
+reasoning, and correctness. These improvements indicate         nounced on splits that require integrating information over
+that actively collecting structured, query-conditioned evi-     long temporal ranges: AVP delivers the highest scores on
+dence leads to higher-quality reasoning traces besides higher   Event Understanding, Temporal Grounding, and Summariza-
+final accuracy. In particular, AVP’s gains in temporal and      tion, indicating that its plan–observe–reflect loop is effective
+completeness highlight the benefit of iterative planning and    at steering perception toward query-relevant moments and
+reflection for complex multi-hop queries.                       aggregating evidence across distant segments. On Key Infor-
+                                                                mation Retrieval, Entity Recognition, and Reasoning, AVP
+B.2. Full Results for LVBench                                   remains competitive with DVD, while still substantially out-
+                                                                performing powerful generic MLLMs across all question
+As shown in Tab. 7, AVP achieves the best overall accuracy      types. These results suggest that explicit active video per-
+on LVBench, outperforming all prior systems including the       ception is crucial for long video understanding.
+
+                                                                B.3. Additional Ablation Study
+
+                                                                Controlled Backbone Comparison. In Tab. 1, we follow
+                                                                prior works (VideoTree, DVD) and report the best perfor-
+                                                                mance of each method. To further ensure a fair comparison,
+                                                                we extend same-backbone evaluations (w/ OpenAI-o3) to
+                                                                additional agentic methods on the Video-MME long split.
+                                                                As shown in Tab. 8, AVP achieves the highest overall ac-
+                                                                curacy and the lowest inference time among all compared
+methods, demonstrating improvements in both effectiveness        Backbone MLLM         MINERVA (Acc. %)
+and efficiency under a controlled backbone setting.
+                                                                 Qwen3-VL-8B                     41.2
+Long Split Acc. (%) ↑  VideoTree  SiLVR  DVD    AVP              Gemini-2.5-Flash                56.9
+Inference Time (s) ↓                                             OpenAI-o3                       59.0
+                          61.2     66.8  67.3   76.8             Gemini-2.5-Pro                  65.6
+                         145.4    442.2  612.8  102.3
+
+Table 8. Controlled backbone comparison (OpenAI-o3) with agen-   Table 9. Backbone MLLM selection within AVP. The perfor-
+tic methods on Video-MME long split. We report long split accu-  mance of AVP on MINERVA scales steadily with the strength of
+racy (%) and average inference time (s).                         the backbone MLLM.
+
+                                                                 Evidence Format       MINERVA LVBench
+
+                                                                 Unstructured List     63.2            71.2
+
+Different Backbone MLLM Selection within AVP. As                 Structured Evidence List (Ours) 65.6  74.8
+shown in Tab. 9, the performance of AVP on MINERVA
+scales steadily with the strength of the backbone MLLM.          Table 10. Ablation on structured evidence list. Replacing our
+Using the lightweight Qwen3-VL-8B yields 41.2% accu-             structured, time-aligned evidence list with an unstructured flat list
+racy (2.0% improvements compared to the direct inference),       hurts performance on both benchmarks, showing that organizing
+while swapping in stronger general-purpose models such           evidence by temporal and semantic grounding is important for
+as Gemini-2.5-Flash and OpenAI-o3 improves accuracy to           effective planning and reflection.
+56.9% and 59.0%, respectively. The best results are ob-
+tained with Gemini-2.5-Pro (65.6%), indicating that richer       Confidence Threshold  MINERVA         LVBench
+reasoning and instruction-following capabilities at the back-
+bone level directly translate into better planning, evidence                 0.5           64.2           73.2
+selection, and reflection for complex multi-hop queries. At                  0.7           65.6           74.8
+the same time, AVP delivers consistent gains across a wide                   0.9           65.4           74.8
+spectrum of MLLMs, suggesting that our AVP framework is
+broadly applicable and can flexibly exploit future backbone      Table 11. Ablation on confidence threshold. We vary the confi-
+improvements.                                                    dence threshold for halting, observing that different values trade
+                                                                 off answer conservativeness and coverage on both benchmarks.
+Structured vs. Unstructured Evidence List. As shown
+in Tab. 10, replacing our structured, time-aligned evidence      These additive improvements are consistent with the Gemini-
+list with an unstructured flat list degrades performance on      based results in Tab. 3, confirming that each AVP component
+both benchmarks, indicating that temporally and semanti-         contributes meaningfully regardless of the backbone MLLM.
+cally organized evidence is crucial for effective planning and
+reflection.                                                      B.4. Amortized Multi-Query Efficiency
+
+Confidence Threshold Sensitivity Analysis. As shown in           One potential advantage of caption-based methods is that the
+Tab. 11, a moderate confidence threshold yields the strongest    video-level database can be reused across multiple queries
+results on MINERVA and ties for best performance on              for the same video, amortizing the construction cost. We
+LVBench. Lower thresholds lead to premature halting and          evaluate this on LVBench under a multi-query setting (avg.
+reduced accuracy, while overly strict thresholds offer no        15 queries/video). DeepVideoDiscovery spends 637.2 s on
+additional gains. This suggests that AVP benefits from a         database construction and an additional 2329.5 s on per-
+balanced stopping criterion, confident enough to avoid early     query localization and answering across all queries. By skip-
+termination, yet flexible enough to prevent unnecessary ob-      ping the captioning stage entirely, AVP answers all queries
+servation rounds.                                                in 2179.5 s, achieving a 26.5% reduction in total inference
+Extended Component Ablation. To verify that each compo-          time even in this setting favorable to database-reuse meth-
+nent’s contribution generalizes beyond the Gemini backbone,      ods. This result confirms that the efficiency gains of active,
+we repeat the component ablation (Tab. 3) using OpenAI-          query-driven perception hold not only per-query but also in
+o3 on MINERVA. Using only the Observer achieves 54.2%            amortized multi-query scenarios.
+accuracy; adding the Planner yields a 3.2% improvement,
+and incorporating the Reflector provides a further 1.6% gain.    B.5. Token Efficiency Across Backbones
+
+                                                                 AVP’s token efficiency arises from how it adaptively plans
+                                                                 for temporal and spatial token usage, rather than backbone-
+                                                                 specific visual compression. Under the same OpenAI-o3
+backbone, AVP averages 62.5K input tokens per query on             bar graphics and rapid scoring plays). We further analyze
+LVBench, only 5.8% of DVD’s usage and even lower than              50 randomly sampled LVBench failures, categorizing errors
+the Gemini-based AVP (132.5K). This result demonstrates            into planner, observer, and reflector. Only 8% and 16% of
+that AVP’s efficiency does not rely on a specific backbone.        errors stem from planning and reflection, while most arise
+                                                                   from observer perception errors (76%). This verifies the
+B.6. Robustness Across Video Domains                               AVP’s planner and reflector are relatively robust.
+
+To assess whether AVP’s improvements hold across diverse           D. Additional Implementation Detail
+video domains, we break down MINERVA results by domain
+category. As shown in Tab. 12, AVP consistently outper-            D.1. Prompts
+forms Gemini-2.5-Pro across sports, instructional videos,
+and films, indicating that the gains from active perception        We provided the planner prompt, the observer prompt, and
+are not specific to a particular video type.                       the reflector prompt as follow.
+
+Gemini-2.5-Pro  Sports  Instructional  Films                         Planner prompt (initial planning)
+AVP (ours)
+                 57.5        57.2      75.2                          Function. get_planning_prompt(query, video_meta, options).
+                 60.8        59.6      77.1                          Goal. You are an expert video analysis planner. Create a concise,
+                                                                     observation plan to answer the user’s query.
+Table 12. Domain-level accuracy (%) on MINERVA. AVP im-
+proves over its Gemini-2.5-Pro backbone across all video domains.    Inputs.
+                                                                     • User Query: {full_query}
+C. Additional Qualitative Results                                    • Video Information: duration in seconds (e.g., Duration:
+
+C.1. Additional Visualization                                           {duration} seconds)
+                                                                     • Options (optional): multiple-choice options attached to the query
+As illustrated in Fig. 4, this example showcases how AVP
+leverages iterative planning to solve compositional, numeri-         Planning framework. Produce observation with:
+cally precise queries that cannot be answered from a single          • What (Reasoning Objective): what the step tries to accomplish.
+view of the video. In the first round, the agent executes a          • Where: temporal span to examine, either uniform (entire video) or a
+narrowly targeted observation around the specified times-
+tamp to read off the millimeter totals from the paper, but              specific time range.
+the reflector explicitly flags that the evidence is incomplete.      • How: fps and spatial_token_rate.
+The planner then revises its strategy, broadening the search
+space to a coarse scan over the entire video to hunt for the         Timestamp handling. First classify the query:
+missing semantic attribute (the average hatchling length),           • Factual questions: e.g., “what”, “how many”, “who”, “which”,
+which the observer recovers from narration. Only after both
+local numeric measurements and global semantic context                  “count”, “identify”.
+are available does the reflector combine them into the final         • Reasoning / explanation questions: e.g., “why”, “how”, “explain”,
+answer. This visualization shows AVP could tackle complex,
+multi-hop video reasoning via its iterative design.                     “reason”, “cause”.
+                                                                     Then apply:
+C.2. Failure Case                                                    • Rule 1 (Exact ranges).
+
+In Fig. 5, we analyze a representative failure mode of AVP              – Factual: use the exact range, no padding (e.g., “07:15–07:18” →
+on a fine-grained counting query. To save computation, the                  [435.0, 438.0]).
+planner opts for a coarse 0.5 FPS scan of the entire video and
+the observer only records two three-point plays before the              – Reasoning: add 15–30 s padding before and after (e.g.,
+second Hawaii–UCSB clip. Since the missing shot at 00:20                   “07:15–07:18” → [420.0, 453.0]).
+is never observed, the reflector receives a logically consistent
+but incomplete evidence list and confidently outputs the             • Rule 2 (Single timestamp).
+wrong answer. This case illustrates that, while our active              – Factual: 1 s forward window from timestamp (e.g., “at 02:15” →
+perception pipeline is effective for locating dispersed, high-              [135.0, 136.0]).
+level evidence, it might make mistakes on questions that                – Reasoning: add 15–30 s context (e.g., “at 02:15” → [120.0,
+hinge on short, local events and subtle broadcast cues (e.g.,               150.0]).
+
+                                                                     • Rule 3 (Approximate / vague timing). Use a ±15 s window around
+                                                                        the mentioned time (e.g., “around 1:23” → [68.0, 98.0]).
+
+                                                                     Heuristics for unknown timing.
+                                                                     • “opening / beginning” → [0, 30].
+                                                                     • “end / ending” → [max(0, duration - 30), duration].
+                                                                     • No timing mentioned: use a coarse uniform scan with fps in
+
+                                                                        0.25–1.0 and low/medium resolution.
+
+                                                                     Step configuration guidelines.
+                                                                     • Uniform scan (timing unknown). load_mode = "uniform", fps
+
+                                                                        in 0.25–1.0, spatial_token_rate ∈ {"low", "medium"}, regions
+                                                                        = [].
+                                                                     • Region analysis (explicit timestamps). load_mode = "region",
+                                                                        fps ≈ 2.0, spatial_token_rate ∈ {"low", "medium"}, regions
+                                                                        = [[start, end]].
+
+                                                                     Few-shot examples. [Few_examples]
+
+                                                                     Output format. Return a single JSON object with:
+                                                                     • reasoning: natural language explanation of your planning.
+Query: After adding up all the millimeter totals on the sheet of paper illustrated at the timestamp 09:58, and then adding the average length of Louisiana
+
+Pine Snake hatchlings according to the video, how many total millimeters are there?
+
+A. 2,217.41mm-4,130.04mm.  B. 1,263.41mm-2,217.41mm.                                 C. 693.41mm-1,912.63mm.
+
+D. 1,912.63mm-2,217.41mm.  E. 4,130.04mm-4,530.04mm.
+
+                                                                                                              Round 1
+
+          Plan                                     Observe  [09:58, 09:59]: A close-up of a      Reflect      Confidence: 0.3
+                                                            handwritten sheet of paper listing                Justification: Need
+             What: extract the millimeter totals            measurements for seven Louisiana                  additional information
+             from the sheet of paper at 09:58 and           Pine Snake eggs. The millimeter                   about average length of
+             find the average length of Louisiana           totals listed are: 96.74, 93.37,                  Louisiana Pine Snake
+             Pine Snake hatchlings.                         93.45, 98.24, 99.53, 115.67, and                  hatchlings
+             Where: [09:58, 09:59]                          96.41.
+             How: 2FPS, Medium spatial resolution
+                                                            Evidence
+History (P, E, J)
+
+                                                                                                              Round 2
+
+  Re-Plan                                                   [Previous Evidence]                  Reflect      Confidence: 0.7
+                                                                                                              Justification: Lower bound:
+What: Perform a uniform scan of the                         [17:47, 17:50]: The narrator states               693.41 mm + 1219.2 mm =
+entire video to find the 'average length of                 that the Louisiana Pine Snakes                    1912.61 mm - Upper bound:
+Louisiana Pine Snake hatchlings'.                           'usually range from 4 to 5 feet in                693.41 mm + 1524 mm =
+Where: whole video                                          length.                                           2217.41 mm
+How: 0.5FPS, low spatial resolution                                                                           The calculated total range is
+                                                   Observe                                                    1912.61 mm to 2217.41
+                                                                                                              mm. This corresponds to
+                                                                                                              option D.
+
+Figure 4. Qualitative example of multi-round active perception in AVP (MINERVA sample). Given the query, “After adding up all the
+millimeter totals on the sheet of paper illustrated at 09:58, and then adding the average length of Louisiana Pine Snake hatchlings according
+to the video, how many total millimeters are there?”, AVP first plans to focus on the local timestamped frame at 09:58 and extracts the seven
+millimeter totals from the handwritten measurement sheet (Round 1). The reflector correctly judges that this evidence is insufficient because
+the average hatchling length is still unknown, and triggers a second round. In Round 2, the planner re-directs the observer to uniformly scan
+the full video at low FPS, locating a narrated segment that states hatchlings “usually range from 4 to 5 feet in length.” By fusing the previous
+numeric evidence with this newly discovered range, the reflector computes the total millimeter interval and selects the correct option.
+
+• plans: what ∈ sub_query, where ∈ {"uniform", "region"},                            • Provide:
+  how ∈ numeric fps (0.1–5.0), spatial_token_rate ∈ {"low",                             – Detailed observations tied to the query.
+  "medium"}, and regions (list of [start, end] in seconds; empty                        – Key timestamp ranges (timestamp_start, timestamp_end)
+  for uniform).                                                                            for each salient event.
+                                                                                        – Reasoning connecting observations to the sub-query.
+Observer prompt (video inference / evidence extraction)
+                                                                                     Timestamp and evidence rules.
+Goal. Analyze a specific video segment and extract precise, time-                    • Round timestamps to integer seconds: floor(start), ceil(end).
+stamped evidence relevant to the user query.                                         • List all relevant intervals for events that may match the query.
+                                                                                     • Use context to avoid redundant descriptions.
+Inputs.
+• sub_query: the focused question for this round.                                    Multiple-clip handling.
+• original_query: the full user question (for multi-step agents).                    • When inputs include several regions, each corresponds to its absolute
+• context: accumulated evidence from previous rounds.
+• start_sec, end_sec: bounds of the segment to analyze.                                 time span in the original video.
+• video_duration_sec: duration of the full video.                                    • You may reference clips descriptively (e.g., “Clip 1”, “Clip 2”).
+• is_region: whether this step analyzes a specified region or uniform
+                                                                                     Fallback rule (critical). If analyzing a region and no relevant informa-
+  scan.                                                                              tion is present:
+• regions: list of [start, end] spans if multiple clips are provided.                • Explicitly state: “No relevant information found in this time seg-
+
+Prompt structure.                                                                       ment.”
+• Primary task: describe visually relevant events in the analyzed video              • Suggest expanding search to a uniform scan or additional regions.
+
+  span.                                                                              Output format. Return a JSON object:
+
+                                                                                     {
+How many three-pointers are made before the second clip of Hawaii versus UCSB? A. 3. B. 1. C. 5. D. 2. E. 0.
+
+Planner  What: Scan the entire video to locate                              Observer   [0:04, 0:09]: First clip of Hawaii vs UCSB. A
+         the start of the 'second clip' and count                                      three-pointer is made.
+         the number of three-pointers made                                             [0:27, 0:33]: Clip of Hawaii vs Cal Poly. A three-
+         before that point.                                                            pointer is made.
+         Where: entire video                                                           [0:33, 0:37]: The start of the second clip of
+         How: 0.5FPS, low spatial resolution                                           Hawaii vs UCSB, showing a steal.
+
+Ground Truth Reasoning: I looked for the first                              Reflector  Confidence: 0.8
+USCB clip, which shows up from 00:04 to 00:08. I                                       Justification: The evidence from the
+knew it to be so because the names \"USCB\"                                            observation rounds clearly identifies two
+and \"HAWAII\" are written on the bar graphic at                                       successful three-point shots made before the
+the bottom of the screen. Then I notice the                                            second clip of the Hawaii versus UCSB game.
+second clip against UCSB happens from 00:33 to                                         The first three-pointer occurs in the first clip of
+00:37 (identified by the same logic as I identified                                    the video (against UCSB) from 0:04 to 0:09. The
+by the first). I then looked at every clip prior to this                               second three-pointer is made during a clip
+timeframe and looked for three-pointers. I found                                       against Cal Poly, from 0:27 to 0:33. The second
+1 at 00:07, another at 00:20, and another at                                           clip featuring the Hawaii vs. UCSB game begins
+00:33. Counting these up, I found 3 three-                                             immediately after, at 0:33. Therefore, counting
+pointers made prior to the second clip of Hawaii                                       the shots before this point results in total of two.
+vs. USCB.
+
+Figure 5. Failure Case of AVP (MINERVA sample). Given a long broadcast basketball video, AVP must answer: “How many three-pointers
+are made before the second clip of Hawaii versus UCSB?” The planner chooses to scan the entire video at 0.5 FPS with low spatial resolution,
+the observer summarizes the retrieved segments into a structured evidence list, and the reflector produces a confident answer of two. However,
+the ground-truth reasoning (yellow box) shows that a three-pointer at 00:20 is missed, so the correct count is three. Although the internal
+reasoning over the collected evidence is coherent, the initial coarse observation policy fails to capture a short, local event, leading to an
+overconfident but incorrect prediction.
+
+   "detailed_response": "...",                                              • video_duration: total duration in seconds.
+   "key_evidence": [                                                        • options: optional list of MCQ options.
+                                                                            Your task.
+      {                                                                     • Decide a boolean sufficient indicating whether the evidence is
+         "timestamp_start": <number>,
+         "timestamp_end": <number>,                                            enough to answer the query.
+         "description": "..."                                               • Output a calibrated confidence C ∈ [0, 1] for the sufficiency de-
+
+      }                                                                        cision. This is the score compared against τconf in Algorithm 1: as
+   ],                                                                          a guideline, C ≥ 0.7 when the evidence clearly entails an answer,
+   "reasoning": "..."                                                          0.4 ≤ C < 0.7 when it is suggestive but incomplete, and C < 0.4
+}                                                                              when the key cues are unaddressed.
+                                                                            • If sufficient (true): the justification must give the direct answer.
+Example. [Few_examples]                                                        – MCQ: state the option letter (A/B/C/...) and a brief reason.
+                                                                               – Open-ended: clearly state the answer in natural language.
+Reflector prompt (evidence sufficiency checker)                             • If not sufficient (false): the justification must explain what informa-
+                                                                               tion is missing or uncertain (e.g., which regions, entities, or temporal
+Goal. Given the original query and cumulative evidence from all                spans require additional observation).
+observation rounds, decide whether the current evidence is sufficient to    • Always provide a short reasoning paragraph that summarizes why
+answer the query, and produce a justification that either (i) contains the     the evidence is (not) sufficient.
+final answer, or (ii) explains what is missing.
+Inputs.                                                                     Required JSON output (LLM response).
+• query: original user query (with options if MCQ).
+• evidence_summary: aggregated evidence from all Observer steps.            {
+   "sufficient": <true | false>,
+   "confidence": <float in [0, 1]>,
+   "justification": "...",
+   "reasoning": "..."
+}
+
+Few-shot examples. [Few_examples]
+

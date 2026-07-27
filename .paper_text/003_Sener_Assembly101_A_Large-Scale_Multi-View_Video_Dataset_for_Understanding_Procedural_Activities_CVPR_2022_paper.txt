@@ -1,0 +1,680 @@
+Assembly101: A Large-Scale Multi-View Video Dataset
+         for Understanding Procedural Activities
+
+Fadime Sener† Dibyadip Chatterjee‡ Daniel Shelepov† Kun He† Dipika Singhania‡
+                                     Robert Wang† Angela Yao‡
+
+              † Meta Reality Labs Research ‡ National University of Singapore
+
+   {famesener,dsh,kunhe,rywang}@fb.com {dibyadip,dipika16,ayao}@comp.nus.edu.sg
+
+                           https://assembly101.github.io/
+
+                        Abstract                               ing, there are datasets of short clips [16, 21, 45], datasets
+                                                               with longer sequences from movies [18, 51] and scripted
+   Assembly101 is a new procedural activity dataset fea-       actions [42, 43, 47], with particular focus on the cook-
+turing 4321 videos of people assembling and disassembling      ing domain [5, 12, 22, 35, 37, 40, 47, 50]. Most related to
+101 “take-apart” toy vehicles. Participants work without       our work are instructional video datasets [49, 50, 52]. But
+fixed instructions, and the sequences feature rich and natu-   these instructional videos are curated from online sources;
+ral variations in action ordering, mistakes, and corrections.  they are produced, have multiple shots, and primarily tar-
+Assembly101 is the first multi-view action dataset, with si-   get multi-modal (vision + NLP) learning [40, 50, 52]. Few
+multaneous static (8) and egocentric (4) recordings. Se-       datasets focus on goal-oriented, multi-step activities outside
+quences are annotated with more than 100K coarse and 1M        the kitchen domain and are otherwise small-scale [2, 20, 34]
+fine-grained action segments, and 18M 3D hand poses.           or limited in task or sequence diversity [1, 49].
+
+   We benchmark on three action understanding tasks:              We introduce Assembly101: 362 unique sequences of
+recognition, anticipation and temporal segmentation. Ad-       people assembling and disassembling 101 “take-apart” toy
+ditionally, we propose a novel task of detecting mistakes.     vehicles (see Figs. 1, 3). The dataset features recordings
+The unique recording format and rich set of annotations al-    from 8 static and 4 egocentric viewpoints, with 4321 se-
+low us to investigate generalization to new toys, cross-view   quences totalling 513 hours of footage. Assembly101 is an-
+transfer, long-tailed distributions, and pose vs. appearance.  notated with more than 1M action segments, spanning 1380
+We envision that Assembly101 will serve as a new challenge     fine-grained and 202 coarse action classes. We benchmark
+to investigate various activity understanding problems.        on four tasks: action recognition and anticipation centered
+                                                               around hand-object interactions, temporal action segmenta-
+1. Introduction                                                tion and our newly proposed mistake detection task dedi-
+                                                               cated to investigating sequence understanding in assembly
+   Assembly and disassembly tasks, like putting together       activities. Assembly101 features three novel aspects cur-
+a piece of furniture, or taking apart a home appliance for     rently under-represented in existing video benchmarks:
+repair, are common to everyday living. We often rely on
+paper manuals or online instructional videos to guide us          • Goal-oriented free-style procedures: Exist-
+through these tasks. The next generation of smart assis-             ing datasets feature multi-step activities follow-
+tants, together with augmented reality (AR) hardware, can            ing a strictly ordered recipe [28, 40, 50, 52] or
+help us in a more embodied setting. Intelligent systems that         script [8, 12, 34, 43, 47]. Assembly101 depicts
+jointly consider instructions or goals and real-world obser-         non-scripted, goal-oriented activities.
+vations can greatly advance AR applications. Mock-ups and
+proof-of-concepts already exist for cooking [15], monitor-        • Rich sequence variation: Participants vary in skill
+ing worker safety [4], visiting museums [11], and learning           level, and recordings feature realistic variations in ac-
+surgical procedures [3]. To that end, the interest in action         tion ordering, mistakes, and corrections. Unlike ex-
+understanding tasks such as recognition, anticipation, and           isting skill assessment datasets [7, 13, 31, 33], which
+temporal segmentation has grown, especially for egocentric           have only skill scores, we annotate specific mistakes
+views [5, 17, 34].                                                   and participant skill levels.
+
+   In looking at the benchmarks used in action understand-        • Synchronized static and egocentric viewpoints:
+                                                                     This unique multi-view setting gives privileged
+
+                                                               21096
+                                                                                                                          3D Hand poses
+
+Coarse actions          attach track  attach cabin detach cabin        attach interior  attach cabin screw chassis
+
+Fine labels             screw track position remove screw  put down    position screw pick up  screw chassis push
+               pick up  with hand cabin from cabin         cabin
+               chassis                                                 on interior      screwdriver with screwdriver toy
+
+Figure 1. Assembly101 includes synchronized static multi-view and egocentric recordings of participants assembling and disassembling
+take-apart toys. Sequences are annotated with fine-grained and coarse actions, 3D hand poses, participants’ skill levels, and mistakes on
+coarse segments (e.g. “attach cabin” highlighted in red).
+
+      static information currently missing from egocentric       cent Ego4D [17], which expands beyond the kitchen to
+      datasets. It also allows for investigating hand-object     a wide variety of daily activities. In contrast to these
+      interactions with full 3D understanding and domain-        datasets, Assembly101 features both egocentric and third-
+      transfer between different viewpoints.                     person views, offering simultaneous privileged information
+                                                                 from the outside-in as well as multi-view egocentric data for
+2. A Comparison of Action Datasets                               3D action recognition.
+                                                                 Multi-view fixed-camera datasets include IKEA [2] and
+   Assembly101 can be characterized by its (1) multi-step        Breakfast [22]. We feature a synchronized egocentric
+content, (2) multi-view recordings and (3) action under-         stream that allows studying the domain gap between fixed
+standing tasks. We make a coarse comparison to related           and egocentric views. Moreover, the egocentric head pose
+datasets based on this taxonomy.                                 is tracked relative to the fixed views, enabling geometric
+                                                                 reasoning between the viewpoints. Although Charades-
+2.1. Content: Multi-step activities                              EGO [42] also has both an egocentric and a third-person
+                                                                 view of people performing scripted activities, the views are
+   Multi-step activities are best exemplified in cooking and     taken asynchronously, i.e. independent recording instances.
+instructional videos, so the majority of datasets in this
+area are curated from online video platforms, e.g. YouTube       2.3. Task
+Instructional [1], What’s Cooking [27], YoucookII [50],
+CrossTask [52], COIN [49] and HowTo100M [29]. Using              Action recognition: We focus on fine-grained actions
+YouTube videos is appealing due to the sheer amount and          lasting a few seconds within the context of longer ac-
+variety. However, these videos often do not suit an AR set-      tivity sequences. This is in contrast to classifying short
+ting due to their “produced” nature, e.g. mixed viewpoints,      isolated clips, such as in Kinetics [21] and Something-
+fast-forwarding, unrelated narrations, etc. Additionally, the    Something [16]. Our task is more similar to EPIC-
+majority of these datasets are from the kitchen domain and       KITCHENS [5] and Charades [42, 43], which feature fine-
+are primarily composed for studying multi-modal learning         grained segments taken from longer daily activity videos
+in vision and natural language [27, 50, 52].                     with challenging long-tail distributions.
+                                                                 Anticipating actions before they occur is a recently in-
+   Recorded datasets, e.g. Breakfast [22], GTEA [12],            troduced task popularized by EPIC-KITCHENS [5] and
+50Salads [47] are major contributors to the study of multi-      Breakfast [22]. A notable difference between these two
+step activities [9,10,39]. However, they are either small [12,   is the label granularity and hence the anticipation horizon.
+47] or have little ordering variations [22]. Assembly tasks      Anticipation methods for EPIC predict fine-grained actions
+are a new domain explored in some datasets [2,34], but their     with a short, few-second long horizon, while Breakfast aims
+limited scale is less ideal for deep learning.                   to predict multiple coarse actions with minutes-long hori-
+                                                                 zons. As Assembly101 features multi-granular labels, it can
+2.2. Viewpoint: Egocentric & multi-view                          be used for both short- and long-horizon anticipation.
+                                                                 Temporal action segmentation datasets like GTEA [12]
+Egocentric data offers a unique viewpoint for human ac-          and 50Salads [47] are small-scale datasets (28 and 50 videos
+tivities and is particularly important for wearables, e.g. AR
+glasses. Small-scale datasets include [12,20,32,34]. Large-
+scale efforts include EPIC-KITCHENS [5, 6] and the re-
+
+                                                                21097
+            v2                                                    headset. Fig. 2 shows the recording rig and headset, with
+                                                                  cameras circled in red. All cameras are synchronized with
+    v8                                                            SMPTE timecode and geometrically calibrated with a fidu-
+                                                                  cial to sub-pixel accuracies. Participants are recorded stand-
+        v4      v1                                                ing, though taller participants are asked to sit to ensure their
+                                                                  hands and the assembled toy is visible in all camera views.
+            v3
+                                                                  3.2. Participants, toys, & recording protocol
+v5                  v7
+                                                                  Participants: We recruited 53 adults (28 males, 25 fe-
+                                      e2 e1                       males) to disassemble and assemble “take-apart” toy vehi-
+                                     e3 e4                        cles. Each participant was asked to work with six toys in an
+                                                                  hour-long recording session, though the final number varies
+Figure 2. Our custom build headset (inset) and multi-camera desk  depending on the participant’s speed.
+rig, with cameras marked by red circles.                          Toys: The sequences feature 101 unique toys from 15 cate-
+                                                                  gories of construction, emergency response, and other ve-
+respectively). Breakfast [22] is limited in temporal varia-       hicles. Each category has variations in colour, size, and
+tion, making it less ideal for studying sequencing and or-        style of vehicle; across categories, the vehicles have some
+dering as a problem. The assembly actions in our dataset          shared components e.g. construction vehicles feature the
+feature repetitions, large deviations in ordering and also re-    same base but different arm attachments. Fig. 3 shows a
+quire modelling longer-range information.                         sample from each vehicle category and the distribution of
+Hand-object interactions from egocentric views are stud-          toys and recordings per category.
+ied in two new datasets, FPHA [14] and H2O [23]. Un-              Protocol: We are interested in capturing the natural order
+like EPIC, FPHA and H2O provide 3D pose of one or both            in which the participants assemble and disassemble the toys,
+hands and 6D pose of the manipulated objects. Recognition         so we placed only an image of the fully assembled toy on
+from pose is particularly important when the amount of vi-        the table for reference. We did not provide instructions nor
+sual data given to the system is limited, e.g. due to privacy     specify a part ordering1. This design choice makes the as-
+concerns. Assembly101 currently offers 3D hand poses for          sembly task more challenging but also more realistic, re-
+each frame. It offers a much larger set of fine-grained hand-     sulting in great variation in action ordering. Preliminary
+object interactions compared to FPHA and H2O.                     recordings showed that some participants struggled with the
+Detecting mistakes and missed actions by wearable de-             assembly task. For time-efficiency, we adjusted the proto-
+vices could greatly improve wearer’s safety. Anomaly de-          col to have participants first disassemble a completed toy
+tection in surveillance videos [48] and skill assessment [7,      before proceeding to “re”-assemble.
+13, 30, 53] are active research areas, but to the best of our
+knowledge, detecting mistakes in procedural activities has        3.3. Annotations
+not been previously studied. The coarse action segments of
+our assembly sequences are annotated with mistake labels.         Action labels: We label two granularities of actions and
+Closest to our work is [46] on forgotten actions.                 their start and end times. Fine-grained actions are hand-
+                                                                  object interactions based on a single verb or movement and
+3. Recording and Annotation                                       an interacting object or toy part. A fine-grained action
+                                                                  spans two or three stages: (1) pre-contact when the hand
+3.1. Recording rig                                                (and tool) starts approaching the object, (2) the interaction,
+                                                                  and (3) post-contact when the object is released. Addi-
+   We built a desk rig equipped with eight RGB cameras at         tionally, we merge several co-occuring or sequential fine-
+1920 × 1080 resolution and four monochrome cameras at             grained actions into coarse actions related to the attaching
+640 × 480 resolution. The RGB cameras are mounted on a            or detaching of a vehicle part. For example, the coarse ac-
+scaffold around the desk with 5 overhead and 3 on the side.       tion “detach bumper” consists of four fine-grained actions
+The monochrome cameras are placed on the four corners of          {“unscrew bumper with screwdriver”, “remove screw from
+a custom-built headset worn by the participants and provide       bumper”, “pick up bumper”, “put down bumper”}. The
+multiple egocentric views similar to the Oculus Quest VR          fine-grained actions may overlap with each other as partic-
+                                                                  ipants often multi-task, e.g., “put down cabin” and “pick
+                                                                  up screwdriver”, while the coarse actions are contiguous.
+                                                                  Please see Supplementary for details on annotator training
+                                                                  and our custom interface for labelling the actions.
+
+                                                                      1e.g. Meccano [34] provides participants with an ordered list of steps.
+
+                                                                  21098
+fire truck     water tanker  car        jackhammer              clamp
+
+garbage truck  transporter   SUV        cement mixer  ladder truck
+
+crane          roller        bulldozer  excavator               dumper
+
+Figure 3. Left: 15 toy vehicle categories. Right: Distribution of toys and recordings per category. (Best viewed in colour)
+
+3D hand poses: We perform hand tracking from the four                   tailed numerical comparison with other fine-grained action
+monochrome egocentric cameras using a modified version                  datasets. Assembly101 has 23-44× more action classes
+of MegATrack [19] to estimate 3D hand poses of both                     and 56-111× more action segments than assembly-style
+hands. First, we fuse features from all views into a shared             datasets IKEA and Meccano. Assembly101’s scale is com-
+latent space [36]. Then, we regress the joint angles and                parable to other large-scale egocentric datasets such as
+global transformation for each hand before obtaining land-              EPIC-KITCHENS and Ego4D. Compared to EPIC, Assem-
+marks on the fingertips, joints and palm center via forward             bly101’s has 1.7× more egocentric footage and 11× more
+kinematics. The tracker is trained end-to-end on the dataset            action segments. In the labelled footage of Ego4D, the clos-
+from [19]. After egocentric tracking, we extract the 3D key-            est subtask of “forecasting” features 120 hours of annotated
+point locations (21 per hand) in world coordinates as our               temporal action labels. In comparison, our dataset has 12×
+pose representation (see Fig. 1).                                       more action segments than Ego4D.
+
+4. Dataset Statistics                                                   4.3. Coarse actions
+
+4.1. Recording statistics                                                  Each coarse action is defined by the assembly or disas-
+                                                                        sembly of a vehicle part. There are 202 coarse actions com-
+   Our key motivation was to gather a large and diverse pro-            posed of 11 verbs and 61 objects. Each video sequence fea-
+cedural activity dataset with varying label granularities. As-          tures an average of 24 coarse actions. The average coarse
+sembly101 features 362 disassembly-assembly sequences;                  action comprises 10 fine-grained actions and lasts 16.5 ±
+each sequence is recorded from 12 viewpoints, totalling                 15.7 seconds (see distribution in Fig. 4). We also define the
+4321 videos and 513 hours of footage. The average se-                   tail classes for the coarse labels where the 30% of the data
+quence or video duration is 7.1 ± 3.4 minutes (Fig. 4 left).            accounts for 171 (84%) of the coarse actions.
+Tables 1 and 2 show comparisons with similar recorded                   Comparison with other datasets: While coarse actions
+datasets. Assembly101 is considerably larger with more                  can also be used for classification, we consider them se-
+than 1M fine-grained and 100K coarse segments, making                   quentially and use them for action segmentation. Table 2
+it the largest procedural activity dataset to date.                     compares Assembly101 with Breakfast & 50Salads, two
+                                                                        contemporary segmentation benchmarks. We have 2.5×
+4.2. Fine-grained actions                                               more videos, 6.7× more hours of footage, 9.3× more ac-
+                                                                        tion segments and 4.2× more action classes than Breakfast.
+   From our 15 toy categories, we define 90 objects, e.g.,              Temporal dynamics: We define and report two scores in
+wheel, including 5 tools together with the “hand”. Addi-                Table 3 to quantify the temporal dynamics. The repeti-
+tionally, we specify 24 interaction verbs. The objects and              tion score is defined as 1 − ui/gi where ui is the num-
+interaction verbs form a total of 1380 fine-grained action              ber of unique actions in video i, and gi is the total num-
+labels. Fig. 4 shows the duration distribution. The av-                 ber of actions and results in a score in the range [0, 1).
+erage fine-grained action lasts 1.7±2 seconds. In a sin-                0 indicates no repetition, and the closer the score is to 1,
+gle disassembly-assembly sequence, there are an average                 the more repetition that occurs in the sequence. Averaged
+236.7±98.4 fine-grained actions. The entire dataset totals              over all video sequences, we have a repetition score of 0.18,
+more than 1M fine-grained action instances. The distribu-               with higher repetition (0.23) in assembly than disassembly
+tion of objects and verbs is provided in the Supplementary.             (0.11). Compared with Breakfast and 50Salad, our dataset
+There is a natural long tail, where 30% of the data accounts            includes 1.6× and 2.3× more repeated steps, respectively.
+for 1238 (89%) of the fine-grained actions.                             We compute the order variation as the average edit dis-
+Comparison with other datasets: Table 1 gives a de-
+
+                                                                21099
+                                        Table 1. Fine-grained action dataset comparisons.
+
+Dataset                    total # avg.         # avg. #seg. avg.             #                          labelled overlapping #partici-
+                                                                                                         frames segments pants
+                           hours videos (min) segments per video (sec) verbs objects actions
+
+Meccano [34]               6.9 20 20.7          8,858            442.9 2.8  12 21 61                     84.9%     15.8%        20
+                                                                  47.3 6.0                               83.8%
+IKEAASM [2]                35.0 371 5.6 17,577                   128.5 3.1  12 10 33                     71.6%               -  48
+
+EPIC-KITCHENS-100 [6] 100.0 700 8.5 89,977                            --    97 300 4,053                       -   28.1%        37
+                                                                 236.7 1.7                               81.4%
+Ego4D [17]                 120.0        - - 77,002               236.7 1.7  74 87                  -     81.4%               -  406
+
+Assembly101 (ego)          167.0 1,425 7.1 331,310                          24 90 1,380                            7.0%         53
+
+Assembly101                513.0 4,321 7.1 1,013,523                        24 90 1,380                            7.0%         53
+
+                                        Table 2. Coarse action label dataset comparisons.
+
+Dataset         total      #       avg. video   #        avg. #segments avg. segments                  #                        #partici-
+                hours   videos    length (min)                                             verbs objects                          pants
+50Salads [47]                                   segments per video          length                                 actions
+Breakfast [22]     4.5       50                                                                                                         25
+Assembly101       77.0   1,712    6.4              899           18           36.8                    6        15        17             52
+                513.0    4,321                                                                                           48             53
+                                  2.3           11,300           6.6          15.1                 14          28      202
+
+                                  7.1           104,759          24           16.5                 11          61
+
+Table 3. Temporal dynamics of coarse action segments                  Table 4. Comparisons with other datasets with 3D hand pose.
+
+Dataset                    repetitions order variations          Dataset      total hours #frames #segments #actions
+
+Breakfast [22]                    0.11          0.15             FPHA [14]                    1.0        0.1M      1K           45
+                                                                 H2O [23]                     5.5        0.5M
+50Salads [47]                     0.08          0.02             Assembly101               513.0         111M      1K           36
+
+Assembly101                       0.18          0.05                                                               82K          1456
+
+Assembly101 - Assembly            0.23          0.04
+
+Assembly101 - Disassembly         0.11          0.05
+
+tance, e(R, G), between every pair of sequences, (R, G),         recognizing mistakes. Of the 60k coarse actions in assem-
+and normalize it with respect to the maximum sequence            bly, 15.9% and 6.7% segments are mistake and corrective
+length of the two, 1 − e(R, G)/max(|R|, |G|). This score         segments, respectively. Skill is closely related, but datasets
+has a range [0, 1]; a score of 1 corresponds to no devia-        focusing on skill assessment assign a score to short clips
+tions in ordering between pairs. The relatively high scores      of e.g. drawing [7] or suturing [53] instead of determining
+of Breakfast, 0.15, indicate that actions following a strict     what and when the mistake occurs. We also annotated the
+ordering, making it less attractive to study temporal se-        skill level of the participant in our videos from 1 (worst) to
+quence dynamics than 50Salads (0.02) and Assembly101             5 (best). Overall, the distribution of skill labels in our se-
+(0.05). Overall, our dataset includes a high frequency of        quences is 9%, 6%, 13%, 25% and 47% from worst to best.
+repeated steps and variations in temporal ordering both in
+assembly and disassembly sequences, which are character-         4.5. 3D hand poses
+istic of daily procedural activities, and therefore contributes
+a challenging benchmark for modelling the temporal rela-            As Assembly101 features hand-object interactions, 3D
+tions between actions.                                           hand pose is an important modality, especially since AR/VR
+                                                                 systems often provide this information [19]. Compared
+4.4. Mistake actions                                             with FPHA [14] & H2O [23], our dataset includes 82×
+                                                                 more segments and 200× more frames, reported in Table 4.
+   Even though our participants are adults assembling chil-
+dren’s toys, they still make mistakes and then need to make      4.6. Training, validation & test splits
+corrections before proceeding. For example, putting on the
+cabin before attaching the interior (see Fig. 1), making it         We use the 60%, 15% and 25% of the videos for creat-
+impossible to place the interior after, so one must remove       ing our training, validation and test splits, respectively, with
+the cabin as a corrective action before placing the interior.    detailed statistics given in Supplementary. For more ro-
+We annotate the coarse assembly segments with a parallel         bust evaluation, we will withhold the test split ground truths
+set of labels {“correct”, “mistake”, “correction”}.              to be used in online submission leaderboards. The valida-
+                                                                 tion and test sets are structured to help assess generalization
+   Mistakes are natural occurrences in many tasks and an         to new toys and actions and the participants’ skills. 25 of
+opportunity for an AR assistant to provide help. To the best     the 101 toys are shared across training, validation and test
+of our knowledge, there are no existing action datasets for      splits. There are also toy instances that are not a part of the
+                                                                 training set to facilitate zero-shot learning.
+
+                                                                 21100
+Figure 4. Distribution of durations: average durations are 7.1 mins, 1.7s and 16.5s for videos, fine-grained and coarse actions, respectively.
+
+Table 5. Action recognition on fine-grained actions evaluated by Top-1 accuracy. Action anticipation on fine-grained actions evaluated
+by Top-5 Recall.
+
+              Overall  Head                                               Tail  Seen Toys                        Unseen Toys
+
+Task          Tested on verb object action verb object action verb object action verb object action verb object action
+
+                    Fixed 64.0 50.4 39.2 69.7 63.3 51.1 49.7 18.3               9.3 63.0 55.3 42.0 64.3 48.8 38.3
+Recognition Egocentric 47.0 34.3 23.0 51.3 44.6 31.0 36.2 8.6                   3.1 47.3 36.0 23.5 46.9 33.8 22.9
+                                                                                7.3 57.8 48.9 35.9 58.7 44.0 33.3
+               Fixed & Ego. 58.5 45.2 34.0 63.7 57.2 44.6 45.3 15.1
+                                                                                6.7 55.6 51.1 16.9 56.9 24.4 8.2
+                    Fixed 56.6 33.3 10.4 60.3 58.1 30.7 52.8 32.8               2.4 51.6 28.3 7.9 51.9 19.4 5.3
+Anticipation Egocentric 51.9 21.4 5.5 54.8 49.6 22.4 49.2 21.6                  5.3 54.3 43.5 13.9 55.3 22.8 7.3
+
+               Fixed & Ego. 55.1 29.4 8.8 58.5 55.3 28.0 51.6 29.1
+
+              Table 6. Top-1 fine-grained action recognition accuracy for individual views, using TSM networks.
+
+ Trained on   v1 v2 v3 v4 v5 v6 v7 v8 all v* e1 e2 e3 e4 all e*
+
+    Fixed     43.1 40.6 40.3 43.6 27.8 40.4 33.3 37.5 38.3 1.7 1.8 2.2 3.1                                                    2.2
+ Egocentric
+Fixed & Ego.  8.1 7.5 4.8 6.0 2.9 10.8 2.6 8.5                                  6.4 13.2 13.2 29.2 29.3 21.2
+
+              44.1 42.6 41.1 44.8 28.0 41.5 33.4 38.2 39.2 13.9 13.1 32.7 32.7 23.0
+
+5. Benchmark Experiments                                           tures extracted from TSM [25] trained for action recogni-
+                                                                   tion on Assembly as input. Performance is evaluated by
+   We benchmark and present baselines for four action              mean frame-wise accuracy (MoF), segment-wise edit dis-
+tasks: recognition, anticipation, temporal segmentation and        tance (Edit) and F1 scores at overlapping thresholds of 10%,
+our newly defined mistake recognition. However, as the             25%, and 50%, denoted by F1@10, 25, 50.
+data is very rich, it is our hope that the extended community
+will find other uses and tasks for the dataset after its release.     These three challenges form the basis for understanding
+Due to limited space, we highlight some key results in this        actions at various granularities. Compared to the existing
+section and defer the architecture, implementation and de-         datasets, Assembly101 shows great potential for extending
+tailed comparison of results to the Supplementary.                 video understanding to new challenging natural procedural
+                                                                   activities by uniting multi-view recognition, generalization
+5.1. Recognition, anticipation & segmentation                      to new tasks, long-tail distributions, different skill levels and
+                                                                   sequences with mistakes in one dataset.
+For action recognition (Table 5), we define a classification
+task on the fine-grained action classes, using pre-trimmed         5.2. Camera viewpoints
+clips based on the annotated start and end times. We train
+a state-of-the-art video recognition model, TSM [25], and             We train the models on the instances from both fixed
+two top-performing graph convolutional networks on poses,          and egocentric views but report the performance on each
+2s-AGCN [41] and MS-G3D [26]. Performance is evalu-                view separately in Tables 5 and 7. Unsurprisingly, fixed
+ated by Top-1 accuracies for verb, object and action classes.      viewpoints perform better than egocentric viewpoints, with
+Action anticipation (Table 5), predicts upcoming fine-             a difference of 16.2% in “Overall” recognition, 4.9% recall
+grained actions τ = 1 second into the future. We train a           in “Overall” anticipation and 6.5% MoF in segmentation.
+state-of-the-art model TempAgg [38]. Performance is eval-          These differences highlight the challenging nature of recog-
+uated by class-mean Top-5 recall as per [6].                       nizing actions from the egocentric point of view.
+Temporal action segmentation (Table 7) assigns frame-
+wise action labels to a video sequence. We apply two com-             Table 6 compares Top-1 action recognition accuracy on
+peting state-of-the-art temporal convolutional networks:           the individual camera views. Overhead cameras v4 and v1
+MS-TCN++ [24] and C2F-TCN [44], using frame-wise fea-              have the highest accuracy while side cameras v5 and v7
+                                                                   have the lowest, with a drop of 16% and 11% from v4.
+
+                                                                   21101
+Table 7. Baselines of temporal action segmentation; unless spec-         Table 8. Action recognition on 3D hand poses.
+ified, results are from C2F-TCN.
+                                                                  Method                         verb object action
+
+          Comparison       F1@{10,25,50} Edit MoF                 2s-AGCN [41]                   58.1 30.9 22.2
+SOTA                                                              2s-AGCN [41] w/ context        64.4 33.9 26.7
+                           31.6 27.8 20.6 30.7 37.1               MS-G3D [26] w/ context         65.7 36.3 28.7
+MS-TCN++ [24] all          33.3 29.0 21.3 32.4 39.2
+
+C2F-TCN [44]          all                                         TSM egocentric (fuse 4 views)  59.0 46.5 33.8
+
+Fixed vs. Egocentric       35.5 31.2 23.2 33.9 41.3               Object GT                      28.1 98.8 27.2
+Fixed                      28.7 24.4 17.5 29.2 34.8
+Egocentric                                                        MS-G3D [26] w/ context + Object GT 63.4 98.8 62.0
+
+Seen vs. Unseen Toys                                              Table 9. Frame-wise features are extracted from TSMs pre-trained
+                                                                  on various datasets. Action recognition is performed by Tem-
+Seen          Disassembly 35.8 31.1 22.2 31.7 39.8                pAgg [38] trained on these features.
+
+Unseen        Disassembly 31.9 26.6 17.0 27.9 38.9
+
+Seen          Assembly 33.0 28.6 22.7 30.0 42.5
+
+Unseen        Assembly 29.9 26.2 19.8 32.0 34.8                   Pre-trained on                 verb object action
+
+                                                                  Kinetics-400 [21]              28.0 19.9              9.8
+                                                                  SSv2 [16]
+In egocentric views, the lower headset cameras, e3 and e4         EPIC-KITCHENS-100 [6]          28.7 18.8 10.2
+achieve higher accuracies than e1 and e2, which do not fully      Assembly101
+capture the table. The accuracies of e3 and e4, however, are                                     44.0 25.2 17.3
+still more than 10% lower than that of v4.
+                                                                                                 65.9 50.5 40.5
+   Table 6 shows that there is a large domain gap if we train
+the models on only egocentric or fixed view sequences and         3D pose - MS-G3D [26] w/ context 65.7 36.3 28.7
+cross-test rather than training on both sources of data. TSM
+trained only on fixed views performs significantly worse on       portion of the sequences in Table 7 for action segmentation.
+egocentric views and vice versa. This indicates a significant     The MoF and segment scores of the assembly portion is
+mismatch and presents a new challenge for studying the do-        consistently lower than disassembly sequences, likely due
+main gap on paired egocentric and third-person actions.           to its higher complexity, as the disassembly portions have
+                                                                  fewer ordering variations and no mistakes. Overall, the F1
+5.3. Head vs. tail classes                                        and Edit scores do not show a significant over-segmentation
+                                                                  effect compared to disassembly sequences even though the
+   A separate tally in Table 5 reveals a significant gap of       assembly tasks are more complex.
+37% between head and tail action accuracy for recogni-
+tion. The drop in tail verbs is much less than objects (18%       5.5. 3D pose-based action recognition
+vs. 42% drop). Similarly, the action anticipation perfor-
+mance on head classes is quite high, with a 28% recall in            Another objective for collecting Assembly101 was to in-
+Table 5. It is significantly larger than “Overall” action re-     vestigate action recognition using 3D hand poses. Hand
+call by 19.2%. This large difference could be due to the          poses are commonly available in AR/VR systems and are
+evaluation metric where the class-mean balances the long-         significantly more compact representations than video fea-
+tail distribution as 89% of action classes are tail classes.      tures. Table 8 compares 3D pose-based to video-based
+Similarly, we evaluate the tail and head class MoF for tem-       recognition. “2s-AGCN [41]” classifies trimmed segments
+poral action segmentation. According to this the MoF of           bounded by action start and end [ts, te]. “2s-AGCN [41] w/
+the tail classes is 51.5% which is much higher than the tail      context” extends each boundary by 0.5 seconds; the exten-
+MoF of 7.2%. The low tail performance scores encourage            sion improves action accuracy significantly. State-of-the-art
+developing few-shot action recognition methods.                   “MS-G3D [26] w/ context” achieves the highest action per-
+                                                                  formance of 28.7%, though this is still 5.1% lower than the
+5.4. Seen vs. unseen, assembly vs. disassembly                    video-based “TSM egocentric (fuse 4 views)”, where pre-
+                                                                  dictions from the four egocentric views are fused by aver-
+   Assembly101 can be used to study generalization to new         age voting. Interestingly, the verb accuracy for pose-based
+assembly tasks through the “Unseen” toys. Both Tables 5           recognition is 6.7% higher than video-based, while its ob-
+and 7 show that “Seen” toys score higher than “Unseen”            ject score is 10.2% lower than video-based. This is unsur-
+ones for action recognition, anticipation and segmentation.       prising as hand poses can easily encode movements but can-
+For recognition and anticipation, there is little difference      not provide much object information. We also add an oracle
+in verb scores, but a large gap for objects, as all verbs are     experiment incorporating ground truth object labels as one-
+shared whereas objects are not (13% unseen objects).              hot encoded frame-level features and train a TempAgg [38]
+                                                                  model on top. As shown in Table 8, “Object GT” alone
+   We separate the evaluation for assembly vs. disassembly        achieves a high object but poor verb accuracy. Fusing it with
+
+                                                                  21102
+                                                                                  Table 10. Mistake detection results.
+
+                                                                                           Mistake                      Correction
+
+                                                                     Task         Features precision recall precision recall
+
+                                                                     Recognition  GT coarse 48.6 62.7 65.6 84.9
+
+                                                                                  TSM      30.8 46.6 30.8 29.6
+
+                                                                     Early prediction TSM  29.3 35.0 26.5 26.4
+
+Figure 5. Influence of skill on segmentation. “d” stands for disas-  recall under two settings: “Recognition”, which gets the en-
+sembly and “a” for assembly. Participants with less skills, “a1 &    tire coarse segment and “Early prediction”, which gets half
+a2”, have lower scores in assembly sequences.                        of the segment. Due to the imbalanced class distribution,
+                                                                     we penalize the models more for misclassifying “mistake”
+“MS-G3D [26] w/ context” results in a significant jump in            and “correction” classes. As an oracle baseline, we use the
+action accuracy. We leave as future work the joint modeling          ground truth coarse action labels, “GT coarse” as input.
+of 3D objects and hand poses for action recognition.                 Baseline results: Table 10 shows the challenge in detect-
+                                                                     ing mistakes - even using the ground truth coarse action la-
+   3D poses have the additional advantage of less sensi-             bels as input, the recall for mistakes and corrections is only
+tivity to domain gaps between different environments. For            around 62.7% and 84.9% respectively. With TSM input fea-
+video-based models, training features from scratch requires          tures, the recall is currently only around 46.6% and 29.6%
+considerable amounts of time and data, but using features            once the segment of interest ends. Early prediction results
+extracted from pre-trained networks may not always gener-            in a further 11.6% and 3.2% drop.
+alize. Table 9 compares TempAgg [38] trained on the fea-
+tures extracted from TSM networks pre-trained on Kinetics-           6. Conclusion
+400 [21], Something-Something [16], EPIC-KITCHENS-
+100 [6] and Assembly101 for view “v1”. TSM features pre-                In this paper, we presented Assembly101, the largest
+trained on EPIC-KITCHENS perform significantly better                procedural activity dataset to date. Our dataset includes
+than the other datasets; though there is still a gap of 23.2%        synchronized egocentric and static viewpoints for cross-
+compared to pre-training on the native Assembly101. This             view domain analysis, multi-granular action segments and
+indicates a considerable domain gap between our dataset              mistake labels to study goal-oriented sequence learning and
+and the existing action recognition benchmarks. On the               3D hand poses to advance 3D hand-object interaction recog-
+other hand, poses are low-dimensional common represen-               nition. We defined four challenges, action recognition, ac-
+tations independent of the domain and therefore outperform           tion anticipation, temporal action segmentation and mistake
+the scores from the other datasets by a significant margin.          detection, to evaluate a wide range of aspects of assem-
+                                                                     bly tasks, including generalization to new toys, cross-view
+5.6. Skill level                                                     transfer, long-tailed distributions, skill level and pose vs.
+                                                                     appearance. Existing methods show promising results but
+   Fig. 5 compares the segmentation scores for different             are still far from tackling these challenges with high preci-
+skill levels from 1 (least skilled) to 5 (most skilled) in both      sion, as observed in the oracle experiments, leaving room
+disassembly and assembly sequences, indicated by the pre-            for future explorations.
+fixes “d” and ‘“a”, respectively. Results show that the skill
+level has little impact on the disassembly sequences. For               Assembly101 can be used for many different applica-
+the least skilled groups “a1 & a2”, however, segmentation            tions. In this paper, we proposed several directions such as
+scores for assembly sequences are significantly lower than           training the next generation of smart assistants to recognize
+disassembly, likely due to the high ordering variations and          what a user is doing, predict subsequent steps as they watch
+mistake segments.                                                    an assembly task, check for non-compliant steps and give
+                                                                     alerts or offer help. We hope that the community will find
+5.7. Mistake detection                                               other applications and tasks for our dataset after its release.
+
+   Identifying mistakes requires modelling procedural                Acknowledgements: This research/project is supported by the
+knowledge and retaining long-range sequence information.             National Research Foundation, Singapore under its AI Singapore
+As input, we provide video sequences represented by frame-           Programme (AISG Award No: AISG2-RP-2020-016). Any opin-
+wise features from the start of the assembly sequence to the         ions, findings and conclusions or recommendations expressed in
+(end of the) current coarse action segment. The task is pre-         this material are those of the author(s) and do not reflect the views
+dicting if the current segment belongs to one of the three           of National Research Foundation, Singapore.
+classes of {“correct”, “mistake”, “correction”}. We ap-
+ply the long-range video model TempAgg [38] using TSM
+features and evaluate per-class Top-1 precision and Top-1
+
+                                                                     21103
+References                                                                    the IEEE/CVF Conference on Computer Vision and Pattern
+                                                                              Recognition (CVPR), 2011. 1, 2
+ [1] Jean-Baptiste Alayrac, Piotr Bojanowski, Nishant Agrawal,          [13] Yixin Gao, S Swaroop Vedula, Carol E Reiley, Narges Ah-
+      Josef Sivic, Ivan Laptev, and Simon Lacoste-Julien. Unsu-               midi, Balakrishnan Varadarajan, Henry C Lin, Lingling Tao,
+      pervised learning from narrated instruction videos. In Pro-             Luca Zappella, Benjamın Be´jar, David D Yuh, et al. Jhu-isi
+      ceedings of the IEEE Conference on Computer Vision and                  gesture and skill assessment working set (jigsaws): A surgi-
+      Pattern Recognition, pages 4575–4583, 2016. 1, 2                        cal activity dataset for human motion modeling. In MICCAI
+                                                                              workshop: M2cai, volume 3, page 3, 2014. 1, 3
+ [2] Yizhak Ben-Shabat, Xin Yu, Fatemeh Saleh, Dylan Camp-              [14] Guillermo Garcia-Hernando, Shanxin Yuan, Seungryul
+      bell, Cristian Rodriguez-Opazo, Hongdong Li, and Stephen                Baek, and Tae-Kyun Kim. First-person hand action bench-
+      Gould. The ikea asm dataset: Understanding people assem-                mark with rgb-d videos and 3d hand pose annotations. In
+      bling furniture through actions, objects and pose. In Pro-              Proceedings of the IEEE/CVF Conference on Computer Vi-
+      ceedings of the IEEE/CVF Winter Conference on Applica-                  sion and Pattern Recognition (CVPR), pages 409–419, 2018.
+      tions of Computer Vision, pages 847–859, 2021. 1, 2, 5                  3, 5
+                                                                        [15] Google. Google glass cook along app for gressingham duck.
+ [3] Laura Beyer-Berjot, Ste´phane Berdah, Daniel A Hashimoto,                https : / / www . youtube . com / watch ? v = WQfu6 -
+      Ara Darzi, and Rajesh Aggarwal. A virtual reality training              Qle2g, 2014. 1
+      curriculum for laparoscopic colorectal surgery. Journal of        [16] Raghav Goyal, Samira Ebrahimi Kahou, Vincent Michal-
+      surgical education, 73(6):932–941, 2016. 1                              ski, Joanna Materzynska, Susanne Westphal, Heuna Kim,
+                                                                              Valentin Haenel, Ingo Fruend, Peter Yianilos, Moritz
+ [4] Sara Colombo, Yihyun Lim, and Federico Casalegno. Deep                   Mueller-Freitag, et al. The” something something” video
+      vision shield: Assessing the use of hmd and wearable sensors            database for learning and evaluating visual common sense.
+      in a smart safety device. In Proceedings of the 12th ACM In-            In Proceedings of the IEEE/CVF International Conference
+      ternational Conference on PErvasive Technologies Related                on Computer Vision (ICCV), pages 5842–5850, 2017. 1, 2,
+      to Assistive Environments, pages 402–410, 2019. 1                       7, 8
+                                                                        [17] Kristen Grauman, Andrew Westbury, Eugene Byrne,
+ [5] Dima Damen, Hazel Doughty, Giovanni Maria Farinella,                     Zachary Chavis, Antonino Furnari, Rohit Girdhar, Jack-
+      Sanja Fidler, Antonino Furnari, Evangelos Kazakos, Davide               son Hamburger, Hao Jiang, Miao Liu, Xingyu Liu, Miguel
+      Moltisanti, Jonathan Munro, Toby Perrett, Will Price, and               Martin, Tushar Nagarajan, Ilija Radosavovic, Santhosh Ku-
+      Michael Wray. Scaling egocentric vision: The epic-kitchens              mar Ramakrishnan, Fiona Ryan, ayant Sharma, Michael
+      dataset. In Proceedings of the European Conference on Com-              Wray, Mengmeng Xu, Eric Zhongcong Xu, Chen Zhao,
+      puter Vision (ECCV), 2018. 1, 2                                         Siddhant Bansal, Dhruv Batra, Vincent Cartillier, Sean
+                                                                              Crane, Tien Do, Morrie Doulaty, Akshay Erapalli, Christoph
+ [6] Dima Damen, Hazel Doughty, Giovanni Maria Farinella,                     Feichtenhofer, Adriano Fragomeni, Qichen Fu, Christian
+      Antonino Furnari, Jian Ma, Evangelos Kazakos, Davide                    Fuegen, Abrham Gebreselasie, Cristina Gonz alez, James
+      Moltisanti, Jonathan Munro, Toby Perrett, Will Price, and               Hillis, Xuhua Huang, Yifei Huang, Wenqi Jia, Weslie
+      Michael Wray. Rescaling egocentric vision. CoRR,                        Khoo, Jachym Kolar, Satwik Kottur, Anurag Kumar, Fed-
+      abs/2006.13256, 2020. 2, 5, 6, 7, 8                                     erico Landini, Chao Li, Zhenqiang Li, Karttikeya Man-
+                                                                              galam, Raghava Modhugu, Jonathan Munro, Tullie Mur-
+ [7] Hazel Doughty, Walterio Mayol-Cuevas, and Dima Damen.                    rell, Takumi Nishiyasu, Will Price, Paola Ruiz Puentes,
+      The pros and cons: Rank-aware temporal attention for                    Merey Ramazanova, Leda Sari, Kiran Somasundaram, Au-
+      skill determination in long videos. In Proceedings of the               drey Southerland, Yusuke Sugano, Ruijie Tao, Minh Vo,
+      IEEE/CVF Conference on Computer Vision and Pattern                      Yuchen Wang, Xindi Wu, Takuma Yagi, Yunyi Zhu, ablo Ar-
+      Recognition, pages 7862–7871, 2019. 1, 3, 5                             bel aez, David Crandall6, Dima Damen, Giovanni Maria
+                                                                              Farinella, Bernard Ghanem, Vamsi Krishna Ithapu, C. V.
+ [8] EGTEA. Extended GTEA Gaze+ - Georgia Tech. http://                       Jawahar, Hanbyul Joo, Kris Kitani, Haizhou Li, Richard
+      webshare.ipat.gatech.edu/coc- rim- wall-                                Newcombe, Aude Oliva, Hyun Soo Park, James M. Rehg,
+      lab/web/yli440/egtea_gp, 2018. 1                                        Yoichi Sato, Jianbo Shi, Mike Zheng Shou, Antonio Tor-
+                                                                              ralba, Lorenzo Torresani, Mingfei Yan, and Jitendra Ma-
+ [9] Yazan Abu Farha and Jurgen Gall. Ms-tcn: Multi-stage tem-                lik. Around the World in 3,000 Hours of Egocentric Video.
+      poral convolutional network for action segmentation. In Pro-            CoRR, abs/2110.07058, 2021. 1, 2, 5
+      ceedings of the IEEE/CVF Conference on Computer Vision            [18] Chunhui Gu, Chen Sun, David A Ross, Carl Vondrick, Car-
+      and Pattern Recognition (CVPR), pages 3575–3584, 2019. 2                oline Pantofaru, Yeqing Li, Sudheendra Vijayanarasimhan,
+                                                                              George Toderici, Susanna Ricco, Rahul Sukthankar, et al.
+[10] Yazan Abu Farha, Qiuhong Ke, Bernt Schiele, and Juergen                  Ava: A video dataset of spatio-temporally localized atomic
+      Gall. Long-term anticipation of activities with cycle consis-           visual actions. In Proceedings of the IEEE Conference
+      tency. In German Conference on Pattern Recognition, 2020.               on Computer Vision and Pattern Recognition, pages 6047–
+      2                                                                       6056, 2018. 1
+
+[11] Giovanni Maria Farinella, Giovanni Signorello, Sebastiano
+      Battiato, Antonino Furnari, Francesco Ragusa, R Leonardi,
+      Emanuele Ragusa, Emanuele Scuderi, Antonino Lopes, Lu-
+      ciano Santo, et al. Vedi: Vision exploitation for data interpre-
+      tation. In International Conference on Image Analysis and
+      Processing, pages 753–763. Springer, 2019. 1
+
+[12] Alireza Fathi, Xiaofeng Ren, and James M Rehg. Learning to
+      recognize objects in egocentric activities. In Proceedings of
+
+                                                                        21104
+[19] Shangchen Han, Beibei Liu, Randi Cabezas, Christopher D                IEEE/CVF International Conference on Computer Vision,
+      Twigg, Peizhao Zhang, Jeff Petkau, Tsz-Ho Yu, Chun-Jung               pages 6331–6340, 2019. 3
+      Tai, Muzaffer Akbay, Zheng Wang, Asaf Nitzan, Gang
+      Dong, Yuting Ye, Lingling Tao, Chengde Wan, and Robert          [31] Paritosh Parmar and Brendan Morris. Action quality assess-
+      Wang. MEgATrack: monochrome egocentric articulated                    ment across multiple actions. In 2019 IEEE winter con-
+      hand-tracking for virtual reality. ACM Transactions on                ference on applications of computer vision (WACV), pages
+      Graphics (TOG), 39(4):87–1, 2020. 4, 5                                1468–1476. IEEE, 2019. 1
+
+[20] Y. Jang, B. Sullivan, C. Ludwig, I. Gilchrist, D. Damen, and     [32] Hamed Pirsiavash and Deva Ramanan. Detecting activities
+      W. Mayol-Cuevas. Epic-tent: An egocentric video dataset               of daily living in first-person camera views. In Computer
+      for camping tent assembly. In ICCVW, 2019. 1, 2                       Vision and Pattern Recognition (CVPR), 2012 IEEE Confer-
+                                                                            ence on, pages 2847–2854. IEEE, 2012. 2
+[21] Will Kay, Joao Carreira, Karen Simonyan, Brian Zhang,
+      Chloe Hillier, Sudheendra Vijayanarasimhan, Fabio Viola,        [33] Hamed Pirsiavash, Carl Vondrick, and Antonio Torralba. As-
+      Tim Green, Trevor Back, Paul Natsev, et al. The kinetics hu-          sessing the quality of actions. In European Conference on
+      man action video dataset. arXiv preprint arXiv:1705.06950,            Computer Vision, pages 556–571. Springer, 2014. 1
+      2017. 1, 2, 7, 8
+                                                                      [34] Francesco Ragusa, Antonino Furnari, Salvatore Livatino,
+[22] Hilde Kuehne, Ali Arslan, and Thomas Serre. The language               and Giovanni Maria Farinella. The meccano dataset:
+      of actions: Recovering the syntax and semantics of goal-              Understanding human-object interactions from egocentric
+      directed human activities. In Proceedings of the IEEE/CVF             videos in an industrial-like domain. In Proceedings of the
+      Conference on Computer Vision and Pattern Recognition                 IEEE/CVF Winter Conference on Applications of Computer
+      (CVPR), 2014. 1, 2, 3, 5                                              Vision, pages 1569–1578, 2021. 1, 2, 3, 5
+
+[23] Taein Kwon, Bugra Tekin, Jan Stuhmer, Federica Bogo,             [35] Michaela Regneri, Marcus Rohrbach, Dominikus Wetzel,
+      and Marc Pollefeys. H2o: Two hands manipulating ob-                   Stefan Thater, Bernt Schiele, and Manfred Pinkal. Ground-
+      jects for first person interaction recognition. arXiv preprint        ing action descriptions in videos. Transactions of the Asso-
+      arXiv:2104.11181, 2021. 3, 5                                          ciation for Computational Linguistics, 2013. 1
+
+[24] Shi-Jie Li, Yazan AbuFarha, Yun Liu, Ming-Ming Cheng,            [36] Edoardo Remelli, Shangchen Han, Sina Honari, Pascal Fua,
+      and Juergen Gall. Ms-tcn++: Multi-stage temporal convolu-             and Robert Wang. Lightweight multi-view 3d pose estima-
+      tional network for action segmentation. IEEE Transactions             tion through camera-disentangled representation. In Pro-
+      on Pattern Analysis and Machine Intelligence, pages 1–1,              ceedings of the IEEE/CVF Conference on Computer Vision
+      2020. 6, 7                                                            and Pattern Recognition (CVPR), pages 6040–6049, 2020. 4
+
+[25] Ji Lin, Chuang Gan, and Song Han. Tsm: Temporal shift            [37] Marcus Rohrbach, Sikandar Amin, Mykhaylo Andriluka,
+      module for efficient video understanding. In Proceedings of           and Bernt Schiele. A database for fine grained activity detec-
+      the IEEE/CVF International Conference on Computer Vision              tion of cooking activities. In Proceedings of the IEEE con-
+      (ICCV), pages 7083–7093, 2019. 6                                      ference on computer vision and pattern recognition (CVPR),
+                                                                            2012. 1
+[26] Ziyu Liu, Hongwen Zhang, Zhenghao Chen, Zhiyong Wang,
+      and Wanli Ouyang. Disentangling and unifying graph con-         [38] Fadime Sener, Dipika Singhania, and Angela Yao. Temporal
+      volutions for skeleton-based action recognition. In Proceed-          aggregate representations for long-range video understand-
+      ings of the IEEE/CVF Conference on Computer Vision and                ing. In Proceedings of the European Conference on Com-
+      Pattern Recognition (CVPR), pages 143–152, 2020. 6, 7, 8              puter Vision (ECCV), pages 154–171. Springer, 2020. 6, 7,
+                                                                            8
+[27] Jonathan Malmaud, Jonathan Huang, Vivek Rathod,
+      Nicholas Johnston, Andrew Rabinovich, and Kevin Mur-            [39] Fadime Sener and Angela Yao. Unsupervised learning and
+      phy. What’s cookin’? interpreting cooking videos using text,          segmentation of complex activities from video. In Proceed-
+      speech and vision. In North American Chapter of the Asso-             ings of the IEEE/CVF Conference on Computer Vision and
+      ciation for Computational Linguistics (NAACL), pages 143–             Pattern Recognition (CVPR), 2018. 2
+      152, 2015. 2
+                                                                      [40] Fadime Sener and Angela Yao. Zero-shot anticipation for
+[28] Antoine Miech, Dimitri Zhukov, Jean-Baptiste Alayrac,                  instructional activities. In Proceedings of the IEEE/CVF In-
+      Makarand Tapaswi, Ivan Laptev, and Josef Sivic.                       ternational Conference on Computer Vision, 2019. 1
+      HowTo100M: Learning a Text-Video Embedding by
+      Watching Hundred Million Narrated Video Clips. In               [41] Lei Shi, Yifan Zhang, Jian Cheng, and Hanqing Lu. Two-
+      Proceedings of the IEEE/CVF International Conference on               stream adaptive graph convolutional networks for skeleton-
+      Computer Vision (ICCV), 2019. 1                                       based action recognition. In Proceedings of the IEEE/CVF
+                                                                            conference on computer vision and pattern recognition,
+[29] Antoine Miech, Dimitri Zhukov, Jean-Baptiste Alayrac,                  pages 12026–12035, 2019. 6, 7
+      Makarand Tapaswi, Ivan Laptev, and Josef Sivic.
+      Howto100m: Learning a text-video embedding by watching          [42] Gunnar A Sigurdsson, Abhinav Gupta, Cordelia Schmid, Ali
+      hundred million narrated video clips. In Proceedings of the           Farhadi, and Karteek Alahari. Actor and observer: Joint
+      IEEE/CVF International Conference on Computer Vision,                 modeling of first and third-person videos. In Proceedings of
+      pages 2630–2640, 2019. 2                                              the IEEE/CVF Conference on Computer Vision and Pattern
+                                                                            Recognition (CVPR), pages 7396–7404, 2018. 1, 2
+[30] Jia-Hui Pan, Jibin Gao, and Wei-Shi Zheng. Action as-
+      sessment by joint relation graphs. In Proceedings of the        [43] Gunnar A. Sigurdsson, Gu¨l Varol, Xiaolong Wang, Ali
+                                                                            Farhadi, Ivan Laptev, and Abhinav Gupta. Hollywood in
+
+                                                                      21105
+      homes: Crowdsourcing data collection for activity under-
+      standing. In Proceedings of the European Conference on
+      Computer Vision (ECCV), 2016. 1, 2
+[44] Dipika Singhania, Rahul Rahaman, and Angela Yao. Coarse
+      to fine multi-resolution temporal convolutional network.
+      arXiv preprint arXiv:2105.10859, 2021. 6, 7
+[45] Khurram Soomro, Amir Roshan Zamir, and Mubarak Shah.
+      Ucf101: A dataset of 101 human actions classes from videos
+      in the wild. arXiv preprint arXiv:1212.0402, 2012. 1
+[46] Bilge Soran, Ali Farhadi, and Linda Shapiro. Generating no-
+      tifications for missing actions: Don’t forget to turn the lights
+      off! In Proceedings of the IEEE/CVF International Confer-
+      ence on Computer Vision (ICCV), pages 4669–4677, 2015.
+      3
+[47] Stein and McKenna. Combining embedded accelerometers
+      with computer vision for recognizing food preparation activ-
+      ities. In UbiComp, 2013. 1, 2, 5
+[48] Waqas Sultani, Chen Chen, and Mubarak Shah. Real-world
+      anomaly detection in surveillance videos. In Proceedings of
+      the IEEE conference on computer vision and pattern recog-
+      nition, pages 6479–6488, 2018. 3
+[49] Yansong Tang, Dajun Ding, Yongming Rao, Yu Zheng,
+      Danyang Zhang, Lili Zhao, Jiwen Lu, and Jie Zhou. Coin:
+      A large-scale dataset for comprehensive instructional video
+      analysis. In Proceedings of the IEEE/CVF Conference on
+      Computer Vision and Pattern Recognition (CVPR), 2019. 1,
+      2
+[50] Luowei Zhou, Chenliang Xu, and Jason J Corso. Towards
+      automatic learning of procedures from web instructional
+      videos. In AAAI, 2018. 1, 2
+[51] Yukun Zhu, Ryan Kiros, Rich Zemel, Ruslan Salakhutdinov,
+      Raquel Urtasun, Antonio Torralba, and Sanja Fidler. Align-
+      ing books and movies: Towards story-like visual explana-
+      tions by watching movies and reading books. In Proceed-
+      ings of the IEEE international conference on computer vi-
+      sion, pages 19–27, 2015. 1
+[52] Dimitri Zhukov, Jean-Baptiste Alayrac, Ramazan Gokberk
+      Cinbis, David Fouhey, Ivan Laptev, and Josef Sivic. Cross-
+      task weakly supervised learning from instructional videos.
+      In Proceedings of the IEEE/CVF Conference on Computer
+      Vision and Pattern Recognition (CVPR), 2019. 1, 2
+[53] Aneeq Zia, Yachna Sharma, Vinay Bettadapura, Eric L Sarin,
+      Thomas Ploetz, Mark A Clements, and Irfan Essa. Auto-
+      mated video-based assessment of surgical skills for training
+      and evaluation in medical schools. International journal of
+      computer assisted radiology and surgery, 11(9):1623–1636,
+      2016. 3, 5
+
+                                                                                  21106
+

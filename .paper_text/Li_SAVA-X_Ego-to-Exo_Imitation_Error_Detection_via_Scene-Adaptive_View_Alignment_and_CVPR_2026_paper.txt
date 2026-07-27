@@ -1,0 +1,776 @@
+This CVPR paper is the Open Access version, provided by the Computer Vision Foundation.
+                 Except for this watermark, it is identical to the accepted version;
+
+          the final published version of the proceedings is available on IEEE Xplore.
+
+SAVA-X: Ego-to-Exo Imitation Error Detection via Scene-Adaptive View
+                 Alignment and Bidirectional Cross View Fusion
+
+Xiang Li, Heqian Qiu*, Lanxiao Wang*, Benliu Qiu, Fanman Meng, Linfeng Xu, Hongliang Li*
+                      University of Electronic Sience and Technology of China
+                                               Chengdu, China
+
+xianglee@std.uestc.edu.cn,{hqqiu,lanxiaowang}@uestc.edu.cn,qbenliu@gmail.com,{fmmeng,lfxu,hlli}@uestc.edu.cn
+
+                      Abstract                               Robot or Student                   Exocentric Demonstration
+
+Error detection is crucial in industrial training, health-                Perform               Egocentric Imitation
+care, and assembly quality control. Most existing work
+assumes a single-view setting and cannot handle the          Error Type:            Sit down    Open the drawer  Hold top  Place beside  Close
+practical case where a third-person (exo) demonstra-          Omission                                             book                  drawer
+tion is used to assess a first-person (ego) imitation. We     Sequence disorder
+formalize Ego→Exo Imitation Error Detection: given            Execution deviations
+asynchronous, length-mismatched ego and exo videos,
+the model must localize procedural steps on the ego                               Redundant                                                            AI
+timeline and decide whether each is erroneous. This set-                       Frames Increase                                                         Fusion
+ting introduces cross-view domain shift, temporal mis-
+alignment, and heavy redundancy. Under a unified pro-                                                                                    Exo Features  Ego Features
+tocol, we adapt strong baselines from dense video cap-
+tioning and temporal action detection and show that          Figure 1. Top: Schematic of the Ego→Exo imitation-error
+they struggle in this cross-view regime. We then pro-        detection task. The system localizes steps on the ego time-
+pose SAVA-X, an Align–Fuse–Detect framework with (i)         line and judges each step by semantic adherence to the exo-
+view-conditioned adaptive sampling, (ii) scene-adaptive      centric demonstration, rather than rigid speed/pose matching.
+view embeddings, and (iii) bidirectional cross-attention     Bottom-left: Baseline exhibits a counterintuitive performance
+fusion. On the EgoMe benchmark, SAVA-X consistently          drop as the number of input frames increases, partly because
+improves AUPRC and mean tIoU over all baselines, and         redundant frames in the videos introduce distraction. Bottom:
+ablations confirm the complementary benefits of its com-     There is a pronounced domain shift between Ego and Exo,
+ponents. Code is available at https://github.                the distribution of similarities between video-level features of
+com/jack1ee/SAVAX .                                          demonstration–imitation pairs is overly dispersed. Bottom-
+                                                             right: A key challenge is how to effectively fuse information
+1. Introduction                                              from Ego and Exo videos to accomplish the task.
+
+Wearable cameras and human–robot systems have ac-               In many real-world settings—industrial assembly fol-
+celerated research on egocentric (first-person) video un-    lowing an instructor, a nurse imitating a medical proto-
+derstanding [8, 22, 39]. Egocentric videos capture fine-     col, or a robot learning from demonstration—the refer-
+grained hand–object interactions and operator intent,        ence is a third-person (exocentric) demonstration, and
+supporting applications such as procedural training, skill   the goal is to determine whether a first-person execu-
+assessment, and execution monitoring. While recent           tion faithfully imitates it. This cross-view formulation is
+progress spans egocentric action classification [9, 11, 17,  rarely explored. Prior error-detection studies [9, 31] op-
+18, 33, 37, 38, 46, 49, 56, 61, 64] and temporal detec-      erate within a single view, leaving a fundamental ques-
+tion [12, 25, 43, 45, 47, 48, 53, 63], most existing ap-     tion unanswered: how can we detect procedural mis-
+proaches assume egocentric-only inputs.                      takes when demonstration and execution belong to dif-
+                                                             ferent, unaligned viewpoints?
+    *Corresponding authors.
+                                                                We formalize this problem as Ego→Exo imitation
+                                                             error detection. Given an exocentric demonstration
+                                                             V exo and an egocentric execution V ego recorded asyn-
+                                                             chronously and with potentially different durations, the
+                                                             system must (i) localize procedural steps on the ego
+
+28062
+timeline and (ii) classify each step as correct or erro-    2. Related Work
+neous relative to the demonstration. We build upon
+EgoMe [42], the only dataset providing paired but un-       Video Understanding. Modern video foundation mod-
+aligned ego–exo videos with fine-grained procedural         els have evolved from 3D CNNs to large-scale Trans-
+and error annotations.                                      formers pretrained with self-supervision. A com-
+                                                            mon downstream paradigm is frozen backbone and
+   This cross-view setting poses three tightly coupled      lightweight task head. Recent methods design temporal
+challenges. Temporal misalignment. Ego/exo videos           structures or supervision strategies to learn general spa-
+differ in timing, pace, and execution style; duration mis-  tiotemporal representations [3, 7, 27, 54]. For egocen-
+match is not itself an error, yet it disrupts na¨ıve fea-   tric pretraining, [6, 24, 40] extend multimodal and self-
+ture alignment. Heavy redundancy. Long videos con-          supervised approaches to first-person scenarios. To han-
+tain substantial non-informative content [4, 55], diluting  dle redundancy in long videos, adaptive frame selection
+attention mechanisms [52] and amplifying false posi-        and sparse distillation improve efficiency under fixed to-
+tives. Pronounced view-domain gap. Egocentric views         ken budgets [4, 51, 69]. We similarly employ learned
+emphasize local hand–object interactions, whereas ex-       sampling for redundancy and cross-view temporal align-
+ocentric views capture global posture and scene lay-        ment. With frozen backbones, prompt- or embedding-
+out. Their appearance and motion statistics differ sig-     based adaptation [15, 44] provides efficient specializa-
+nificantly [30, 60], causing direct feature fusion to be    tion. For multi-view conditioning, [21, 26] integrate ge-
+unreliable.                                                 ometric priors into Transformers. Inspired by this, we
+                                                            introduce a scene-aware dictionary of view embeddings
+   Addressing these intertwined issues requires more        to encode ego/exo differences and enhance cross-scene
+than simply concatenating ego/exo features or adapting      generalization.
+single-view temporal detectors. To this end, we propose     Temporal Action Localization. TAL aims to detect ac-
+SAVA-X (Scene-Adaptive View Alignment with Bidi-            tion boundaries and assign class labels in untrimmed
+rectional Cross View Fusion), a unified Align–Fuse–         videos. Recent work has moved from proposal-based
+Detect framework that (i) selectively retains informa-      pipelines to single-stage Transformer or query-based
+tive segments to stabilize alignment under timing mis-      formulations, achieving strong benchmark performance
+match, (ii) conditions representations on learnable view-   [25, 48, 63]. In egocentric settings with frequent
+aware embeddings to reduce domain discrepancy, and          view changes, training directly on egocentric data al-
+(iii) performs complementary cross-view interaction to      leviates domain transfer issues [53], while unsuper-
+unify global demonstration cues with local egocentric       vised alignment using synchronized ego–exo pairs fur-
+evidence. Importantly, SAVA-X is designed so that           ther bridges the gap [43]. For procedural online sce-
+each component targets one of the core challenges while     narios, error-free prototypes support error detection,
+jointly reinforcing the others.                             progress-aware segmentation enhances streaming recog-
+                                                            nition, and memory-augmented designs improve effi-
+   Under a unified evaluation protocol, we adapt strong     ciency [20, 45, 47].
+baselines from dense video captioning and temporal ac-      Dense Video Captioning. DVC aims to localize
+tion detection and show that they struggle in this cross-   multiple events and generate textual descriptions for
+view regime. On EgoMe[42], SAVA-X achieves con-             untrimmed videos [41]. Since its introduction by [16],
+sistent improvements in AUPRC and mean tIoU across          research has advanced from coarse activity captioning to
+multiple thresholds. Extensive ablations verify that each   fine-grained procedural domains such as cooking, sup-
+design element contributes meaningfully and that their      ported by datasets like YouCook2, YouMakeup, and
+combination yields robust cross-view error detection.       large narrated corpora [32, 34, 58, 65]. The dominant
+                                                            paradigm has shifted from two-stage proposal–caption
+   Contributions. (1) We introduce and formalize the        pipelines [59, 66] to end-to-end formulations with set
+new task of Ego→Exo imitation error detection, high-        prediction and parallel decoding [57, 62, 67], reduc-
+lighting practical significance and core challenges. (2)    ing heuristic dependencies. For cross-view egocentric
+We propose SAVA-X, an Align–Fuse–Detect framework           captioning, [35] establish an exo→ego transfer bench-
+designed to jointly handle temporal misalignment, re-       mark using view-invariant adversarial learning to ad-
+dundancy, and cross-view domain shift. (3) We establish     dress viewpoint mismatch.
+a unified protocol, adapt strong baselines, and show that
+SAVA-X delivers consistent gains and complementary
+component effects on the EgoMe[42] benchmark.
+
+28063
+                                                                                                      𝐙෠ 𝑒𝑥𝑜                       𝐙෠ 𝑒𝑔𝑜              𝐙෨ 𝑒𝑥𝑜                              𝐙෨ 𝑒𝑔𝑜
+
+             ℒvic AS                                    ℒvic                                                                                                            BiX
+
+                                   𝐙෠ 𝑒𝑥𝑜                          𝐙෠ 𝑒𝑔𝑜                                                       SVE
+                                               Gumbel TopK
+                                                                                                                                                    Q             K  V           V      K          Q
+
+             Gumbel TopK           ℒsel ℒsel                                                                                                              FFN                          FFN
+                                                                                                                                                    Cross Attention              Cross Attention
+
+                                   𝒓𝑒𝑥𝑜  𝒓𝑒𝑔𝑜
+
+                                                                                                                             V     K       Q
+
+                                                                                                                                   FFN                 Gated Fusion                 Gated Fusion
+                                                                                                                             Cross Attention
+                Self Attention                 Cross Attention                View Dictionary
+                     FFN                             FFN
+                                                                           ℒview−ent ℒdict−div
+             Q  K               V              V  K  Q
+                                                                                          𝐕𝐄𝑒𝑥𝑜
+                                   𝐙𝑒𝑥𝑜 𝐙𝑒𝑔𝑜                                                                                       𝐕𝐄𝑒𝑔𝑜                                   𝐙෠ 𝑓𝑢𝑠𝑒𝑑        Base Encoder
+
+                                                          Gating gradient                                                                           𝐏𝐄𝑑𝑒𝑓𝑜𝑟𝑚𝑎𝑏𝑙𝑒     𝐕𝐄𝑑𝑒𝑓𝑜𝑟𝑚𝑎𝑏𝑙𝑒            𝐙෠ 𝑓𝑢𝑠𝑒𝑑 𝑑𝑒𝑓𝑜𝑟𝑚𝑎𝑏𝑙𝑒
+                                                            enhancement
+                                   𝑓𝑒𝑛𝑐                                                                                                                                            SVE
+                                                     Trainable Frozen
+                                                                                                              𝐙෨ 𝑒𝑥𝑜 𝐙෨ 𝑒𝑔𝑜
+
+                                                                             Ground Truth                                                                         Deformable DETR
+𝐕𝑒𝑔𝑜 DVC
+
+                                                                           Step1: The girl in green slaps the black          ℒDVC          Header
+                                                                           basketball twice with her left hand.
+                                                                                                                                                    Multi-level         Queries            Multi-level
+                                                                                                                                                     Decoder                                Encoder
+𝐕 Step2: The girl in green pats the black 𝑒𝑥𝑜 ℒImit Error
+
+                                                                           basketball with her hands                                       Decider
+
+Figure 2. Overview of SAVA-X. (1) A frozen video encoder extracts per-frame features from the exocentric demonstration and
+egocentric imitation streams. We apply gated adaptive sampling (Sec. 3.2)—hard Top-K with residual gating, using self-attention
+scoring for Exo and Exo-conditioned cross-attention scoring for Ego to select key segments. (2) We inject scene-aware dictionary
+view embeddings (Sec. 3.3) together with temporal positions (multi-level), regularized by attention-entropy and prototype-diversity
+terms, to mitigate cross-view domain shifts. (3) We perform bidirectional cross-attention fusion (Sec. 3.4) with learnable gating to
+align and aggregate complementary cues, yielding a fused sequence that a deformable Transformer encoder–decoder converts into
+first-person temporal spans and imitation-correctness predictions. Training uses Hungarian set prediction with LDVC and LImit.
+
+3. Method                                                                                                     mension by d and the frozen encoder by fenc:
+
+We propose a unified SAVA-X framework (see Fig. 2)                                                                           Zexo = fenc(V exo) ∈ RTx×d
+that tackles three core challenges in ego–exo imitation                                                                                                                       (1)
+error detection via complementary designs at the sam-
+pling, representation, and fusion levels. We first formal-                                                                    Zego = fenc(V ego) ∈ RTy×d
+ize the task in Sec. 3.1. In sections 3.2, 3.3 and 3.4, we
+respectively describe the three modules we propose.                                                           To suppress redundancy and increase the density of in-
+                                                                                                              formative segments, we compute saliency scores on each
+3.1. Problem Formulation                                                                                      stream and select Top-K segments to get the resam-
+                                                                                                              pled sequences Zˆ exo and Zˆ ego. Notably, the scorer for
+The Ego–Exo imitation-error detection task is defined                                                         the demonstration (exo) uses only Zexo to identify key
+                                                                                                              demonstration frames, whereas the scorer for the imi-
+as follows. Given a third-person demonstration video                                                          tation (ego) conditions on both Zego and the resampled
+                                                                                                              demonstration features Zˆ exo to obtain cues for imitation
+and a first-person imitation video that are recorded in-                                                      correctness and to facilitate better temporal alignment.
+                                                                                                              The resulting sparse sequence lengths Kx and Ky sat-
+dependently (with unaligned timelines and possibly dif-                                                       isfy Kx < Tx and Ky < Ty.
+
+ferent durations), the model aims to localize procedu-                                                           We then augment the sparse sequences with temporal
+                                                                                                              position embeddings and view-condition embeddings to
+ral step segments on the first-person timeline and de-                                                        provide the model with relative timing and viewpoint in-
+                                                                                                              formation:
+cide whether each localized segment is a correct imi-
+                                                                                                                           Z˜ exo = Zˆ exo + PEexo + VEexo
+tation.  Let V exo              =  {Iexo}Tx , V ego             =          {Itego}t=1 Ty  de-                                                                                 (2)
+
+                                       t t=1                                                                               Z˜ ego = Zˆ ego + PEego + VEego
+
+note the exocentric and egocentric videos with lengths                                                        where PE denotes vectorial absolute temporal posi-
+                                                                                                              tion embeddings and VE denotes scene-adaptive view
+Tx and Ty, respectively. The task produces a set pre-                                                         embeddings generated from a shared dictionary. The
+                                                                                                              enhanced sequences Z˜ exo and Z˜ ego are fused into an
+diction D = (tˆsnt, tˆend, yˆn) Nn=1 , where tˆsnt, tˆend ∈ [0, 1]                                            Ego–Exo representation Z˜ fused used to localize action
+are the normalized start and end times on the first-person                                                    segments on the first-person timeline and to predict imi-
+                                                                                                              tation correctness.
+timeline and yˆn ∈ {0, 1} denotes the imitation correct-
+
+ness label.
+
+   To leverage large pretrained video backbones while
+reducing training cost [1, 3, 7, 27, 54], we adopt a frozen
+pretrained encoder (shared or separate) to extract per-
+frame or per-segment features. Denote the feature di-
+
+                                                                                                              28064
+   For efficient global modeling and cross-sequence                  and then apply the same pipeline to produce Zˆ ego.
+interaction over long inputs, the fused represen-
+tation is processed by a deformable transformer                         To prevent selection collapse and representational
+encoder–decoder[57, 68]. The decoder employs N                       redundancy, we add a selection-entropy regularizer
+learnable queries to perform iterative refinement. Each              Lsel [36] to the selection distributions, encouraging
+decoder query yields one first-person candidate predic-              coverage rather than concentrating probability mass on
+tion. During training we use a set-matching loss to es-              a few positions, and attach VICReg-style [2] vari-
+tablish a one-to-one correspondence between predicted                ance lower bound and off-diagonal covariance penalties
+and ground-truth segments, and jointly optimize the                  Lvic to the gated active tokens to suppress dimensional
+DVC loss LDV C [57] and the imitation-error classifi-                collinearity and collapse. Lsel and Lvic are detailed in
+cation loss LImit, detailed in supplementary material.               supplementary material. In practice, this “hard selection
+                                                                     + residual gating” combination improves focus on crit-
+3.2. Adaptive Sampling                                               ical segments and stabilizes cross-view alignment and
+                                                                     error detection downstream.
+In cross-view imitation scenarios, both the Exo and Ego
+streams contain substantial redundancy that is irrelevant            3.3. Scene-aware Dictionary View Embeddings
+for discrimination. However, naively sparsifying them
+risks discarding details crucial for action localization             Cross-view (Ego/Exo) videos exhibit systematic differ-
+and error judgment, and further ignores the temporal ref-            ences in appearance, composition, and motion statistics
+erence required for cross-view alignment. To address                 [30, 35, 43, 60]: ego-centric footage typically focuses
+this, we propose gated adaptive sampling: during train-              on hand–object interactions and sees less of the global
+ing we generate hard indices via a Gumbel TopK [13]                  scene, whereas exo-centric footage provides full-body
+straight-through estimator, while simultaneously apply-              and scene structure. If one directly aligns and fuses
+ing a residual gating to the full-length features so as              frozen features, the model can mistake view-domain
+to provide the scorer with an additional differentiable              shifts for action differences, degrading localization and
+path, thereby strengthening gradient signals and stabi-              error detection. Injecting the view condition as learn-
+lizing the learning of selection. This strategy preserves            able tokens [15, 44]—analogous to positional embed-
+discrete selection to ensure downstream modules pro-                 dings—is an effective remedy. However, fixed view em-
+cess only a small set of key moments, yet avoids the                 beddings may fail to adapt across diverse scenarios. To
+gradient sparsity problem of purely hard sampling.                   this end, we explicitly model the view condition and in-
+                                                                     ject it into feature or attention computation in a scene-
+   For Zexo, scores are produced by self-attention fol-              adaptive manner, thereby mitigating domain shifts and
+lowed by a FFN head. Then scores are performed by                    promoting cross-view alignment and evidence aggrega-
+GumbelTopK Gk to get hard indices lx and soft indices                tion.
+sx.
+                                                                        We maintain a shared view–scene dictionary:
+          rexo = FFN SelfAttn(Zexo) ∈ RTx
+                                                                (3)                            D ∈ RM×d,
+
+                      lx, sx = Gk(rexo)                              whose rows capture common view-related sub-factors
+                                                                     (e.g., “close hand–object interaction” and “full-body
+   To further strengthen gradients, we perform residual              motion structure”). For a stream u ∈ {ego, exo} with
+gating [14]                                                          per-frame features Zˆ u ∈ RT ×d used as queries, we in-
+                                                                     teract with the dictionary via multi-head attention under
+gexo = 1 + α Norm(sx) − 1                                            temperature τ to obtain an adaptive view embedding:
+                        exo exo (4)
+ˆ exo                                                                               VEu = CrossAttn τZˆu , D (6)
+Z = Gather g ⊙ Z , lx
+                                                                     To influence the representation deeply without introduc-
+where α ∈ (0, 1] controls the gating strength, and                   ing substantial parameters, we inject at two sites: (i) Pre-
+“Norm” rescales soft indices to have mean ≈ 1. Cru-                  fusion injection: inject the view condition once into each
+cially, the sequence fed to downstream modules comes                 Ego/Exo stream before fusion and at the encoder in-
+from the hard indices. This design makes the loss de-                put, so that within-domain alignment is performed first.
+pend on the soft indices sx explicitly, thus providing the           (ii) Multi-layer injection in the encoder: at each tempo-
+scorer with stable gradients.                                        ral level of the base encoder’s output, perform another
+                                                                     view-embedding injection to realize multi-level modu-
+   Ego-side scoring should be sensitive to demonstrative             lation.
+key points. We therefore use the Exo summary Zˆ exo as
+keys/values and compute Ego cross-attention scores:
+
+rego = FFN CrossAttn Zego, Zˆ exo ∈ RTy (5)
+
+                           28065
+   To ensure the view embedding meaningfully af-            with γe = σ We[Z˜ ego; E⋆] and γx =
+fects attention allocation without becoming overly          σ Wx[Z˜ exo; X⋆] , where σ is the sigmoid and
+peaky, we regularize toward the uniform distribu-           [·; ·] denotes concatenation. This mixing encourages
+tion—equivalently, we maximize normalized entropy           the model to rely more on cross-view evidence near
+[36]:                                                       action boundaries and key interactions, while preserving
+                                                            view-stable representations in background/redundant
+                            1                               regions.
+           Lview-ent = log M Et KL αt | UM (7)
+                                                               We finally add the two gated features to fused fea-
+where αt ∈ RM is the attention distribution of the tth      tures for subsequent decoding:
+time position to the dictionary, and UM is a uniform dis-
+tribution in M dimensions. To broaden the dictionary’s       ˜ f used 1 ego  exo
+coverage and suppress redundancy among prototypes,          Z  = 2 F +F           (11)
+we first apply ℓ2 normalization to each row dm of D
+to obtain D. We then minimize the deviation from the        Compared with one-way fusion, bidirectional cross-
+identity to encourage approximate orthogonality:            attention imposes complementary semantic constraints:
+                                                            Exo→Ego strengthens first-person boundary cues and
+                Ldict-div = D D⊤ − IM F2 (8)                step ordering, while Ego→Exo contributes object/hand
+                                                            details and local causality [23, 43, 60]. After gating,
+Compared with using only fixed token-type biases, the       these are aggregated into Z˜ fused, which retains per-
+attention-based dictionary can adaptively emphasize the     view stability while gaining cross-view corroboration,
+appropriate view subspace under different scenes. Com-      thereby facilitating the subsequent query-style decoding
+bined with multi-layer injection, it consistently narrows   to more easily localize erroneous segments and deter-
+the Ego/Exo domain gap and provides clearer, more           mine their types.
+transferable representations for subsequent bidirectional
+cross-fusion and temporal alignment.                        4. Experiments
+
+3.4. Bidirectional Cross-Attention Fusion                   4.1. Experimental Settings
+
+After obtaining the two sparse sequences augmented          Dataset. To match our Ego→Exo imitation error de-
+with temporal positions and view conditions, Z˜ exo ∈       tection setting, all training and evaluation are conducted
+RKx×d and Z˜ ego ∈ RKy×d, we seek robust seman-             on the EgoMe [42] dataset. To our knowledge, EgoMe
+tic alignment and complementary evidence aggregation        is the only large-scale dataset that simultaneously of-
+between unaligned, different-length Ego/Exo streams.        fers asynchronously captured egocentric and exocentric
+One-way conditioning can introduce bias: using only         views in imitation scenarios and provides annotations
+Exo to guide Ego under-covers hand–object details           of erroneous imitation steps. It contains 7,902 pairs
+in the first-person view, and the converse holds as         of asynchronous Exo–Ego videos (approximately 82.8
+well. Therefore, we adopt symmetric bidirectional           hours). In our experiments, we use only RGB videos to-
+cross-attention [19, 29, 50] so that the two streams re-    gether with fine-grained procedural step annotations and
+trieve from and constrain each other at the feature level,  error labels. We follow the official train/validation/test
+while residual mixing preserves native per-view repre-      split with 4,777/997/2,128 video pairs and report all
+sentations—balancing “alignment capacity” with “view-       main results and ablation studies on this partition.
+specific robustness”.                                       Evaluation Metrics. Ego→Exo imitation error detec-
+                                                            tion is essentially a temporal object detection task: the
+   We compute in parallel:                                  system must both localize segment boundaries and de-
+                                                            termine whether a segment constitutes an error. Be-
+               E⋆ = CrossAttn Z˜ ego, Z˜ exo                cause error segments are typically sparse and class-
+              X⋆ = CrossAttn Z˜ exo, Z˜ ego (9)             imbalanced, and our primary concern is detecting er-
+                                                            rors, we adopt the area under the precision–recall curve
+where E⋆ denotes globally structured/boundary evi-          (AUPRC) for the error class as the primary metric,
+dence retrieved from the demonstration (Exo), and X⋆        which reduces threshold sensitivity and is more informa-
+denotes hand–object/detail/context evidence retrieved       tive under imbalance. We report AUPRC for error seg-
+from the imitation (Ego).                                   ments evaluated at multiple temporal Intersection-over-
+                                                            Union (tIoU) thresholds, {0.3, 0.5, 0.7}, along with their
+   To prevent either side from overwhelming the other,      mean. In addition, we report average tIoU [10] sepa-
+we apply learnable, gated [14] residual mixing that re-     rately to isolate localization quality.
+tains only the necessary cross-view gains:
+
+              Fego = (1 − γe) Z˜ ego + γe E⋆
+              Fexo = (1 − γx) Z˜ exo + γx X⋆ (10)
+
+28066
+                            AUPRC on Validation                       AUPRC on Test
+
+Method                 0.3  0.5         0.7 Mean tIoU       0.3  0.5  0.7 Mean tIoU
+
+Dense Video Captioning (DVC) baselines
+
+PDVC [57]              28.21 20.48 7.95 18.88 58.58 25.74 18.08 4.79 16.20 57.98
+
+Exo2EgoDVC [35] 31.33 20.27 7.49 19.69 59.06 26.26 16.30 5.42 15.99 58.15
+
+Temporal Action Localization (TAL) baselines
+
+ActionFormer [63] 31.37 15.41 2.63 16.47 48.89 26.96 12.88 2.40 14.08 48.25
+
+TriDet [48]            30.04 14.61 2.44 15.70 49.05 26.27 13.16 1.89 13.77 49.02
+
+Only Egocentric Input
+
+PDVC [57]              19.35 13.91 5.11 12.79 57.63 21.40 15.10 5.33 13.94 57.19
+
+Ours                   33.56 24.04 9.48 22.36 59.31 29.37 19.86 6.26 18.50 58.32
+SAVA-X
+
+Table 1. Comparison on EgoMe validation and test split. Left: results on validation set. Right: results on the test set. We report
+AUPRC for the error class at multiple tIoU thresholds (0.3, 0.5, 0.7), their mean, and standalone temporal IoU (tIoU) for localization
+quality.
+
+4.2. Implementation Details                                 nel dimension and feed the resulting representation into
+                                                            each method. Then additional error detection head is
+We use TSP [1] pretrained on ActivityNet [5] as a frozen    inserted. Except for these changes, all other architec-
+feature extractor fenc, to aggregate temporal context       tural components and hyperparameters strictly follow
+from video and obtain Zexo and Zego, with a unified         the original configurations of the respective methods.
+feature dimensionality of d = 512. TSP is pretrained
+with temporal sensitivity for localization-oriented objec-  4.3. Results
+tives (e.g., temporal action localization and captioning),
+making it a suitable, task-agnostic foundation for down-    Quantitative Comparison on EgoMe. Table 1 reports
+stream localization/description. In SAVA-X, the hid-        performance on the EgoMe validation and test sets for
+den dimensionality of all three submodules—adaptive         multiple baselines and our SAVA-X framework. SAVA-
+sampling, scene-adaptive view embeddings, and bidi-         X attains the best AUPRC and tIoU across all thresh-
+rectional cross-attention fusion—is set to 512. Self-       olds. On the validation set, SAVA-X achieves a Mean
+attention and cross-attention each use a single layer,      AUPRC of 22.36, an absolute +2.67 (relative +13.56%)
+and the feed-forward networks (FFNs) employ a hid-          improvement over the strongest baseline Exo2EgoDVC
+den size of 2048. Following bidirectional fusion, the de-   (19.69). Localization quality (tIoU) also shows a mod-
+formable transformer encoder–decoder stack, the dense       est increase, underscoring the effectiveness and potential
+video captioning (DVC) head implementation, and the         of our approach. The test set exhibits consistent trends.
+relative weighting of the constituent losses within LDVC    Fig. 3b visualizes the results of our models. Over-
+strictly follow the public PDVC configuration [57]. The     all, SAVA-X delivers simultaneous gains under both
+imitation discrimination loss weight is set to λImit =      stringent high-threshold regimes (hard detections) and
+0.5. Other regularization terms (e.g., selection entropy,   coverage-oriented low-threshold regimes, indicating a
+decorrelation) are weighted within [0.01, 0.05]. We op-     strong capacity to capture fine-grained cues of erroneous
+timize with AdamW [28], using a batch size of 16 and a      actions. We also report PDVC under single-view input,
+learning rate of 1.0 × 10−4.                                which degrades performance markedly, indicating that
+Baselines. To establish a robust and reproducible com-      third-person demonstrations are crucial for localizing
+parative baseline for Ego→Exo imitation error detec-        procedural steps and reducing false positives, thereby
+tion, we select representative methods from two related     validating the task design.
+lines of work and retrain them on EgoMe under a unified     Ablation Study. Table 2 presents a comprehen-
+setup: from dense video captioning (DVC), PDVC [57]         sive ablation demonstrating the effectiveness of each
+and Exo2EgoDVC [35]; and from temporal action lo-           component. (i) Single module. All three modules
+calization (TAL), ActionFormer [63] and TriDet [48].        yield consistent gains: AS, SVE, and BiX improve
+Given that EgoMe provides asynchronously captured           by +10.70%/+12.76%/+11.55% over the unmodified
+yet coarsely time-aligned ego/exo videos, we adopt a        backbone. These results confirm that redundancy re-
+uniform simple fusion strategy across all baselines: we     moval with salient-segment amplification (AS), domain-
+concatenate frozen Ego and Exo features along the chan-     gap mitigation (SVE), and cross-view bi-directional
+
+                                              28067
+                   YDL1-AZ2_2  YD1-AAB1                                 HYS1-W1  ing channel concatenation. The adaptive sampler con-
+   Exo                                                                           sistently improves detection performance by removing
+                                                                                 redundant frames, improving temporal alignment, and
+   Ego                                                                           enhancing sensitivity to temporal discrepancies. We
+                                                                                 also validate the effectiveness of the regularization terms
+                    (a) Exo&Ego Videos and Visualization of AS Scores            (Lsel and Lvic) in aiding learning.
+
+             GT                                                                                           Input frame rate (fps)
+         PDVC
+Exo2EgoDVC                                                                              Variant           1      5 10 20              Avg
+ActionFormer
+         TriDet                                                                         w/o AS            20.48  20.92  19.96  21.09  20.61
+      SAVA-X                                                                            w AS              22.15  22.20  23.74  21.45  22.39
+                                                                                        w AS, Lvic, Lsel  23.51  22.60  22.63  22.65  22.85
+
+                    Time       Time                                     Time
+
+                          (b) Visualization of Error Detection Results           Table 3. Results of the AS at different input frame rates and
+                                                                                 ablation of the regularization term. Metric is AUPRC@0.5.
+Figure 3. Qualitative visualization examples of Ego to Exo
+imitation error localization. (a): Exocentric demonstration and                  Top-k analysis. Fig. 4 examines the impact of differ-
+egocentric imitation with corresponding frame saliency maps.                     ent top-k retention ratios (keeping the top k% scoring
+The deeper the red, the more significant. (b): Ground truth                      frames). At lower frame rates, a larger top-k is prefer-
+(GT) and baseline vs. SAVA-X. Red represents error steps                         able to avoid information loss; at higher frame rates,
+while green represents right steps.                                              where redundancy and alignment mismatch are more
+                                                                                 pronounced, retaining a small subset of high-scoring
+evidence fusion (BiX) each independently enhance                                 frames suffices to improve performance.
+error-step identification. (ii) Pairwise combinations.
+SVE+BiX achieves the highest performance, clearly sur-                           Figure 4. Performance under different AS k-ratio at 1 fps and
+passing other pairs, highlighting the impact of narrowing                        5 fps (dashed = w/o AS).
+the domain gap and mutual cross-checking; AS+SVE is
+strongest at medium/high thresholds, suggesting that de-                         Frame-score visualization. In Fig. 3a, we visualize
+redundancy and view adaptation sharpen boundary pre-                             dynamic scores for Ego and Exo videos across diverse
+cision; AS+BiX brings a more moderate gain, indicating                           scenarios. Ego-frame saliency is notably more concen-
+susceptibility to domain shift and noise prior to explicit                       trated, which aligns with the human learning pattern of
+view conditioning. (iii) All three combined. SAVA-X at-                          first closely observing the demonstration and then imi-
+tains the best overall performance, demonstrating strong                         tating a few salient, well-memorized key moments.
+complementarity among the three modules.
+                                                                                 4.4.2. SVE Analysis
+    Modules                     AUPRC              tIoU
+AS SVE BiX 0.3                 0.5 0.7   Mean                                    Comparison with fixed view embeddings. We re-
+                                                                                 place SVE with two learnable and test-time fixed tokens
+                               28.21 20.48 7.95 18.88 58.58                      VEexo and VEego. As the black dashed line in Fig. 5
+                                                                                 shows, gains are limited, whereas SVE delivers consis-
+✓                              30.90 22.60 9.21 20.90 58.88                      tent improvements, implying fixed tokens cannot model
+                                                                                 cross-scene/view discrepancies effectively.
+                 ✓             31.64 22.87 9.37 21.29 59.27                      Effect of scene-dictionary size. Fig. 5 analyzes the in-
+                                                                                 fluence of the dictionary size. We observe that mod-
+                    ✓ 33.08 21.86 8.23 21.06 58.27                               erately enlarging the dictionary better covers common
+                                                                                 view sub-factors, leading to more stable performance
+✓✓                             30.89 24.26 10.32 21.82 58.96                     gains; when the dictionary is too small, limited expres-
+                                                                                 siveness results in insufficient benefits.
+✓                   ✓ 29.98 22.27 8.70 20.32 58.14                               Ablation on regularization and multi-level injection.
+
+                 ✓ ✓ 35.09 22.58 9.31 22.33 58.76
+
+✓ ✓ ✓ 33.56 24.04 9.48 22.36 59.31
+
+Table 2. Ablation on EgoMe validation split without a variant
+label column. AS: Adaptive Sampling; SVE: Scene-Adaptive
+View Embedding; BiX: Bidirectional Cross-Attention Fusion.
+
+4.4. Component Analysis
+
+4.4.1. AS Analysis
+
+Redundancy reduction and regularization ablations.
+Table 3 reports error-detection results when we vary the
+input video (feature) frame rate with and without the
+adaptive sampling module. All variants exclude view
+embeddings and bidirectional cross-fusion, instead us-
+
+                                                                                 28068
+We further ablate the roles of regularization and multi-     catenation and temporal sequence concatenation—and,
+level injection within the SVE module. Fig. 5 shows
+that, for each M , adding regularizers such as selection-    for the attention module, compare global attention
+entropy/diversity mitigates over-sharpened attention and
+improves prototype coverage, while multi-level injec-        against deformable attention. The aggregated results are
+tion continuously modulates representations along the
+temporal hierarchy. In combination, these components         reported in Table 4.
+enable SVE to consistently outperform fixed view em-         Ablation of bidirectional attention. For the bidirec-
+beddings across dictionary sizes and to deliver more uni-
+form gains.                                                  tional cross-attention, we further decompose it into one-
+
+Figure 5. Relative gain vs. dictionary size for scene-aware  directional variants and report their performance sepa-
+view embeddings on the EgoMe validation split. Dashed lines  rately (Table 4). We observe that the Exo→Ego variant
+indicate baselines, gray one without view embeddings, black
+one with fixed learnable view embeddings.                    performs on par with the bidirectional setting, whereas
+Domain-discrepancy analysis. We compute video-               Ego→Exo is clearly weaker. This aligns with the task
+level global representations by uniformly pooling the
+Ego/Exo feature sequences over time before and after         objective: our primary goal is error detection on the ego-
+SVE injection. For each paired video, we then compute
+the cosine similarity between the two global represen-       centric stream, so providing boundary and ordering cues
+tations and analyze its distribution (see Fig. 6). With
+SVE, the similarity distribution shifts rightward and be-    from demonstration (Exo) to imitation (Ego) is more
+comes more concentrated: the mean increases and the
+long tail is compressed, indicating that the cross-view      critical; the reverse direction is complementary but not
+domain gap is effectively mitigated.
+                                                             decisive.
+Figure 6. Visualization of domain-discrepancy changes after
+SVE injection.                                               Fusion Variant            AUPRC
+                                                                                                                tIoU
+4.4.3. BiX Analysis
+Comparison with alternative fusion schemes. We also                          0.3 0.5 0.7 Mean
+evaluate simpler fusion strategies—channel-wise con-
+                                                             Simple concatenation
+                                                             Concat (Channel) 28.21 20.48 7.95 18.88 58.58
+                                                             Concat (Time) 28.91 21.05 7.85 19.27 58.15
+
+                                                             Attention Type  33.08 21.86 8.23 21.06 58.27
+                                                             BiX             32.99 21.05 8.56 20.87 58.92
+                                                             BiX-Deformable
+
+                                                             Single-direction ablations
+                                                             BiX (Exo→Ego) 31.94 22.04 8.20 20.73 58.71
+                                                             BiX (Ego→Exo) 29.96 20.12 8.37 19.48 58.51
+
+                                                             Table 4. Fusion variants on EgoMe validation split. Concat
+                                                             (Channel) concatenates Ego/Exo along the feature channel;
+                                                             Concat (Time) concatenates along the temporal axis. BiX
+                                                             denotes bidirectional cross-attention fusion; BiX-Deformable
+                                                             replaces cross-attention with deformable attention. The last
+                                                             block ablates the bidirectional mechanism into single-direction
+                                                             flows.
+
+                                                             5. Conclusion
+
+                                                             We presented SAVA-X for Ego→Exo imitation er-
+                                                             ror detection, addressing redundancy, cross-view do-
+                                                             main gaps, and temporal misalignment through adaptive
+                                                             sampling, scene-adaptive view embeddings, and bidi-
+                                                             rectional cross-attention. On the EgoMe benchmark,
+                                                             SAVA-X consistently outperforms strong dense video
+                                                             captioning and temporal action localization baselines,
+                                                             and ablation studies show that each component targets a
+                                                             distinct bottleneck while yielding complementary gains
+                                                             when combined. Additional analyses on dictionary size,
+                                                             regularization, and fusion variants clarify the design
+                                                             trade-offs and failure modes of the framework. We hope
+                                                             that our unified protocol, baselines, and architecture will
+                                                             serve as a useful reference point for future work on
+                                                             cross-view imitation analysis and error detection in pro-
+                                                             cedural tasks.
+
+28069
+Acknowledgements                                                [10] Soichiro Fujita, Tsutomu Hirao, Hidetaka Kamigaito,
+                                                                      Manabu Okumura, and Masaaki Nagata. Soda: Story ori-
+This work was supported by the National Natu-                         ented dense video captioning evaluation framework. In
+ral Science Foundation of China (No. U23A20286                        European Conference on Computer Vision, pages 517–
+and No. 62301121), Sichuan Science and                                531. Springer, 2020. 5
+Technology Program (No. 2026NSFSC1478)
+and Postdoctoral Fellowship Program (Grade                      [11] Xinyu Gong, Sreyas Mohan, Naina Dhingra, Jean-
+B) of China Postdoctoral Science Foundation                           Charles Bazin, Yilei Li, Zhangyang Wang, and Rakesh
+(No. 2025M783502 and No. GZB20240120).                                Ranjan. Mmg-ego4d: Multimodal generalization in
+                                                                      egocentric action recognition. In Proceedings of the
+References                                                            IEEE/CVF Conference on Computer Vision and Pattern
+                                                                      Recognition, pages 6481–6491, 2023. 1
+ [1] Humam Alwassel, Silvio Giancola, and Bernard
+      Ghanem. Tsp: Temporally-sensitive pretraining of video    [12] Yifei Huang, Yusuke Sugano, and Yoichi Sato. Improv-
+      encoders for localization tasks. In Proceedings of the          ing action segmentation via graph-based temporal rea-
+      IEEE/CVF international conference on computer vision,           soning. In Proceedings of the IEEE/CVF conference on
+      pages 3173–3183, 2021. 3, 6                                     computer vision and pattern recognition, pages 14024–
+                                                                      14034, 2020. 1
+ [2] Adrien Bardes, Jean Ponce, and Yann LeCun. VI-
+      CReg: Variance-invariance-covariance regularization for   [13] Eric Jang, Shixiang Gu, and Ben Poole. Categorical repa-
+      self-supervised learning. In International Conference on        rameterization with gumbel-softmax. In International
+      Learning Representations, 2022. 4                               Conference on Learning Representations, 2017. 4
+
+ [3] Gedas Bertasius, Heng Wang, and Lorenzo Torresani. Is      [14] Boseung Jeong, Jicheol Park, Sungyeon Kim, and Suha
+      space-time attention all you need for video understand-         Kwak. Learning audio-guided video representation with
+      ing? In Proceedings of the 38th International Confer-           gated attention for video-text retrieval. In Proceedings
+      ence on Machine Learning, pages 813–824, 2021. 2, 3             of the IEEE/CVF Conference on Computer Vision and
+                                                                      Pattern Recognition (CVPR), pages 26202–26211, 2025.
+ [4] Shyamal Buch, Arsha Nagrani, Anurag Arnab, and                   4, 5
+      Cordelia Schmid. Flexible Frame Selection for Efficient
+      Video Reasoning. In Proceedings of the IEEE/CVF Con-      [15] Menglin Jia, Luming Tang, Bor-Chun Chen, Claire
+      ference on Computer Vision and Pattern Recognition,             Cardie, Serge Belongie, Bharath Hariharan, and Ser-
+      pages 29071–29082, 2025. 2                                      Nam Lim. Visual prompt tuning. In European conference
+                                                                      on computer vision, pages 709–727. Springer, 2022. 2, 4
+ [5] Fabian Caba Heilbron, Victor Escorcia, Bernard
+      Ghanem, and Juan Carlos Niebles. Activitynet: A large-    [16] Ranjay Krishna, Kenji Hata, Frederic Ren, Li Fei-Fei,
+      scale video benchmark for human activity understanding.         and Juan Carlos Niebles. Dense-captioning events in
+      In Proceedings of the ieee conference on computer vision        videos. In Proceedings of the IEEE international con-
+      and pattern recognition, pages 961–970, 2015. 6                 ference on computer vision, pages 706–715, 2017. 2
+
+ [6] David Fan, Jue Wang, Shuai Liao, Zhikang Zhang, Vi-        [17] Anna Kukleva, Fadime Sener, Edoardo Remelli, Bugra
+      mal Bhat, and Xinyu Li. Text-Guided Video Masked                Tekin, Eric Sauser, Bernt Schiele, and Shugao Ma. X-
+      Autoencoder. In Computer Vision – ECCV 2024, pages              mic: Cross-modal instance conditioning for egocentric
+      282–298. Springer, 2024. 2                                      action generalization. In Proceedings of the IEEE/CVF
+                                                                      Conference on Computer Vision and Pattern Recogni-
+ [7] Haoqi Fan, Bo Xiong, Karttikeya Mangalam, Yanghao                tion, pages 26364–26373, 2024. 1
+      Li, Zhicheng Yan, Jitendra Malik, and Christoph Feicht-
+      enhofer. Multiscale vision transformers. In Proceedings   [18] Sanjoy Kundu, Shanmukha Vellamchetti, and Sathya-
+      of the IEEE/CVF international conference on computer            narayanan N. Aakur. ProbRes: Probabilistic Jump Diffu-
+      vision, pages 6824–6835, 2021. 2, 3                             sion for Open-World Egocentric Activity Recognition. In
+                                                                      Proceedings of the IEEE/CVF International Conference
+ [8] Zicong Fan, Takehiko Ohkawa, Linlin Yang, Nie Lin,               on Computer Vision, 2025. 1
+      Zhishan Zhou, Shihao Zhou, Jiajun Liang, Zhong Gao,
+      Xuanyang Zhang, Xue Zhang, et al. Benchmarks and          [19] Dongho Lee, Jongseo Lee, and Jinwoo Choi. Cast: cross-
+      challenges in pose estimation for egocentric hand inter-        attention in space and time for video action recognition.
+      actions with objects. In European Conference on Com-            Advances in Neural Information Processing Systems, 36:
+      puter Vision, pages 428–448. Springer, 2024. 1                  79399–79425, 2023. 5
+
+ [9] Alessandro Flaborea, Guido Maria D’Amely di Melen-         [20] Shih-Po Lee, Zijia Lu, Zekun Zhang, Minh Hoai, and
+      dugno, Leonardo Plini, Luca Scofano, Edoardo De Mat-            Ehsan Elhamifar. Error detection in egocentric procedu-
+      teis, Antonino Furnari, Giovanni Maria Farinella, and           ral task videos. In Proceedings of the IEEE/CVF Confer-
+      Fabio Galasso. Prego: online mistake detection in proce-        ence on Computer Vision and Pattern Recognition, pages
+      dural egocentric videos. In Proceedings of the IEEE/CVF         18655–18666, 2024. 2
+      Conference on Computer Vision and Pattern Recogni-
+      tion, pages 18483–18492, 2024. 1                          [21] Ruilong Li, Brent Yi, Junchen Liu, Hang Gao, Yi Ma,
+                                                                      and Angjoo Kanazawa. Cameras as relative positional
+                                                                      encoding. arXiv preprint arXiv:2507.10496, 2025. 2
+
+                                                                [22] Xiang Li, Heqian Qiu, Lanxiao Wang, Hanwen
+                                                                      Zhang, Chenghao Qi, Linfeng Han, Huiyu Xiong, and
+
+28070
+      Hongliang Li. Challenges and trends in egocentric vi-              ACM International Conference on Multimedia, pages
+      sion: A survey. Machine Intelligence Research, 23(1):              4220–4229, 2021. 2
+      1–33, 2026. 1                                                [35] Takehiko Ohkawa, Takuma Yagi, Taichi Nishimura,
+                                                                         Ryosuke Furuta, Atsushi Hashimoto, Yoshitaka Ushiku,
+[23] Yanghao Li, Tushar Nagarajan, Bo Xiong, and Kristen                 and Yoichi Sato. Exo2egodvc: Dense video captioning of
+      Grauman. Ego-exo: Transferring visual representations              egocentric procedural activities using web instructional
+      from third-person to first-person videos. In Proceedings           videos. In 2025 IEEE/CVF Winter Conference on Appli-
+      of the IEEE/CVF Conference on Computer Vision and                  cations of Computer Vision (WACV), pages 8324–8335.
+      Pattern Recognition, pages 6943–6953, 2021. 5                      IEEE, 2025. 2, 4, 6
+                                                                   [36] Gabriel Pereyra, George Tucker, Jan Chorowski, Lukasz
+[24] Kevin Qinghong Lin, Jinpeng Wang, Mattia Soldan,                    Kaiser, and Geoffrey Hinton. Regularizing neural net-
+      Michael Wray, Rui Yan, Eric Z Xu, Difei Gao, Rong-                 works by penalizing confident output distributions. In
+      Cheng Tu, Wenzhe Zhao, Weijie Kong, et al. Egocentric              International Conference on Learning Representations,
+      video-language pretraining. Advances in Neural Infor-              2017. 4, 5
+      mation Processing Systems, 35:7575–7586, 2022. 2             [37] Chiara Plizzari, Mirco Planamente, Gabriele Goletto,
+                                                                         Marco Cannici, Emanuele Gusso, Matteo Matteucci, and
+[25] Shuming Liu, Chen-Lin Zhang, Chen Zhao, and Bernard                 Barbara Caputo. E2 (go) motion: Motion augmented
+      Ghanem. End-to-end temporal action detection with 1b               event stream for egocentric action recognition. In Pro-
+      parameters across 1000 frames. In Proceedings of the               ceedings of the IEEE/CVF conference on computer vi-
+      IEEE/CVF Conference on Computer Vision and Pattern                 sion and pattern recognition, pages 19935–19947, 2022.
+      Recognition, pages 18591–18601, 2024. 1, 2                         1
+                                                                   [38] Chiara Plizzari, Toby Perrett, Barbara Caputo, and Dima
+[26] Yingfei Liu, Tiancai Wang, Xiangyu Zhang, and Jian                  Damen. What can a cook in italy teach a mechanic in
+      Sun. Petr: Position embedding transformation for multi-            india? action recognition generalisation over scenarios
+      view 3d object detection. In European conference on                and locations. In Proceedings of the IEEE/CVF Inter-
+      computer vision, pages 531–548. Springer, 2022. 2                  national Conference on Computer Vision, pages 13656–
+                                                                         13666, 2023. 1
+[27] Ze Liu, Jia Ning, Yue Cao, Yixuan Wei, Zheng Zhang,           [39] Chiara Plizzari, Gabriele Goletto, Antonino Furnari,
+      Stephen Lin, and Han Hu. Video swin transformer. In                Siddhant Bansal, Francesco Ragusa, Giovanni Maria
+      Proceedings of the IEEE/CVF conference on computer                 Farinella, Dima Damen, and Tatiana Tommasi. An out-
+      vision and pattern recognition, pages 3202–3211, 2022.             look into the future of egocentric vision. International
+      2, 3                                                               Journal of Computer Vision, pages 1–57, 2024. 1
+                                                                   [40] Shraman Pramanick, Yale Song, Sayan Nag,
+[28] Ilya Loshchilov and Frank Hutter. Decoupled weight                  Kevin Qinghong Lin, Hardik Shah, Mike Zheng Shou,
+      decay regularization. In International Conference on               Rama Chellappa, and Pengchuan Zhang. Egovlpv2:
+      Learning Representations, 2019. 6                                  Egocentric video-language pre-training with fusion
+                                                                         in the backbone. In Proceedings of the IEEE/CVF
+[29] Jiasen Lu, Dhruv Batra, Devi Parikh, and Stefan Lee. Vil-           International Conference on Computer Vision, pages
+      bert: Pretraining task-agnostic visiolinguistic representa-        5285–5297, 2023. 2
+      tions for vision-and-language tasks. Advances in neural      [41] Iqra Qasim, Alexander Horsch, and Dilip Prasad. Dense
+      information processing systems, 32, 2019. 5                        video captioning: A survey of techniques, datasets and
+                                                                         evaluation protocols. ACM Computing Surveys, 57(6):
+[30] Mi Luo, Zihui Xue, Alex Dimakis, and Kristen Grauman.               1–36, 2025. 2
+      Viewpoint Rosetta Stone: Unlocking Unpaired Ego-Exo          [42] Heqian Qiu, Zhaofeng Shi, Lanxiao Wang, Huiyu Xiong,
+      Videos for View-invariant Representation Learning. In              Xiang Li, and Hongliang Li. Egome: Follow me
+      Proceedings of the Computer Vision and Pattern Recog-              via egocentric view in real world. arXiv preprint
+      nition Conference, pages 15802–15812, 2025. 2, 4                   arXiv:2501.19061, 2025. 2, 5
+                                                                   [43] Camillo Quattrocchi, Antonino Furnari, Daniele
+[31] Michele Mazzamuto, Antonino Furnari, Yoichi Sato, and               Di Mauro, Mario Valerio Giuffrida, and Giovanni Maria
+      Giovanni Maria Farinella. Gazing into missteps: Lever-             Farinella. Synchronization is all you need: Exocentric-
+      aging eye-gaze for unsupervised mistake detection in               to-egocentric transfer for temporal action segmentation
+      egocentric videos of skilled human activities. In Pro-             with unlabeled synchronized video pairs. In Euro-
+      ceedings of the Computer Vision and Pattern Recognition            pean Conference on Computer Vision, pages 253–270.
+      Conference, pages 8310–8320, 2025. 1                               Springer, 2024. 1, 2, 4, 5
+                                                                   [44] Li Ren, Chen Chen, Liqiang Wang, and Kien Hua. Da-
+[32] Antoine Miech, Dimitri Zhukov, Jean-Baptiste Alayrac,               vpt: Semantic-guided visual prompt tuning for vision
+      Makarand Tapaswi, Ivan Laptev, and Josef Sivic.                    transformers. In Proceedings of the Computer Vision
+      Howto100m: Learning a text-video embedding by                      and Pattern Recognition Conference, pages 4353–4363,
+      watching hundred million narrated video clips. In Pro-             2025. 2, 4
+      ceedings of the IEEE/CVF international conference on
+      computer vision, pages 2630–2640, 2019. 2
+
+[33] Kyle Min and Jason J Corso. Integrating human gaze
+      into attention for egocentric activity recognition. In Pro-
+      ceedings of the IEEE/CVF Winter Conference on Appli-
+      cations of Computer Vision, pages 1069–1078, 2021. 1
+
+[34] Katsuyuki Nakamura, Hiroki Ohashi, and Mitsuhiro
+      Okada. Sensor-augmented egocentric-video captioning
+      with dynamic modal attention. In Proceedings of the 29th
+
+28071
+[45] Sakib Reza, Yuexi Zhang, Mohsen Moghaddam, and                    Proceedings of the IEEE/CVF International Conference
+      Octavia Camps. Hat: History-augmented anchor trans-              on Computer Vision, pages 3307–3317, 2023. 1
+      former for online temporal action localization. In Eu-
+      ropean Conference on Computer Vision, pages 205–222.       [57] Teng Wang, Ruimao Zhang, Zhichao Lu, Feng Zheng,
+      Springer, 2024. 1, 2                                             Ran Cheng, and Ping Luo. End-to-End Dense Video
+                                                                       Captioning with Parallel Decoding. In 2021 IEEE/CVF
+[46] Tim J Schoonbeek, Tim Houben, Hans Onvlee, Fons                   International Conference on Computer Vision (ICCV),
+      Van der Sommen, et al. Industreal: A dataset for pro-            pages 6827–6837, Montreal, QC, Canada, 2021. IEEE.
+      cedure step recognition handling execution errors in ego-        2, 4, 6
+      centric videos in an industrial-like setting. In Proceed-
+      ings of the IEEE/CVF Winter Conference on Applica-         [58] Weiying Wang, Yongcheng Wang, Shizhe Chen, and Qin
+      tions of Computer Vision, pages 4365–4374, 2024. 1               Jin. Youmakeup: A large-scale domain-specific multi-
+                                                                       modal dataset for fine-grained semantic comprehension.
+[47] Yuhan Shen and Ehsan Elhamifar. Progress-aware on-                In Proceedings of the 2019 Conference on Empirical
+      line action segmentation for egocentric procedural task          Methods in Natural Language Processing and the 9th In-
+      videos. In Proceedings of the IEEE/CVF Conference on             ternational Joint Conference on Natural Language Pro-
+      Computer Vision and Pattern Recognition, pages 18186–            cessing (EMNLP-IJCNLP), pages 5133–5143, 2019. 2
+      18197, 2024. 1, 2
+                                                                 [59] Huijuan Xu, Boyang Li, Vasili Ramanishka, Leonid Si-
+[48] Dingfeng Shi, Yujie Zhong, Qiong Cao, Lin Ma, Jia Li,             gal, and Kate Saenko. Joint event detection and descrip-
+      and Dacheng Tao. Tridet: Temporal action detection               tion in continuous video streams. In 2019 IEEE winter
+      with relative boundary modeling. In Proceedings of the           conference on applications of computer vision (WACV),
+      IEEE/CVF Conference on Computer Vision and Pattern               pages 396–405. IEEE, 2019. 2
+      Recognition, pages 18857–18866, 2023. 1, 2, 6
+                                                                 [60] Zihui Sherry Xue and Kristen Grauman. Learning fine-
+[49] Tsukasa Shiota, Motohiro Takagi, Kaori Kumagai, Hi-               grained view-invariant representations from unpaired
+      toshi Seshimo, and Yushi Aono. Egocentric action                 ego-exo videos via temporal alignment. Advances
+      recognition by capturing hand-object contact and object          in Neural Information Processing Systems, 36:53688–
+      state. In Proceedings of the IEEE/CVF Winter Confer-             53710, 2023. 2, 4, 5
+      ence on Applications of Computer Vision, pages 6541–
+      6551, 2024. 1                                              [61] Shen Yan, Xuehan Xiong, Anurag Arnab, Zhichao Lu,
+                                                                       Mi Zhang, Chen Sun, and Cordelia Schmid. Multiview
+[50] Hao Tan and Mohit Bansal. Lxmert: Learning cross-                 transformers for video recognition. In Proceedings of the
+      modality encoder representations from transformers. In           IEEE/CVF conference on computer vision and pattern
+      Proceedings of the 2019 Conference on Empirical Meth-            recognition, pages 3333–3343, 2022. 1
+      ods in Natural Language Processing, 2019. 5
+                                                                 [62] Antoine Yang, Arsha Nagrani, Paul Hongsuck Seo, An-
+[51] Xi Tang, Jihao Qiu, Lingxi Xie, Yunjie Tian, Jianbin Jiao,        toine Miech, Jordi Pont-Tuset, Ivan Laptev, Josef Sivic,
+      and Qixiang Ye. Adaptive Keyframe Sampling for Long              and Cordelia Schmid. Vid2seq: Large-scale pretrain-
+      Video Understanding. In Proceedings of the IEEE/CVF              ing of a visual language model for dense video caption-
+      Conference on Computer Vision and Pattern Recogni-               ing. In Proceedings of the IEEE/CVF conference on
+      tion, pages 29118–29128, 2025. 2                                 computer vision and pattern recognition, pages 10714–
+                                                                       10726, 2023. 2
+[52] Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob
+      Uszkoreit, Llion Jones, Aidan N Gomez, Łukasz Kaiser,      [63] Chenlin Zhang, Jianxin Wu, and Yin Li. Actionformer:
+      and Illia Polosukhin. Attention is all you need. Advances        Localizing moments of actions with transformers. In
+      in neural information processing systems, 30, 2017. 2            Proceedings of the European Conference on Computer
+                                                                       Vision (ECCV), pages 492–510. Springer, 2022. 1, 2, 6
+[53] Huiyu Wang, Mitesh Kumar Singh, and Lorenzo Torre-
+      sani. Ego-only: Egocentric action detection without ex-    [64] Mingfang Zhang, Yifei Huang, Ruicong Liu, and Yoichi
+      ocentric transferring. In Proceedings of the IEEE/CVF            Sato. Masked video and body-worn imu autoencoder for
+      International Conference on Computer Vision, pages               egocentric action recognition. In European Conference
+      5250–5261, 2023. 1, 2                                            on Computer Vision, pages 312–330. Springer, 2024. 1
+
+[54] Limin Wang, Bingkun Huang, Zhiyu Zhao, Zhan Tong,           [65] Luowei Zhou, Chenliang Xu, and Jason Corso. Towards
+      Yinan He, Yi Wang, Yali Wang, and Yu Qiao. Video-                automatic learning of procedures from web instructional
+      mae v2: Scaling video masked autoencoders with dual              videos. In Proceedings of the AAAI conference on artifi-
+      masking. In Proceedings of the IEEE/CVF conference on            cial intelligence, 2018. 2
+      computer vision and pattern recognition, pages 14549–
+      14560, 2023. 2, 3                                          [66] Luowei Zhou, Yingbo Zhou, Jason J Corso, Richard
+                                                                       Socher, and Caiming Xiong. End-to-end dense video
+[55] Lan Wang, Yujia Chen, Du Tran, Vishnu Naresh Bod-                 captioning with masked transformer. In Proceedings
+      deti, and Wen-Sheng Chu. SEAL: Semantic Attention                of the IEEE conference on computer vision and pattern
+      Learning for Long Video Representation. In Proceedings           recognition, pages 8739–8748, 2018. 2
+      of the Computer Vision and Pattern Recognition Confer-
+      ence, pages 26192–26201, 2025. 2                           [67] Xingyi Zhou, Anurag Arnab, Shyamal Buch, Shen
+                                                                       Yan, Austin Myers, Xuehan Xiong, Arsha Nagrani, and
+[56] Qitong Wang, Long Zhao, Liangzhe Yuan, Ting Liu, and              Cordelia Schmid. Streaming dense video captioning. In
+      Xi Peng. Learning from semantic alignment between un-            Proceedings of the IEEE/CVF Conference on Computer
+      paired multiviews for egocentric video recognition. In
+
+28072
+      Vision and Pattern Recognition, pages 18243–18252,
+      2024. 2
+[68] Xizhou Zhu, Weijie Su, Lewei Lu, Bin Li, Xiaogang
+      Wang, and Jifeng Dai. Deformable detr: Deformable
+      transformers for end-to-end object detection. In Inter-
+      national Conference on Learning Representations, 2021.
+      4
+[69] Bo Zou, Chao Yang, Yu Qiao, Chengbin Quan, and You-
+      jian Zhao. Language-aware Visual Semantic Distillation
+      for Video Question Answering. In Proceedings of the
+      IEEE/CVF Conference on Computer Vision and Pattern
+      Recognition, pages 27113–27123, 2024. 2
+
+                                                                          28073
+

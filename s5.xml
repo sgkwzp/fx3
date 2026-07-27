@@ -1,0 +1,248 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<feed xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/" xmlns:arxiv="http://arxiv.org/schemas/atom" xmlns="http://www.w3.org/2005/Atom">
+  <id>https://arxiv.org/api/HZaGpUp7NflL6Vef/3IxiZmfcrY</id>
+  <title>arXiv Query: search_query=all:"recovery prediction"&amp;id_list=&amp;start=0&amp;max_results=40</title>
+  <updated>2026-07-26T12:15:32Z</updated>
+  <link href="https://arxiv.org/api/query?search_query=all:%22recovery+prediction%22&amp;start=0&amp;max_results=40&amp;id_list=" type="application/atom+xml"/>
+  <opensearch:itemsPerPage>40</opensearch:itemsPerPage>
+  <opensearch:totalResults>9</opensearch:totalResults>
+  <opensearch:startIndex>0</opensearch:startIndex>
+  <entry>
+    <id>http://arxiv.org/abs/2606.29937v1</id>
+    <title>REPAIR-Bench: A Benchmark for Robot Error Perception And Interaction Recovery</title>
+    <updated>2026-06-29T08:14:27Z</updated>
+    <link href="https://arxiv.org/abs/2606.29937v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2606.29937v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Understanding how users perceive and respond to robot failures is essential for building robust and trustworthy robot systems. Prior work, however, (i) often treats failures as independent events, (ii) emphasizes binary failure detection, (iii) with rule-based recovery modeling. We present REPAIR-Bench, built on 214 interaction trials from 41 participants, the benchmark spans four induced failure types and provides synchronized facial action units, head pose, speech transcripts, and post-interaction affect and recovery reports. The benchmark spans three novel evaluation tasks that jointly capture the lifecycle of failure in human-robot interaction (HRI): (i) failure detection over inter-dependent interaction sessions, modeling longitudinal user adaptation across repeated failures; (ii) visual failure-type classification beyond binary success/failure formulations; and (iii) user-centered recovery prediction, inferring users' preferred recovery strategies from interaction context rather than relying on manually designed or rule-based strategies. In baseline experiments, hierarchical recurrent modeling improved failure detection over a single-session model (strict F1: 0.80 vs. 0.68), achieved a failure localization mean signed error of -0.51 s, median absolute error of 2.97 s and, for recovery prediction, a QLoRA-tuned Mistral-7B reached Hit@5=0.76 and F1@5=0.32. REPAIR-Bench provides both the HRI and Medical HRI communities with a standardized framework for (1) evaluating robot failures and (2) building transparent, adaptive, and trustworthy recovery systems.</summary>
+    <category term="cs.RO" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2026-06-29T08:14:27Z</published>
+    <arxiv:primary_category term="cs.RO"/>
+    <author>
+      <name>Giuliano Pioldi</name>
+    </author>
+    <author>
+      <name>Yashika Batra</name>
+    </author>
+    <author>
+      <name>Arman Ibrayeva</name>
+    </author>
+    <author>
+      <name>Yuanchen Bai</name>
+    </author>
+    <author>
+      <name>Purnjay Maruur</name>
+    </author>
+    <author>
+      <name>Promise Ekpo</name>
+    </author>
+    <author>
+      <name>Angelique Taylor</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2604.02832v2</id>
+    <title>Transfer Learning for Loan Recovery Prediction under Distribution Shifts with Heterogeneous Feature Spaces</title>
+    <updated>2026-04-23T04:48:29Z</updated>
+    <link href="https://arxiv.org/abs/2604.02832v2" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2604.02832v2" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Accurate forecasting of recovery rates (RR) is central to credit risk management and regulatory capital determination. In many loan portfolios, however, RR modeling is constrained by data scarcity arising from infrequent default events. Transfer learning (TL) offers a promising avenue to mitigate this challenge by exploiting information from related but richer source domains, yet its effectiveness critically depends on the presence and strength of distributional shifts, and on potential heterogeneity between source and target feature spaces.
+  This paper introduces FT-MDN-Transformer, a mixture-density tabular Transformer architecture specifically designed for TL in RR forecasting across heterogeneous feature sets. The model produces both loan-level point estimates and portfolio-level predictive distributions, thereby supporting a wide range of practical RR forecasting applications. We evaluate the proposed approach in a controlled Monte Carlo simulation that facilitates systematic variation of covariate, conditional, and label shifts, as well as in a real-world transfer setting using the Global Credit Data (GCD) loan dataset as source and a novel bonds dataset as target.
+  Our results show that FT-MDN-Transformer outperforms baseline models when target-domain data are limited, with particularly pronounced gains under covariate and conditional shifts, while label shift remains challenging. We also observe its probabilistic forecasts to closely track empirical recovery distributions, providing richer information than conventional point-prediction metrics alone. Overall, the findings highlight the potential of distribution-aware TL architectures to improve RR forecasting in data-scarce credit portfolios and offer practical insights for risk managers operating under heterogeneous data environments.</summary>
+    <category term="q-fin.RM" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2026-04-03T07:54:49Z</published>
+    <arxiv:comment>35 pages, 14 figures. Christopher Gerling had previously withdrawn his submission due to NDA restrictions, and that matter was resolved. We are authorized to publish the preprint now</arxiv:comment>
+    <arxiv:primary_category term="q-fin.RM"/>
+    <author>
+      <name>Christopher Gerling</name>
+    </author>
+    <author>
+      <name>Hanqiu Peng</name>
+    </author>
+    <author>
+      <name>Ying Chen</name>
+    </author>
+    <author>
+      <name>Stefan Lessmann</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2303.11265v1</id>
+    <title>Convergence Guarantees of Overparametrized Wide Deep Inverse Prior</title>
+    <updated>2023-03-20T16:49:40Z</updated>
+    <link href="https://arxiv.org/abs/2303.11265v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2303.11265v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Neural networks have become a prominent approach to solve inverse problems in recent years. Amongst the different existing methods, the Deep Image/Inverse Priors (DIPs) technique is an unsupervised approach that optimizes a highly overparametrized neural network to transform a random input into an object whose image under the forward model matches the observation. However, the level of overparametrization necessary for such methods remains an open problem. In this work, we aim to investigate this question for a two-layers neural network with a smooth activation function. We provide overparametrization bounds under which such network trained via continuous-time gradient descent will converge exponentially fast with high probability which allows to derive recovery prediction bounds. This work is thus a first step towards a theoretical understanding of overparametrized DIP networks, and more broadly it participates to the theoretical understanding of neural networks in inverse problem settings.</summary>
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2023-03-20T16:49:40Z</published>
+    <arxiv:primary_category term="cs.LG"/>
+    <author>
+      <name>Nathan Buskulic</name>
+    </author>
+    <author>
+      <name>Yvain Quéau</name>
+    </author>
+    <author>
+      <name>Jalal Fadili</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2512.20634v1</id>
+    <title>Real Time Detection and Quantitative Analysis of Spurious Forgetting in Continual Learning</title>
+    <updated>2025-12-02T03:09:35Z</updated>
+    <link href="https://arxiv.org/abs/2512.20634v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2512.20634v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Catastrophic forgetting remains a fundamental challenge in continual learning for large language models. Recent work revealed that performance degradation may stem from spurious forgetting caused by task alignment disruption rather than true knowledge loss. However, this work only qualitatively describes alignment, relies on post-hoc analysis, and lacks automatic distinction mechanisms.
+  We introduce the shallow versus deep alignment framework, providing the first quantitative characterization of alignment depth. We identify that current task alignment approaches suffer from shallow alignment - maintained only over the first few output tokens (approximately 3-5) - making models vulnerable to forgetting. This explains why spurious forgetting occurs, why it is reversible, and why fine-tuning attacks are effective.
+  We propose a comprehensive framework addressing all gaps: (1) quantitative metrics (0-1 scale) to measure alignment depth across token positions; (2) real-time detection methods for identifying shallow alignment during training; (3) specialized analysis tools for visualization and recovery prediction; and (4) adaptive mitigation strategies that automatically distinguish forgetting types and promote deep alignment. Extensive experiments on multiple datasets and model architectures (Qwen2.5-3B to Qwen2.5-32B) demonstrate 86.2-90.6% identification accuracy and show that promoting deep alignment improves robustness against forgetting by 3.3-7.1% over baselines.</summary>
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.AI" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2025-12-02T03:09:35Z</published>
+    <arxiv:primary_category term="cs.LG"/>
+    <author>
+      <name>Weiwei Wang</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2602.15440v2</id>
+    <title>The First Instrumentally Documented Fall of an Iron Meteorite: atmospheric trajectory and ground impact</title>
+    <updated>2026-07-23T14:55:01Z</updated>
+    <link href="https://arxiv.org/abs/2602.15440v2" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2602.15440v2" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Iron meteorite falls are rare compared to stony meteorites, and until recently no iron meteorite had a reliably determined pre-atmospheric orbit. This changed on 2020 November 7, when a bright fireball was observed across Sweden and neighboring regions, with optical, acoustic, and seismic detections extending up to 665 km from the trajectory. After a month-long recovery effort, a 13.8 kg iron meteorite was discovered near Ådalen, representing the first instrumentally recorded and recovered fall of its type and the first iron meteorite with a derivable heliocentric orbit; the event also exhibited the lowest terminal height measured for a well-documented fireball. We combine optical, infrasound, and seismic data to reconstruct the luminous trajectory and employ a Monte Carlo model to simulate the dark flight phase and predicted strewn field, while also investigating the plausibility of a ricochet prior to final deposition. Our analysis identifies distinct aerodynamic properties of iron meteoroids compared to stony bodies, including the influence of streamlined shapes and deep regmaglypts on drag and flight stability, underscoring the need to incorporate iron-specific parameters into entry models to constrain atmospheric dynamics and improve recovery predictions for future events.</summary>
+    <category term="astro-ph.EP" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="astro-ph.IM" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="physics.geo-ph" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="physics.ins-det" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="physics.pop-ph" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2026-02-17T09:03:37Z</published>
+    <arxiv:comment>submitted to Planetary Science Journal</arxiv:comment>
+    <arxiv:primary_category term="astro-ph.EP"/>
+    <author>
+      <name>Jarmo Moilanen</name>
+    </author>
+    <author>
+      <name>Maria Gritsevich</name>
+    </author>
+    <author>
+      <name>Jaakko Visuri</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2512.17119v3</id>
+    <title>Uncovering latent territorial structure in ICFES Saber 11 performance with Bayesian multilevel spatial models</title>
+    <updated>2025-12-27T02:10:51Z</updated>
+    <link href="https://arxiv.org/abs/2512.17119v3" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2512.17119v3" rel="related" type="application/pdf" title="pdf"/>
+    <summary>This article develops a Bayesian hierarchical framework to analyze academic performance in the 2022 second semester Saber 11 examination in Colombia. Our approach combines multilevel regression with municipal and departmental spatial random effects, and it incorporates Ridge and Lasso regularization priors to compare the contribution of sociodemographic covariates. Inference is implemented in a fully open source workflow using Markov chain Monte Carlo methods, and model behavior is assessed through synthetic data that mirror key features of the observed data. Simulation results indicate that Ridge provides the most balanced performance in parameter recovery, predictive accuracy, and sampling efficiency, while Lasso shows weaker fit and posterior stability, with gains in predictive accuracy under stronger multicollinearity. In the application, posterior rankings show a strong centralization of performance, with higher scores in central departments and lower scores in peripheral territories, and the strongest correlates of scores are student level living conditions, maternal education, access to educational resources, gender, and ethnic background, while spatial random effects capture residual regional disparities. A hybrid Bayesian segmentation based on K means propagates posterior uncertainty into clustering at departmental, municipal, and spatial scales, revealing multiscale territorial patterns consistent with structural inequalities and informing territorial targeting in education policy.</summary>
+    <category term="stat.AP" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="stat.ME" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2025-12-18T23:13:00Z</published>
+    <arxiv:comment>42 pages, 14 tables, 12 figures</arxiv:comment>
+    <arxiv:primary_category term="stat.AP"/>
+    <author>
+      <name>Laura Pardo</name>
+    </author>
+    <author>
+      <name>Juan Sosa</name>
+    </author>
+    <author>
+      <name>Juan Pablo Torres-Clavijo</name>
+    </author>
+    <author>
+      <name>Andrés Felipe Arévalo-Arévalo</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1905.00419v3</id>
+    <title>Variational Bayesian Inference for Mixed Logit Models with Unobserved Inter- and Intra-Individual Heterogeneity</title>
+    <updated>2020-01-16T06:07:25Z</updated>
+    <link href="https://arxiv.org/abs/1905.00419v3" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1905.00419v3" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Variational Bayes (VB), a method originating from machine learning, enables fast and scalable estimation of complex probabilistic models. Thus far, applications of VB in discrete choice analysis have been limited to mixed logit models with unobserved inter-individual taste heterogeneity. However, such a model formulation may be too restrictive in panel data settings, since tastes may vary both between individuals as well as across choice tasks encountered by the same individual. In this paper, we derive a VB method for posterior inference in mixed logit models with unobserved inter- and intra-individual heterogeneity. In a simulation study, we benchmark the performance of the proposed VB method against maximum simulated likelihood (MSL) and Markov chain Monte Carlo (MCMC) methods in terms of parameter recovery, predictive accuracy and computational efficiency. The simulation study shows that VB can be a fast, scalable and accurate alternative to MSL and MCMC estimation, especially in applications in which fast predictions are paramount. VB is observed to be between 2.8 and 17.7 times faster than the two competing methods, while affording comparable or superior accuracy. Besides, the simulation study demonstrates that a parallelised implementation of the MSL estimator with analytical gradients is a viable alternative to MCMC in terms of both estimation accuracy and computational efficiency, as the MSL estimator is observed to be between 0.9 and 2.1 times faster than MCMC.</summary>
+    <category term="stat.ME" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="econ.EM" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2019-05-01T11:58:13Z</published>
+    <arxiv:primary_category term="stat.ME"/>
+    <author>
+      <name>Rico Krueger</name>
+    </author>
+    <author>
+      <name>Prateek Bansal</name>
+    </author>
+    <author>
+      <name>Michel Bierlaire</name>
+    </author>
+    <author>
+      <name>Ricardo A. Daziano</name>
+    </author>
+    <author>
+      <name>Taha H. Rashidi</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2301.09088v2</id>
+    <title>Pulsar Glitch in a Strangeon Star Model. III. The recovery</title>
+    <updated>2023-05-31T02:41:50Z</updated>
+    <link href="https://arxiv.org/abs/2301.09088v2" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2301.09088v2" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Strangeon star model has passed various observational tests, such as the massive pulsars and the tidal deformability during binary mergers. Pulsar glitch, as a useful probe for studying the interior structure of pulsars, has also been studied in strangeon star model in our previous papers, including the recovery coefficient, the waiting time of glitches and glitch activity. In this paper, the recovery process of a glitch is described in the strangeon star model, based on the starquake picture established in Paper I. After the starquake, the inner motion of the stellar matter would reduce the tangential pressure in the cracked places at the equatorial plane. The recovery (increase) of the tangential pressure would be achieved by a viscous flow towards the cracked places at equatorial plane, which leads to the exponential recovery of the spin frequency. A uniform viscous flow can reproduce the single exponential decay observed in some glitches, and the viscous time-scale $τ$ and the depth $h$ of the cracking place below the surface can be fitted by the recovery data. It is found that $h$ increases with glitch size $Δν/ν$, which is expected in the glitch scenario of strangeon stars. The magnitude of the recovery predicted in this recovery model is also consistent with that derived from observations. The single exponential decay reproduced by a uniform viscous flow can be generalized to two or more exponentials by the multi-component of viscous flows.</summary>
+    <category term="astro-ph.HE" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2023-01-22T09:20:19Z</published>
+    <arxiv:comment>7 pages, 4 figures, 1 table. Accepted for publication in MNRAS</arxiv:comment>
+    <arxiv:primary_category term="astro-ph.HE"/>
+    <author>
+      <name>X. Y. Lai</name>
+    </author>
+    <author>
+      <name>W. H. Wang</name>
+    </author>
+    <author>
+      <name>J. P. Yuan</name>
+    </author>
+    <author>
+      <name>R. P. Lu</name>
+    </author>
+    <author>
+      <name>H. Yue</name>
+    </author>
+    <author>
+      <name>R. X. Xu</name>
+    </author>
+    <arxiv:doi>10.1093/mnras/stad1653</arxiv:doi>
+    <link rel="related" href="https://doi.org/10.1093/mnras/stad1653" title="doi"/>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2306.11714v1</id>
+    <title>Meta-Analysis of Transfer Learning for Segmentation of Brain Lesions</title>
+    <updated>2023-06-20T17:42:30Z</updated>
+    <link href="https://arxiv.org/abs/2306.11714v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2306.11714v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>A major challenge in stroke research and stroke recovery predictions is the determination of a stroke lesion's extent and its impact on relevant brain systems. Manual segmentation of stroke lesions from 3D magnetic resonance (MR) imaging volumes, the current gold standard, is not only very time-consuming, but its accuracy highly depends on the operator's experience. As a result, there is a need for a fully automated segmentation method that can efficiently and objectively measure lesion extent and the impact of each lesion to predict impairment and recovery potential which might be beneficial for clinical, translational, and research settings. We have implemented and tested a fully automatic method for stroke lesion segmentation which was developed using eight different 2D-model architectures trained via transfer learning (TL) and mixed data approaches. Additionally, the final prediction was made using a novel ensemble method involving stacking and agreement window. Our novel method was evaluated in a novel in-house dataset containing 22 T1w brain MR images, which were challenging in various perspectives, but mostly because they included T1w MR images from the subacute (which typically less well defined T1 lesions) and chronic stroke phase (which typically means well defined T1-lesions). Cross-validation results indicate that our new method can efficiently and automatically segment lesions fast and with high accuracy compared to ground truth. In addition to segmentation, we provide lesion volume and weighted lesion load of relevant brain systems based on the lesions' overlap with a canonical structural motor system that stretches from the cortical motor region to the lowest end of the brain stem.</summary>
+    <category term="eess.IV" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.CV" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2023-06-20T17:42:30Z</published>
+    <arxiv:comment>13 Pages, 5 figures, 3 tables</arxiv:comment>
+    <arxiv:primary_category term="eess.IV"/>
+    <author>
+      <name>Sovesh Mohapatra</name>
+    </author>
+    <author>
+      <name>Advait Gosai</name>
+    </author>
+    <author>
+      <name>Anant Shinde</name>
+    </author>
+    <author>
+      <name>Aleksei Rutkovskii</name>
+    </author>
+    <author>
+      <name>Sirisha Nouduri</name>
+    </author>
+    <author>
+      <name>Gottfried Schlaug</name>
+    </author>
+  </entry>
+</feed>

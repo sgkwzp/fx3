@@ -1,0 +1,213 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<feed xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/" xmlns:arxiv="http://arxiv.org/schemas/atom" xmlns="http://www.w3.org/2005/Atom">
+  <id>https://arxiv.org/api/yTM+nZiusQZC5qWMSumfMhvMYUg</id>
+  <title>arXiv Query: search_query=abs:"corrective action" AND abs:"anticipation"&amp;id_list=&amp;start=0&amp;max_results=40</title>
+  <updated>2026-07-26T12:15:46Z</updated>
+  <link href="https://arxiv.org/api/query?search_query=abs:%22corrective+action%22+AND+abs:%22anticipation%22&amp;start=0&amp;max_results=40&amp;id_list=" type="application/atom+xml"/>
+  <opensearch:itemsPerPage>40</opensearch:itemsPerPage>
+  <opensearch:totalResults>8</opensearch:totalResults>
+  <opensearch:startIndex>0</opensearch:startIndex>
+  <entry>
+    <id>http://arxiv.org/abs/1804.09136v1</id>
+    <title>Seer: Leveraging Big Data to Navigate the Increasing Complexity of Cloud Debugging</title>
+    <updated>2018-04-24T16:59:07Z</updated>
+    <link href="https://arxiv.org/abs/1804.09136v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1804.09136v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Performance unpredictability in cloud services leads to poor user experience, degraded availability, and has revenue ramifications. Detecting performance degradation a posteriori helps the system take corrective action, but does not avoid the QoS violations. Detecting QoS violations after the fact is even more detrimental when a service consists of hundreds of thousands of loosely-coupled microservices, since performance hiccups can quickly propagate across the dependency graph of microservices. In this work we focus on anticipating QoS violations in cloud settings to mitigate performance unpredictability to begin with. We propose Seer, a cloud runtime that leverages the massive amount of tracing data cloud systems collect over time and a set of practical learning techniques to signal upcoming QoS violations, as well as identify the microservice(s) causing them. Once an imminent QoS violation is detected Seer uses machine-level hardware events to determine the cause of the QoS violation, and adjusts the resource allocations to prevent it. In local clusters with 10 40-core servers and 200-instance clusters on GCE running diverse cloud microservices, we show that Seer correctly anticipates QoS violations 91% of the time, and attributes the violation to the correct microservice in 89% of cases. Finally, Seer detects QoS violations early enough for a corrective action to almost always be applied successfully.</summary>
+    <category term="cs.DC" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2018-04-24T16:59:07Z</published>
+    <arxiv:primary_category term="cs.DC"/>
+    <author>
+      <name>Yu Gan</name>
+    </author>
+    <author>
+      <name>Meghna Pancholi</name>
+    </author>
+    <author>
+      <name>Dailun Cheng</name>
+    </author>
+    <author>
+      <name>Siyuan Hu</name>
+    </author>
+    <author>
+      <name>Yuan He</name>
+    </author>
+    <author>
+      <name>Christina Delimitrou</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2204.06509v1</id>
+    <title>Safer Autonomous Driving in a Stochastic, Partially-Observable Environment by Hierarchical Contingency Planning</title>
+    <updated>2022-04-13T16:47:00Z</updated>
+    <link href="https://arxiv.org/abs/2204.06509v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2204.06509v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>When learning to act in a stochastic, partially observable environment, an intelligent agent should be prepared to anticipate a change in its belief of the environment state, and be capable of adapting its actions on-the-fly to changing conditions. As humans, we are able to form contingency plans when learning a task with the explicit aim of being able to correct errors in the initial control, and hence prove useful if ever there is a sudden change in our perception of the environment which requires immediate corrective action. This is especially the case for autonomous vehicles (AVs) navigating real-world situations where safety is paramount, and a strong ability to react to a changing belief about the environment is truly needed.
+  In this paper we explore an end-to-end approach, from training to execution, for learning robust contingency plans and combining them with a hierarchical planner to obtain a robust agent policy in an autonomous navigation task where other vehicles' behaviours are unknown, and the agent's belief about these behaviours is subject to sudden, last-second change. We show that our approach results in robust, safe behaviour in a partially observable, stochastic environment, generalizing well over environment dynamics not seen during training.</summary>
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.AI" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.RO" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2022-04-13T16:47:00Z</published>
+    <arxiv:comment>To appear in Generalizable Policy Learning in the Physical World workshop (ICLR 2022)</arxiv:comment>
+    <arxiv:primary_category term="cs.LG"/>
+    <author>
+      <name>Ugo Lecerf</name>
+    </author>
+    <author>
+      <name>Christelle Yemdji-Tchassi</name>
+    </author>
+    <author>
+      <name>Pietro Michiardi</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2303.17616v1</id>
+    <title>Patterns Detection in Glucose Time Series by Domain Transformations and Deep Learning</title>
+    <updated>2023-03-30T09:08:31Z</updated>
+    <link href="https://arxiv.org/abs/2303.17616v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2303.17616v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>People with diabetes have to manage their blood glucose level to keep it within an appropriate range. Predicting whether future glucose values will be outside the healthy threshold is of vital importance in order to take corrective actions to avoid potential health damage. In this paper we describe our research with the aim of predicting the future behavior of blood glucose levels, so that hypoglycemic events may be anticipated. The approach of this work is the application of transformation functions on glucose time series, and their use in convolutional neural networks. We have tested our proposed method using real data from 4 different diabetes patients with promising results.</summary>
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.CY" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2023-03-30T09:08:31Z</published>
+    <arxiv:comment>7 pages, 7 figures, 3 tables</arxiv:comment>
+    <arxiv:primary_category term="cs.LG"/>
+    <author>
+      <name>J. Alvarado</name>
+    </author>
+    <author>
+      <name>J. Manuel Velasco</name>
+    </author>
+    <author>
+      <name>F. Chávez</name>
+    </author>
+    <author>
+      <name>J. Ignacio Hidalgo</name>
+    </author>
+    <author>
+      <name>F. Fernández de Vega</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2301.04113v1</id>
+    <title>Proactive and Automatic Underfrequency Load Shedding via PMUs and Particle Filters</title>
+    <updated>2023-01-10T18:30:57Z</updated>
+    <link href="https://arxiv.org/abs/2301.04113v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2301.04113v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Underfrequency (UF) load shedding schemes are traditionally implemented in two ways: One approach is based on manual load shedding, with system operators requesting loads to be shed ahead of anticipated stressful operating conditions. Manual load shedding is usually done through phone calls. The second method is automatic load shedding via underfrequency relays. Using static settings, these schemes can be designed to operate in stages and drop previously identified loads. The main limitation of traditional load shedding schemes is that they are reactive and leave little room for optimized corrective actions. This work presents a proactive and automatic underfrequency load shedding solution for power systems. Measurements are captured via phasor measurement units (PMUs) at relatively low sampling rates of 30 Hz. These measurements are then processed by particle filters who predict the future state of the system's frequency. Based on these predictions excess load is determined and shed. Comparative case studies are performed in simulated environments. Easy-to-implement models, without hard-to-derive parameters, highlight potential aspects for real-life implementation.</summary>
+    <category term="eess.SY" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2023-01-10T18:30:57Z</published>
+    <arxiv:comment>IEEE General Meeting 2023</arxiv:comment>
+    <arxiv:primary_category term="eess.SY"/>
+    <author>
+      <name>Gian Paramo</name>
+    </author>
+    <author>
+      <name>Arturo Bretas</name>
+    </author>
+    <author>
+      <name>Newton Bretas</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2605.05354v1</id>
+    <title>A Multi-Head Attention Approach for SLA Compliance Monitoring in Data Centers</title>
+    <updated>2026-05-06T18:31:06Z</updated>
+    <link href="https://arxiv.org/abs/2605.05354v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2605.05354v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Service level agreements (SLAs) in data center colocation contracts define precise thresholds for power, temperature, and humidity, with tiered violation penalties expressed as credits against monthly recurring charges. Traditional reactive monitoring detects breaches only after they occur, limiting remediation opportunities. We present a framework that encodes SLA rules as structured JSON objects to generate training data without manual annotation. We train a per-customer multi-head transformer model in which each attention head specializes in one SLA rule, learning temporal dependencies that precede violations by 30 minutes. Post-training, the inference service emits structured prediction events transformed into three role-specific views: finance schemas exposing credit liability, operations schemas surfacing risk scores and recommended interventions, and compliance schemas bundling predictions with immutable telemetry signatures for audit. By aligning model architecture directly with contractual obligations, this framework enables operators to anticipate SLA breaches, prioritize corrective actions, and minimize financial penalties.</summary>
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2026-05-06T18:31:06Z</published>
+    <arxiv:comment>6 pages, 9 figures, 46th IEEE International Conference on Distributed Computing Systems</arxiv:comment>
+    <arxiv:primary_category term="cs.LG"/>
+    <author>
+      <name>Omanshu Thapliyal</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2209.09793v1</id>
+    <title>Recovering feasibility in real-time conflict-free vehicle routing</title>
+    <updated>2022-09-20T15:28:19Z</updated>
+    <link href="https://arxiv.org/abs/2209.09793v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2209.09793v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Conflict-Free Vehicle Routing Problems (CF-VRPs) arise in manufacturing, transportation and logistics facilities where Automated Guided Vehicles (AGVs) are utilized to move loads. Unlike \textit{Vehicle Routing Problems} arising in distribution management, CF-VRPs explicitly consider the limited capacity of the arcs of the guide path network to avoid collisions among vehicles. AGV applications have two peculiar features. First, the uncertainty affecting both travel times and machine ready times may result in vehicle delays or anticipations with respect to the fleet nominal plan. Second, the relatively high vehicle speed (in the order of one or two meters per second) requires vehicle plans to be revised in a very short amount of time (usually few milliseconds) in order to avoid collisions. In this paper we present fast exact algorithms to recover plan feasibility in real-time. In particular, we identify two corrective actions that can be implemented in real-time and formulate the problem as a linear program with the aim to optimize four common performance measures (total vehicle delay, total weighted delay, maximum route duration and total lateness). Moreover, we develop tailored algorithms which, tested on randomly generated instances of various sizes, prove to be three orders of magnitude faster than using off-the-shelf solvers.</summary>
+    <category term="math.OC" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2022-09-20T15:28:19Z</published>
+    <arxiv:primary_category term="math.OC"/>
+    <author>
+      <name>Tommaso Adamo</name>
+    </author>
+    <author>
+      <name>Gianpaolo Ghiani</name>
+    </author>
+    <author>
+      <name>Emanuela Guerriero</name>
+    </author>
+    <arxiv:doi>10.1016/j.cie.2023.109437</arxiv:doi>
+    <link rel="related" href="https://doi.org/10.1016/j.cie.2023.109437" title="doi"/>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2310.03051v1</id>
+    <title>How FaR Are Large Language Models From Agents with Theory-of-Mind?</title>
+    <updated>2023-10-04T06:47:58Z</updated>
+    <link href="https://arxiv.org/abs/2310.03051v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2310.03051v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>"Thinking is for Doing." Humans can infer other people's mental states from observations--an ability called Theory-of-Mind (ToM)--and subsequently act pragmatically on those inferences. Existing question answering benchmarks such as ToMi ask models questions to make inferences about beliefs of characters in a story, but do not test whether models can then use these inferences to guide their actions. We propose a new evaluation paradigm for large language models (LLMs): Thinking for Doing (T4D), which requires models to connect inferences about others' mental states to actions in social scenarios. Experiments on T4D demonstrate that LLMs such as GPT-4 and PaLM 2 seemingly excel at tracking characters' beliefs in stories, but they struggle to translate this capability into strategic action. Our analysis reveals the core challenge for LLMs lies in identifying the implicit inferences about mental states without being explicitly asked about as in ToMi, that lead to choosing the correct action in T4D. To bridge this gap, we introduce a zero-shot prompting framework, Foresee and Reflect (FaR), which provides a reasoning structure that encourages LLMs to anticipate future challenges and reason about potential actions. FaR boosts GPT-4's performance from 50% to 71% on T4D, outperforming other prompting methods such as Chain-of-Thought and Self-Ask. Moreover, FaR generalizes to diverse out-of-distribution story structures and scenarios that also require ToM inferences to choose an action, consistently outperforming other methods including few-shot in-context learning.</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.AI" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2023-10-04T06:47:58Z</published>
+    <arxiv:comment>Preprint, 18 pages, 6 figures, 6 tables</arxiv:comment>
+    <arxiv:primary_category term="cs.CL"/>
+    <author>
+      <name>Pei Zhou</name>
+    </author>
+    <author>
+      <name>Aman Madaan</name>
+    </author>
+    <author>
+      <name>Srividya Pranavi Potharaju</name>
+    </author>
+    <author>
+      <name>Aditya Gupta</name>
+    </author>
+    <author>
+      <name>Kevin R. McKee</name>
+    </author>
+    <author>
+      <name>Ari Holtzman</name>
+    </author>
+    <author>
+      <name>Jay Pujara</name>
+    </author>
+    <author>
+      <name>Xiang Ren</name>
+    </author>
+    <author>
+      <name>Swaroop Mishra</name>
+    </author>
+    <author>
+      <name>Aida Nematzadeh</name>
+    </author>
+    <author>
+      <name>Shyam Upadhyay</name>
+    </author>
+    <author>
+      <name>Manaal Faruqui</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2604.03933v1</id>
+    <title>Deploy, Calibrate, Monitor, Heal -- No Human Required: An Autonomous AI SRE Agent for Elasticsearch</title>
+    <updated>2026-04-05T02:13:32Z</updated>
+    <link href="https://arxiv.org/abs/2604.03933v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2604.03933v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Operating Elasticsearch clusters at scale demands continuous human expertise spanning the full lifecycle -- from initial deployment through performance tuning, monitoring, failure prediction, and incident recovery. We present the ES Guardian Agent, an autonomous AI SRE system that manages the complete Elasticsearch lifecycle without human intervention through eleven distinct phases: Evaluate, Optimize, Deploy, Calibrate, Stabilize, Alert, Predict, Heal, Learn, and Upgrade. A critical differentiator is its multi-source predictive failure engine, which continuously ingests and correlates metrics trends, application logs, and kernel-level telemetry -- including Linux dmesg streams, NVMe SMART data, NIC bond statistics, and thermal sensors -- to anticipate failures hours before they materialize. By cross-referencing current system signatures against a persistent incident memory of resolved failures, the AI engine stages corrective actions proactively. Through four successive agent architectures -- culminating in a 4,589-line system with five monitoring layers and an iterative AI action loop -- we demonstrate that an LLM equipped with tool-use access can function as a full-lifecycle autonomous SRE targeting six-nines (99.9999%) availability. In production evaluation, the Guardian Agent executed 300 autonomous investigation-and-repair cycles, recovered a cluster from an 18-hour cross-system outage, diagnosed hardware NIC failures across all host nodes, and maintained continuous operational visibility. We establish that data volume per shard -- not tuning -- is the primary determinant of query performance, with latency scaling at 0.26 ms per MB/shard.</summary>
+    <category term="cs.DC" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2026-04-05T02:13:32Z</published>
+    <arxiv:comment>8 pages, 1 figure, 15 tables. Submitted to IEEE CNSM 2026. Cluster: Elasticsearch 8.17.0, 3 master + 12 data nodes, Kubernetes</arxiv:comment>
+    <arxiv:primary_category term="cs.DC"/>
+    <author>
+      <name>Muhamed Ramees Cheriya Mukkolakkal</name>
+    </author>
+  </entry>
+</feed>

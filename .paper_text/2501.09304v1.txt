@@ -1,0 +1,990 @@
+arXiv:2501.09304v1 [cs.CV] 16 Jan 2025   FINDING THE TRIGGER: CAUSAL ABDUCTIVE REASONING ON
+                                                                       VIDEO EVENTS
+
+                                                       Thao Minh Le1, Vuong Le2, Kien Do1, Sunil Gupta1, Svetha Venkatesh1, Truyen Tran1
+
+                                                                     1Applied Artificial Intelligence Institute, Deakin University, Australia
+                                                                                           2Amazon, Melbourne, Australia
+
+                                                        {thao.le,k.do,sunil.gupta,svetha.venkatesh,truyen.tran}@deakin.edu.au
+                                                                                                levuong@amazon.com
+
+                                                                                            ABSTRACT
+
+                                                   This paper introduces a new problem, Causal Abductive Reasoning on Video Events (CARVE), which
+                                                   involves identifying causal relationships between events in a video and generating hypotheses about
+                                                   causal chains that account for the occurrence of a target event. To facilitate research in this direction,
+                                                  we create two new benchmark datasets with both synthetic and realistic videos, accompanied by
+                                                   trigger-target labels generated through a novel counterfactual synthesis approach. To explore the
+                                                   challenge of solving CARVE, we present a Causal Event Relation Network (CERN) that examines
+                                                   the relationships between video events in temporal and semantic spaces to efficiently determine
+                                                   the root-cause trigger events. Through extensive experiments, we demonstrate the critical roles of
+                                                   event relational representation learning and interaction modeling in solving video causal reasoning
+                                                   challenges. The introduction of the CARVE task, along with the accompanying datasets and the CERN
+                                                   framework, will advance future research on video causal reasoning and significantly facilitate various
+                                                   applications, including video surveillance, root-cause analysis and movie content management.
+
+                                        1 Introduction
+
+                                        Modern AI research has achieved unprecedented progress in exploring statistical patterns from massive amounts of data
+                                        to infer knowledge about the world. This is often referred to as inductive reasoning. For many inductive reasoning tasks,
+                                        AI systems have already outperformed humans, such as image recognition [1] and voice recognition [2]. However,
+                                        while humans excel at generating hypotheses and intuitions about the causes of an observation, this capability remains
+                                        a blind spot for AI systems. For example, current medical AI systems are trailing behind human doctor in determining
+                                        the probable cause of a disease diagnosis from patient’s medical history, lifestyle and their recent travel history. This
+                                        type of inference is called Abductive reasoning and was first introduced by Charles Sanders Peirce [3]. In the field of
+                                        video analysis, this fundamental problem translates into important and impactful requirement of finding the cause-effect
+                                        pairs of events within the video.
+                                        Aiming at this problem, this paper studies a new task called Causal Abductive Reasoning on Video Events (CARVE)
+                                        requiring AI systems to comprehend the causal relations embedded in the videos at the event level and generate
+                                        hypotheses about the trigger event - a prior event in the video that most probably caused the occurrence of a query
+                                        target event. CARVE promises significant breakthrough in numerous applications. For instance, in video surveillance,
+                                        CARVE can help trace back the causal chain of a suspicious behavior to see why it was anomalous; in sports analysis,
+                                        the task supports analyzing an unexpected move of a player on the field and suggest the likely reason such as a change
+                                        in strategy or an injury; in movie production, the storyline of long videos can be broken down to identify illogical or
+                                        redundant parts and provide suggestions for edition.
+
+                                        Along with proposing the CARVE task, we introduce two benchmark datasets built with counterfactual synthesis
+                                        through interventional schemes. The first one is the namesake CARVE dataset featuring noise-free videos of dynamic
+                                        objects that are created through a physics simulator. The trigger-target labels are generated by counterfactual video
+                                     Finding the Trigger: Causal Abductive Reasoning on Video Events                                                                                     A PREPRINT
+
+                     <O1, slide, bar, 0, 147> <O1, collide, wall, 148, 203>                        <O1, collide, bar, 251, 560>                      <O1, collide, basket, 561, 600>
+
+O1. Big gray circle
+
+                                                                                                                       triggers
+
+                                                                                                                                 <O2, collide, bar, 288, 509>
+
+                                                                                          <O1, collide, O2, 204, 250>                                               <O2, collide, basket, 510, 600>
+
+O2. Small purple circle                                                                                    <O2, collide, O3, 251, 287>                                                <O2, collide, O3, 550, 600>
+                                 <O2, slide, bar, 0, 152>
+                                                           <O2, collide, wall, 153, 203>
+
+                                                                                                                                                                    <O3, collide, basket, 490, 600>
+
+                                                           O3. Big cyan circle <O3, collide, bar, 0, 250>              <O3, collide, bar, 288, 490>
+
+                                                           ...                            ... ...                      ...                                     ...
+
+                     Starting point                             trigger event <purple circle, collide, gray circle>              target observed event <purple circle, collide, basket>
+
+Figure 1: Illustration of event chains and trigger-target event pairs in CARVE task and example in the accompanying
+dataset. Videos are generated by a 2D physics simulator using predefined visual scenes. Video events, <object_id_1,
+object_id_2, interaction_type, start_time, end_time>, are defined as interactions between a dynamic object and an
+object partner within a time interval. Each dynamic object creates a chain of events (3 in this example, marked with
+corresponding colors). These chains are merged by mutual events, resulting in a graph of events. Explanation and target
+event pairs are identified by comparing the original video and counterfactual videos. Best viewed in color.
+
+generation. The second dataset EpicKitchen-AR leverages the realistic videos from action forecasting task in the
+EpicKitchen dataset and augment them with abductive events labels, also through counterfactual synthesis. Figure 1
+illustrates the CARVE task and an example of the datasets.
+
+Attempting at solving the new challenge, we propose a novel Causal Event Relation Networks (CERN). The method
+focuses on modeling both temporal dependencies and semantic dependencies between video events toward finding their
+trigger-target relationships. CERN has this done by building a temporal-constrained directed event graph network built
+on input event features. The framework is generic to a variety of event feature representations demonstrated with its
+performance on both synthetic CARVE and the lifelike EpicKitchen-AR data.
+
+Extensive experiments on the two datasets indicate that the task introduces a new distinctive challenge to video
+understanding field, demonstrated on the fact that fine-tuned large-scale video recognition models, such as MViTv2
+[4], and powerful large video-language models such as Video-LLaVA [5] all fall short in this new task, due to their
+inability to disentangle the event causal relations with other types. The experiments also show the advantages of the
+new proposed method CERN against various baseline methods and suggest promising directions for the task.
+
+Overall, this work aims at initiating a research topic of causal abductive reasoning for video events and makes three
+contributions: (1) Proposing a new task CARVE and building two rich and diverse datasets using counterfactual
+synthesis (2) A novel neural framework for event-graph modeling toward effectively solving CARVE task and (3)
+Extensive experiments that reveal the challenges of the task and indicate directions for development in this new front.
+
+2 Related Work
+
+Visual Abductive (VA) reasoning: This task is traditionally formulated as question-answering [6, 7, 8, 9]where the
+cause of an event is selected from multiple choices annotated by human. Another line of works approach abductive
+reasoning in the form of linguistic explanations [10, 11, 12, 13, 14] with strong reliance on textual captioning. The
+concrete trigger-target pair settings make CARVE distinctive from these work that aims at generating a generic
+hypothetical explanation that only might be associated with an actually happened event. Furthermore, this new task
+requires the focus on spatio-temporal visual properties and avoid linguistic bias and ambiguity, therefore making it
+closer to the targeted applications. Our work also transcend from visual reasoning about object’s relations and physics
+[15, 16, 17, 18, 8] by extending to life-like video events.
+
+Visual Abductive datasets: Currently available VA datasets, including VAR [10], CLEVRER family [8, 19] are all
+based on artificial explanation generated by either human annotations which are subjective to human annotators or
+
+                                                                      2
+                     Finding the Trigger: Causal Abductive Reasoning on Video Events    A PREPRINT
+
+preset written scripts which are biased to linguistic commonsense. To aim at more genuine visual casual data, we break
+this tradition with a new counterfactual synthesis procedure to reconstruct the objective cause-effect facts.
+
+Event-relation modeling: Previous works focus on event localization [20, 21, 22] and video future events predictions
+[23, 24]. Structured representations of events are popular for these problem with action scene graphs [25] and action
+role labels [26]. Event-level graph in our work are built on top of the recent progress in video spatio-temporal graph
+models such as unified video-text event graph [27] and pseudo-3D scene graph [6]. The event-related applications
+recently saw further progress with vision transformer-based methods [28, 29, 4], however, video causal reasoning
+remains a challenge, especially at event level.
+
+Generic abductive reasoning: Outside of computer vision, abductive reasoning has been explored using event calculus
+and temporal action logic [30]. In linguistics, abduction for text-based events in commonsense narrative contexts is
+collected and labeled by human labors [31]. It is also explored in medical diagnosis [32] and root-cause-analysis [33].
+These works give insight and ideas to the new abductive reasoning task using causal relation of video events introduced
+in this paper.
+
+3 Causal Abductive Reasoning on Video Events
+
+3.1 Task Definition
+
+The Causal Abductive Reasoning on Video Events (CARVE) involves analyzing a sequence of chronological events to
+
+identify preceding events that contributed causally to the occurrence of a target event. Here, we consider CARVE in the
+video understanding context. Specifically, within a sequence of events found in a video, we consider a target event at
+position N : etarget = eN . The CARVE asks AI systems to find all the grouth-truth trigger events Etrigger within the
+set of premise events Epremise = {e1, ..., eN−1} that are the causal reasons of the target. This setting excludes the case
+where Etrigger = ∅, meaning the target is an exogenous event triggered by factors outside of the video. We treat our
+CARVE as a binary classification problem where yi = 1 indicates that a preceding event ei is a cause of etarget and
+yi = 0 otherwise. Formally, our task is to maximize the probability that an event ei ∈ Etrigger is correctly identified as a
+trigger event for the target event:
+
+                     θ∗ = argmaxθ                   Pθ y = 1 | ei, etarget, Epremise ,  (1)
+
+                                     ei ∈E premise
+
+where θ indicates model parameters.
+
+This task is different from the previous visual abductive reasoning tasks by raising the requirement that the causing
+factor must be grounded into a subset of premise events instead of as generic textual description of the cause either in
+free form [10] or QA [8, 19] formats. This requirement bring the task closer to a large set of applications where the root
+cause needs to be traced back to previous video events.
+
+3.2 Counterfactual Causal Event Datasets
+
+The top challenge for observational models for causal discovery tasks like CARVE is to separate causal relations
+with associative biases. For example, “eating ice cream” is usually associated with “sun burnt” while actually caused
+by “hot weather”. This separation theoretically requires training and evaluation data with ground truth cause-effect
+pairs discovered with interventional experiments [34]. Traditionally, these interventions are estimated by randomized
+controlled trials but they are universally costly and mostly infeasible for life-like video events. This challenge in building
+causal data encouraged a popular alternative direction where the event causes are specified as linguistic explanations
+learned from causal facts extracted from literature corpus [10]. Another work around is through human annotation,
+either in explanation form or in question-answering format [8, 19]. While avoiding the roadblock, these datasets
+are prone to diverging from the true causal relation between events, often leaning on linguistic causal commonsense
+provided by explanatory generative models - which are overly smooth or human annotator who can be objective and
+inconsistent. For example, while “eating ice cream” is commonly explained by “hot weather”, in a particular video, it
+can be actually caused by the real event of “attending a birthday party”.
+
+To break through these limitations, we propose to directly address interventional data generation by using counterfactual
+synthesis where the candidate trigger events are one-by-one omitted from the video to observe its consequential role
+to the target event. This approach helps establish two video event datasets as benchmark for the CARVE task: The
+CARVE dataset produced using a fully controlled 2D physics simulator, and the realistic EpicKitchen-AR leverages
+the real-world scenarios using life-like videos extracted from the popular EpicKitchen-100 dataset. Meanwhile, the
+EpicKitchen-AR set ensures the practicality in dealing with lifelike videos.
+
+                                                    3
+                         Finding the Trigger: Causal Abductive Reasoning on Video Events  A PREPRINT
+
+Algorithm 1 Abductive Event Pairs Extraction
+
+     Input: G: Event graph of the input video
+             ettarget: target event of main object t
+             C: counterfactual dynamic objects of ettarget
+
+     Output: H: List of trigger events for ettarget
+
+1: Initialize H ← {}
+
+2: for each c ∈ C do
+3: ecfirst ← first event in the event sequence in G associated with c
+4: paths ← depth_first_search_all_paths(G, ecfirst → ettarget)
+5: if paths ≡ ∅ then
+
+6:   continue
+
+7: end if
+
+8: for each path ∈ paths do
+
+9:   h ← first event of interactions of c and a dynamic object partner
+
+10:  if h ≡ ∅ then
+
+11:          h ← first in the event chain associated with c
+
+12:  end if
+
+13:  if h̸ ∈ H then
+
+14:          add h to H
+
+15:  end if
+
+16: end for
+
+17: end for
+
+3.2.1 CARVE dataset
+
+We aim at building a large scale dataset with clean videos and clear causal relationships that can be used to validate the
+hypotheses and verify core operation of methods. To generate the videos, we utilize the 2D physics simulator provided
+by [16] to generate complex dynamic physical interactions of 2D objects. We generate 10K videos with over 250K
+abductive event pairs of target and trigger events. The videos and their abductive event pairs are divided into train,
+validation and test split with a ratio of 60:20:20.
+
+Video generation: The videos are 10 seconds long of 256 × 256 pixel resolutions. They are created from 20 pre-defined
+scenes with physical interactions of dynamic objects and static scene elements. There are 48 variants of dynamic objects
+derived by selecting among 2 sizes (small, large), 3 shapes (cube, triangle, circle) and 8 colors. We design 7 static scene
+elements (ramp, platform, button, basket, left wall, right wall and ground). Object and element positions are randomly
+initiated.
+
+Dynamic object events: In this dataset, we specify video events based on the interactions of objects, named dynamic-
+object events. We first track the movement of each object and detect its state changes caused by interactions with
+other objects by looking for sudden changes in velocity or direction of its movement. We then match the pairs of state
+changes of two objects happening within the proximal time and space to locate the interactions. The interaction is
+classified into two types of collision and slide. For interactions involving more than two objects, we break them into
+different combinations of two-object interactions.
+
+The event is specified by its start and end times indicating the time interval between two consecutive collisions that
+result in a change in the main object’s movement direction. The event feature vector is then form as: <object_id_1,
+object_id_2, interaction_type, start_time, end_time>.
+
+To form the relational structure of the events, we build a directed graph G = (V, E) of dynamic-object events, where the
+nodes V represents events and the edges E represent the temporal order between them. Within the graph G, for each
+object, we obtain a set of chain of events through that object’s lifeline throughout the course of a video. These event
+chains intersect at the events that involve two dynamic objects. See Figure 1 for an illustration .
+
+Generating Trigger-target event pairs:
+
+For each original video, we generate a counterfactual variant by removing a dynamic object at the beginning of the
+original video and re-running simulation. We then pick one event from the event graph of the original video as a target
+event; and then try to search for the existence of the target event in a counterfactual video graph by similar object
+attributes and time-space location. If the target event is not found in the counterfactual video, the removed dynamic
+object is marked as affecting the event. In contrast, if no match is found, we say the removed object to be non-affectting
+of the target event.
+
+                                                                      4
+Finding the Trigger: Causal Abductive Reasoning on Video Events  A PREPRINT
+
+       Distribution of target-explanation event indices
+
+              target event
+       30000  explanation event
+
+Count  20000
+
+       10000
+
+                           0 0 20 40 60 80 100
+                                                 Event index
+
+Figure 2: Distribution of target and trigger event locations in time in CARVE. Only 100 first events are visible.
+
+For each affecting object of the target event, we identify the first event involving a dynamic object partner in its event
+chain as a possible trigger event. This means a single target event may have multiple trigger events, depending on the
+number of affecting objects involved. If no event involving a dynamic object partner exists, the first event in the chain is
+chosen (See Algorithm 1). This procedure is repeated for all possible target events of the original video graph. We note
+that target and trigger events do not necessarily share a common dynamic object. Instead, the target event can be an end
+result of a series of collisions via multiple intermediate objects, which is initiated by the trigger event.
+
+Data splits and statistics: After discarding 9 videos where no abductive event pairs, the remaining videos are divided
+into 3 splits: train, validation and test, with a ratio 60:20:20. This results in a large-scale dataset of a total 254,278
+pairs where the train, validation and test split take 152,916 pairs, 50,822 pairs and 50,540 pairs, respectively.
+
+Figure 2 shows the distributions of target and trigger event locations in our CARVE dataset. This graph shows that the
+trigger events are neither simply the first event in a chain nor the event right before the target event, instead they can be
+any preoccuring events. This quality of data prevent ML models from tactically remembering heuristics and requires
+them to properly discover the event causal relations.
+
+3.2.2 The EpicKitchen-AR Dataset
+
+While CARVE is clean with strong trigger-target relations, we would like to extend the benchmark to real-world videos
+where these relations are naturally entangled with other types of relations and environmental factors. To this end, we
+employ the Epic-Kitchen-100 [35], a major dataset originally designed for action forecasting task. This task involves
+predicting an action starting at a particular time based on a sequence of past event observations.
+
+To upgrade Epic-Kitchen to an Abductive reasoning dataset, we need to generate a set of trigger-target event pairs for
+the video. This is a big challenge because unlike CARVE, we cannot create counterfactual videos to determine the
+trigger event for the target. To overcome this challenge, we leverage the current state-of-the-art action anticipation
+method, AFFT [36], as an oracle model to generate pseudo-counterfactual trigger-target pairs.
+
+The process starts by running the action prediction oracle on all videos and selecting ones where the oracle model
+produces correct top-5 action predictions. Next, we join adjacent actions with the same label into events. We then
+consider the target event to be the event that contains the predicted action. The pseudo-counterfactual process is done
+by masking out each past event in the observation sequence one-by-one to observe changes in the oracle prediction of
+the target event. Now with these hypothetical event sequences, similarly to CARVE dataset, we define a trigger event to
+be the first event whose ablation causes a false prediction of the target event. These trigger-target event pairs constitute
+our EpicKitchen-AR dataset consisting of 1,259 abductive event pairs, each found in one distinct video clip. We then
+use 1,000 videos for training and the remaining 259 videos for validation.
+
+                                                                      5
+Finding the Trigger: Causal Abductive Reasoning on Video Events        A PREPRINT
+
+                                    Msg       +
+
+                                                           Msg
+                                              Msg
+
+                                                                  No
+
+                                    MPGNN                         No
+
+                                                                  Yes
+
+                                                                  No
+
+                                                                  No
+
+Event graph
+
+Figure 3: Overview of CERN. Given a target event etarget and its premise events, we build a directed graph of events G
+based on their temporal distance. Edge feature vectors rij (arrows) represent multi-aspect relations between events.
+We use a novel message passing scheme (Msg) to refine events in consideration of their surrounding events. Gray box
+illustrates how event e4 receives information from preceding events e1, e3, e5 to refine its representation. Refined event
+features are then bound with the target event and eventually mapped into scores for label prediction.
+
+4 Causal Event Relation Networks
+
+In this section, we attempt to solve the CARVE by devising Causal event relation network (CERN), a neural framework
+that analyzes event temporal-semantic graph to quantify the trigger-target relationships. The overall architecture is
+demonstrated in Figure 3.
+
+4.1 Event Representation
+
+We aim at designing a generic model that supports a wide variety of event representation vectors ei. The particular
+process to generate ei is up to the characteristics of the dataset. For the CARVE dataset, we define an event as the
+interaction of two objects within a time interval between two collisions. For an event ei, we denote xm and xp to be
+the aggregated dynamic attributes (color, shape, position etc.) of the main and partner objects during the course of the
+event; and ts and te be the start and end times. They stack up to form the event representation vector ei :
+
+                                    ei =< [xm, xp], [ts, te] > .       (2)
+
+Differently, for EpicKitchen-AR, event representation ei is a composition vector including spatio-temporal visual
+features of the segments extracted using the TSN networks [36], embeddings of the action label using DistillBERT [37],
+and event timestamps.
+
+4.2 Temporal-Semantic Event Graphs
+
+Given the event sets V, our objective is to model their causal relationship through building a graph-based representation
+multi-relational graph G = (V, E = {Etemp, Esem}). Here the edges E capture not only their temporal relations Etemp but
+also their semantic relations Esem. These two types of edges are formed in the process described in this section.
+
+Event temporal relations Etemp: Considering two events ei and ej as defined by Eq. (2) from the event set V, their
+temporal relationship rijtemp is determined based on their order in time. This can be quantified using their temporal
+distance d (ei, ej) [38] which is calculated solely based on their start and end times. Assuming that the event ei occurs
+during time interval [tsi, tei] and event ep during [tsj, tej], their temporal distance is defined by:
+
+d (ei, ej ) = {tsj − tsi, tej − tei, tsj − tei, tej − tsi} .           (3)
+
+                                           6
+                             Finding the Trigger: Causal Abductive Reasoning on Video Events                                 A PREPRINT
+
+We use Allen’s interval algebra [39] to determine the temporal relations between ei and ep and identify their order in
+time. Fundamentally, if tsi > tsj then ei is considered happening before ej, denoted as (ei, ej)i<j . If tsi = tsj then
+end times will be considered. Details on this order rules are provided in the Supplementary. This temporal order forms
+
+the direction of edges in graph G. We also use the temporal distance Eq. (3) to assign edge weights. We now have a
+weighted directed graph G(V, Etemp) where information flow obeys the time order of video data in which only prior
+
+events can trigger the occurrence of later events but not in the reversed direction.
+
+Event semantic relations Esem: In addition to being temporally related, events are also connected by their semantic
+
+associations. These relations are formed by the input event representation of dimension d that is created accordingly in
+
+each dataset (such as Eq. (2) for For CARVE dataset). As event relations are naturally multi-dimensional event relations
+
+(for  example  “force”  and  “direction”  in  object  interaction),    we  use  a  k-dimensional  vector    sem   ∈  Rk  to  represent  the
+
+                                                                                                          rei ep
+
+semantic edge features. This is an improvement from the common practice of studies using scalar pairwise structural
+
+relationships [40, 41, 42]. The feature is formed by a bilinear operator:
+
+                                              reiej sem = ϕ (ei, ej )                                                                   (4)
+
+                                              = γij ∗ tanh ei⊤W [1:k]ej + b ,                                                           (5)
+
+where γij ∈ [0, 1] is a distance-based penalty factor of temporal distance with detailed formulation is provided in Supp.
+W [1:k] ∈ Rd×d×k and b ∈ Rk are learnable parameters. The bilinear operator is used on the basis of each slice of the
+tensor W [1:k] (k ≡ d in our implementation).
+
+Finally, we combine the two attributes of event relations to output a directed graph structure G(V, E) representation of
+V nodes of an input video:
+
+                                              rij = rijtemp ∗ rijsem; E = {rij }i=1,j=1 V . (6)
+
+4.3 Abductive Reasoning on Event graphs
+
+This section describes the learning-to-reason process on the event graphs toward finding trigger events for the targets to
+solve the task CARVE in Eq. (1). Given the trigger event groundtruth ei of a target event et within its premise events
+
+E (et) = G V = {vi}i<t , E = {rij}i,j<t , solving Eq. (1) becomes maximizing
+
+                                              P (y = 1 | et, ei, E (et) ; θ) .                                                          (7)
+
+In our framework, we estimate this probability using an inference procedure using a classifier fθ (·) on top of the
+embeddings of target event zt = qθ (et) and trigger event candidates hi = pθ (ei, E (et)):
+
+                                          P (y = 1 | et, ei, E (et)) = fθ (hi, zt) .                                                    (8)
+
+In our implementation, classifier fθ (·) is a logistic classifier using concatenated [hi, zt] as input. The target embed-
+ding function qθ (et) is a linear transformation. Especially, the candidate representation learning pθ (ei, E (et)) is
+implemented as a novel message passing scheme with L layers composed of two phases:
+
+Message aggregation with skip connections:                                                        
+                                                                                                 +
+
+                             F layer l−1 W1l−1 i hi =                        F jmsg  hjl−1, rji
+                                              | N (i) |
+                                                                     j∈N (i)
+
+                                              W2 l−1 l−1
+                                                                       hj + rji ,                                                       (9)
+                                              | N (i) |
+                                                         j∈N (i)
+
+                             msg l−1                                       l−1 l−1    0
+                             F j hj , rji = ReLU W3 hj , rji ; hj = ei,                                                      (10)
+
+Layer transformation with skip connections:
+                                              hil = ReLU hil−1 +W4l−1Filayer hil−1 , (11)
+
+                                                                       7
+Finding the Trigger: Causal Abductive Reasoning on Video Events  A PREPRINT
+
+layer
+                                                +
+
++                                                                              +
+
+                                                                                                                                         message
+
+Figure 4: Message passing with skip connections along “message” and “layer” axis. F msg and F layer are non-linear
+functions. Illustrating with two neighbors j and k of node i.
+
+where N (i) indicates neighborhood of size |N (i)| of node i. W1, W2, W3, W4 are network parameters.
+Unlike the standard message passing, ours uses skip connections during both message aggregation and layer transfor-
+mation (Figure 4). These skip connections are of crucial roles: Those along the “message” axis offer an alternative
+path for information to directly flow from neighbors to node i, therefore facilitating information aggregation within a
+neighborhood. Meanwhile, the skip connections at the layer transformation phase create a self-loop information to
+update a node’s representation by itself at the current layer. As a result, it enables information from distant events to
+better reach later events through L layers using only single-hop neighborhood instead of having to do costly multi-hop
+alternatives like in [43]. Besides increasing the expressive power of the network, these skip connections also reduce
+gradient vanishing and facilitate training.
+The network is trained end-to-end using the binary cross-entropy loss LBCE = − 1D i=1 D yilogy˜i +(1 − yi) log (1 − y˜i)
+where D is the size of the training data and y˜i = f (hi, zt) indicates model predictions.
+
+4.4 Modeling Scope and Limitation
+
+The scope of the CARVE task and CERN model in this paper limit at endogenous causal relations, meaning that we
+only consider causal pairs of events that exist within a single video. This scope is relevant to vast video analysis
+applications such as surveillance, sport video and movie analysis. Extensions can be further made to the datasets and
+method to consider the out-of-video exogenous causes as hypothetical event graph nodes. Another limitation of the
+EpicKitchen-AR dataset is that we use an oracle event prediction model to create counterfactual causal pair. This
+creates a relative upper bound accuracy of the labels depending on this oracle, in contrast to the CARVE dataset where
+the labels are absolute through actual simulations.
+
+5 Experiments
+
+5.1 Data preparation
+
+CARVE dataset: To measure efficiency together with accuracy, along with the full CARVE dataset of 10K videos
+and 250K+ abductive event pairs, we create two smaller subsets with the same diversity measures. Their sizes are 5K
+videos/80K pairs and 1K videos/18K respectively.
+Toward realistic event representation, we only use object features that can be extracted from visual observation.
+Specifically, we use a combined feature of 2D positions, velocity and one-hot embeddings of static object attributes.
+This results in a feature vector of 71 dimensions per object, per timestep.
+EpicKitchen-AR dataset: As mentioned in Section 4.1, we use spatio-temporal features of video segments as event
+representations which are the extracted TSN features following [36]. To enrich the event representations, we also
+incorporate label embeddings derived from action label annotations using DistillBERT [37].
+
+5.2 Baselines and settings
+
+To set the high bar for the challenge, we implement a wide set of baselines ranging from classic methods to popular
+modern architectures. They include first collision, direct node embeddings, LSTM [44], BiLSTM [45], Transformer
+[46], and Video-LLaVA [5]. The first collision baseline always predicts the first collision in video input as the trigger
+
+                                                                      8
+Finding the Trigger: Causal Abductive Reasoning on Video Events  A PREPRINT
+
+Model            Val. Accuracy (%)    Test Accuracy (%)
+                 1K 5K 10K            1K 5K 10K
+ Rand. guess
+First collision  0.60   0.60   0.60   0.60   0.60   0.60
+                 8.72   8.72   8.72   9.30   9.30   9.30
+ Node embs       18.92  25.66  32.36  18.08  27.65  32.62
+    LSTM         29.29  31.22  38.03  27.17  33.62  38.42
+   BiLSTM        28.21  32.06  38.02  27.42  34.15  37.90
+                 24.36  31.73  41.28  23.29  34.24  41.75
+ Transformer     32.05  37.9   44.38  30.90  40.50  43.86
+    CERN
+
+Table 1: Experiments using object-centric event features on the CARVE dataset and its subsets.
+
+event. The node embeddings baseline makes prediction of about trigger events solely based on their features without
+considering their relations. For sequential models such as LSTM and BiLSTM, we first sort all the events localized
+from an input video by their start times then treat them as input sequences. To assure fairness, we conduct experiments
+with the popular large video-language model Video-LLaVA only on EpicKitchen-AR because they were trained with
+only real-world videos and language descriptions, which are not available in the visual-only CARVE dataset. See Supp.
+for more details on these settings.
+
+Compared to these baselines is our Causal event relation network (CERN) using a 4-layer message passing framework
+for experiments with the CARVE dataset and 2-layer for the EpicKitchen-AR by default. These relatively deep graph
+structure allow the model to reach information from events living further in the past. Thy are possible thanks to the skip
+connections that avoid gradient vanishing issues.
+
+5.3 Results on CARVE dataset
+
+We compare the effectiveness of CERN against the baselines by feeding them the same object-centric event features in
+Eq. (2). The results (given in Table 1) confirm that the task cannot be solved by either making random predictions or
+selecting the first collision in video input as the explanation event. We also observe that BiLSTM does not offer any
+benefits compared to LSTM but rather degrades the performance with the backward information in some cases (37.90%
+vs. 38.42% on test split). This suggests that for this task, information strictly flows from past events to later events,
+verifying our inductive bias used in designing CERN.
+
+Among the baselines, Transformer is the closest to our event graph network since both methods model the pairwise
+relationships between events. However, Transformer is less sample efficient hence, struggling to generalize with data
+scarcity. Our CERN model further benefits from the explicit use of the temporal orders of events and their distance in
+time, clearly outperforming Transformer in these experiments. This advantage is even more significant in experiments
+with limited training data (1K and 5K).
+
+5.3.1 Ablation studies and analysis:
+
+We justify the roles of CERN’s components by a series of ablation studies (Table 2):
+
+Replacing event representations:
+
+Without object-centric event representations: When replacing object-centric features with generic video features using a
+large-scale video representation MViTv2 [4] pretrained on Kinectics-400 [47]. This is the current SoTA model across
+different image and video understanding tasks. These features are also combined with event timestamps to make sure
+it is a fair comparison. Table 2 shows that using objectless features significantly degrades CERN’s performance on
+CARVE by over 47.0%.
+
+Fine-tuning large video recognition models: To further verify the importance of object-centric representation and
+temporal information of events in learning, we fine-tune the MViTv2 models (S and B) to learn the mapping from
+video features to event features without providing event timestamps. Table 2 indicates that increasing both model size
+and training data do not enhance the model’s ability to localize events in time. This demonstrates their limitations in
+detecting subtle object movements and distinguishing object-centric motions essential for event representations.
+
+Ablating model’s components:
+
+We ablate each relation from the full CERN and observe the impacts on the performance. In details:
+
+                                                                      9
+Finding the Trigger: Causal Abductive Reasoning on Video Events  A PREPRINT
+
+Experiment         Component             Val. Acc (%)
+Replacing                               23.26 (↓47.5%)
+event       MViTv2-S feats with event
+features             timestamps         5.89 (↓86.7%)
+
+Ablating    MViTv2-S feats w/o event    5.65 (↓87.2%)
+model’s       timestamps (finetuned)
+components                              27.46 (↓38.1%)
+            MViTv2-B feats w/o event    40.27 (↓9.3%)
+Full model    timestamps (finetuned)    42.90 (↓3.3%)
+                Only temp. relations    42.05 (↓5.2%)
+                Only sem. relations     41.93 (↓5.5%)
+                2-layer msg passing     41.20 (↓7.2%)
+                                        40.41 (↓8.9%)
+            W/o msg skip connections
+            W/o layer skip connections        44.38
+
+               W/o skip connections
+               W/o distance penalty
+
+Table 2: Ablation studies and analysis on CARVE dataset. ↓ indicates performance drop from the full model.
+
+Model                           Val. Accuracy (%)
+                          Visual Label Combined
+
+        Rand. guess       5.56   5.56   5.56
+         Node embs        6.59   39.77  41.47
+                          33.33  45.17  45.74
+            LSTM          32.56  45.17  42.25
+        Transformer        NA     NA    4.26
+Video-LLaVA (zero-shot)    NA     NA    34.50
+Video-LLaVA (in-context)  37.2   46.90  47.29
+
+            CERN
+
+Table 3: Experiments on the EpicKitchen-AR dataset.
+
+Temporal relations Etemp shows its critical roles when its ablation creates a significant drop of 38.1%/36.5% on val/test
+split. Similarly, only semantic relations Esem does not work well alone either, with a drop of around 9.0%.
+
+With message passing of 2 layers instead of 4 as default, the performance dropped by 3.0%. More importantly, the
+Message skip connections shows their roles as ablating them has a bigger negative impact on the performance of
+around 5.0%. Similarly, when we remove the direct connections hil−1, the performance also drops over 5.0%. Together,
+Ablating all skip connections (Eqs. (9-11)) results in a combined degradation by around 7.0%.
+
+Finally, when we remove the distance penalty in event relations (γip factor in Eq. (4)), we see a major effect of
+performance drop of 8.9%/8.6% on val/test sets.
+
+5.4 Results on EpicKitchen-AR:
+
+We compare the performance of CERN against the baselines on EpicKitchen-AR, examining different types of event
+representations, including visual embeddings, label embeddings and combined embeddings of the features (Table 3).
+We particularly compare to the popular multi-purpose large video-language model Video-LLaVA [5] where it has access
+to language descriptions (event labels), to maximize its capabilities. We tried both zero-shot and in-context learning
+settings. For zero-shot, we instruct Video-LLaVA to select the trigger amongthe set of premise events for a target event
+and match its generated responses to ground-truth events. In the in-context setting, each test sample is accompanied by
+two examples with the target-trigger annotations from the train set as in-context samples. Details of the prompts used
+are provided in the Supplementary.
+
+Table 3 shows that CERN clearly outperforms the baselines for all of the cases with visual-only, label-only and
+combined visual-label event representations. Interestingly, the direct node embeddings baseline completely failed to
+
+                                                                     10
+Finding the Trigger: Causal Abductive Reasoning on Video Events  A PREPRINT
+
+find trigger events in visual-only case, suggesting event visual representations are highly complex and requires stronger
+modeling capability. Most notably, Video-LLaVA struggled to understand the causal relationships between events,
+highlighting the lack of reasoning ability despite its capacity to generate plausible text descriptions about video contents.
+Our proposed method CERN also consistently outperforms LSTM and Transformer. It is to note that Transformer gets
+3.0% performance drop in the combined case compared to label-only. This is explainable as Transformer is known to
+be data hungry and could not generalize with the available data to make visual feature useful.
+
+While setting the state of the art, the performances of CERN and other baselines are still far from perfect at the CARVE
+task on both datasets, suggesting an open playground for future works in this new task.
+
+6 Discussion
+
+This paper promotes the task of Causal Abductive Reasoning on Video Events (CARVE), an important but under-
+explored AI capability. The task is supported by two new benchmark datasets with clean and realistic videos created
+using our counterfactual synthesis procedures. We also introduced the Causal Event Relation Networks (CERN),
+a new neural framework operating on event graph can learn to effectively find the trigger events in videos. While
+CERN outperforms many baselines, including finetuned large-scale generic models, the new task is proved to be highly
+challenging and calling for further advances toward causal abductive reasoning for visual data.
+
+References
+
+ [1] Kaiming He, Xiangyu Zhang, Shaoqing Ren, and Jian Sun. Delving deep into rectifiers: Surpassing human-level
+      performance on imagenet classification. In ICCV, pages 1026–1034, 2015. 1
+
+ [2] Yannis M Assael, Brendan Shillingford, Shimon Whiteson, and Nando De Freitas. Lipnet: End-to-end sentence-
+      level lipreading. ICLR, 2017. 1
+
+ [3] Charles Sanders Peirce. Collected papers of Charles Sanders Peirce, volume 5. Harvard University Press, 1974. 1
+
+ [4] Yanghao Li, Chao-Yuan Wu, Haoqi Fan, Karttikeya Mangalam, Bo Xiong, Jitendra Malik, and Christoph
+      Feichtenhofer. Mvitv2: Improved multiscale vision transformers for classification and detection. In CVPR, pages
+      4804–4814, 2022. 1, 2, 5.3.1
+
+ [5] Bin Lin, Yang Ye, Bin Zhu, Jiaxi Cui, Munan Ning, Peng Jin, and Li Yuan. Video-llava: Learning united visual
+      representation by alignment before projection. arXiv preprint arXiv:2311.10122, 2023. 1, 5.2, 5.4, B.2
+
+ [6] Anoop Cherian, Chiori Hori, Tim K Marks, and Jonathan Le Roux. (2.5+ 1) d spatio-temporal scene graphs for
+      video question answering. In Proceedings of the AAAI Conference on Artificial Intelligence, volume 36, pages
+      444–453, 2022. 2
+
+ [7] Long Hoang Dang, Thao Minh Le, Vuong Le, and Truyen Tran. Hierarchical object-oriented spatio-temporal
+      reasoning for video question answering. IJCAI, 2021. 2
+
+ [8] Kexin Yi, Chuang Gan, Yunzhu Li, Pushmeet Kohli, Jiajun Wu, Antonio Torralba, and Joshua B. Tenenbaum.
+      CLEVRER: CoLlision Events for Video REpresentation and Reasoning. In ICLR, 2020. 2, 3.1, 3.2
+
+ [9] Difei Gao, Luowei Zhou, Lei Ji, Linchao Zhu, Yi Yang, and Mike Zheng Shou. Mist: Multi-modal iterative
+      spatial-temporal transformer for long-form video question answering. In Proceedings of the IEEE/CVF conference
+      on computer vision and pattern recognition, pages 14773–14783, 2023. 2
+
+[10] Chen Liang, Wenguan Wang, Tianfei Zhou, and Yi Yang. Visual abductive reasoning. In Proceedings of the
+      IEEE/CVF Conference on Computer Vision and Pattern Recognition, pages 15565–15575, 2022. 2, 3.1, 3.2
+
+[11] Wenliang Zhao, Yongming Rao, Yansong Tang, Jie Zhou, and Jiwen Lu. VideoABC: A Real-World Video Dataset
+      for Abductive Visual Reasoning. IEEE Transactions on Image Processing, 31:6048–6061, 2022. 2
+
+[12] Jack Hessel, Jena D Hwang, Jae Sung Park, Rowan Zellers, Chandra Bhagavatula, Anna Rohrbach, Kate Saenko,
+      and Yejin Choi. The abduction of sherlock holmes: A dataset for visual abductive reasoning. In ECCV, pages
+      558–575. Springer, 2022. 2
+
+[13] Jakob Suchan, Mehul Bhatt, Przemysław Wałega, and Carl Schultz. Visual explanation by high-level abduction:
+      On answer-set programming driven reasoning about moving objects. In AAAI, volume 32, 2018. 2
+
+                                                                     11
+Finding the Trigger: Causal Abductive Reasoning on Video Events  A PREPRINT
+
+[14] Yunzhu Li, Antonio Torralba, Animashree Anandkumar, Dieter Fox, and Animesh Garg. Causal discovery in
+      physical systems from videos. Neural Information Processing Systems (NeurIPS), 2020. 2
+
+[15] Mingyu Ding, Zhenfang Chen, Tao Du, Ping Luo, Josh Tenenbaum, and Chuang Gan. Dynamic visual reasoning
+      by learning differentiable physics models from video and language. NeurIPS, 34:887–899, 2021. 2
+
+[16] Tayfun Ates, M Samil Atesoglu, Cagatay Yigit, Ilker Kesen, Mert Kobas, Erkut Erdem, Aykut Erdem, Tilbe
+      Goksun, and Deniz Yuret. Craft: A benchmark for causal reasoning about forces and interactions. ACL, pages
+      2602–2627, 2022. 2, 3.2.1
+
+[17] Francesco Locatello, Dirk Weissenborn, Thomas Unterthiner, Aravindh Mahendran, Georg Heigold, Jakob
+      Uszkoreit, Alexey Dosovitskiy, and Thomas Kipf. Object-centric learning with slot attention. NeurIPS, 33:
+      11525–11538, 2020. 2
+
+[18] Rohit Girdhar and Deva Ramanan. Cater: A diagnostic dataset for compositional actions and temporal reasoning.
+      arXiv preprint arXiv:1910.04744, 2019. 2
+
+[19] Jiayuan Mao, Xuelin Yang, Xikun Zhang, Noah Goodman, and Jiajun Wu. CLEVRER-Humans: Describing
+      Physical and Causal Events the Human Way. In NeurIPS Datasets and Benchmarks Track, 2022. 2, 3.1, 3.2
+
+[20] Xiaolong Liu, Yao Hu, Song Bai, Fei Ding, Xiang Bai, and Philip HS Torr. Multi-shot temporal event localization:
+      a benchmark. In CVPR, pages 12596–12606, 2021. 2
+
+[21] Xiyang Dai, Bharat Singh, Guyue Zhang, Larry S Davis, and Yan Qiu Chen. Temporal context network for activity
+      localization in videos. In ICCV, pages 5793–5802, 2017. 2
+
+[22] Kun Xia, Le Wang, Sanping Zhou, Nanning Zheng, and Wei Tang. Learning to refactor action and co-occurrence
+      features for temporal action localization. In CVPR, pages 13884–13893, 2022. 2
+
+[23] Jie Lei, Licheng Yu, Tamara L Berg, and Mohit Bansal. What is more likely to happen next? video-and-language
+      future event prediction. EMNLP, pages 8769–8784, 2020. 2
+
+[24] Jae Sung Park, Chandra Bhagavatula, Roozbeh Mottaghi, Ali Farhadi, and Yejin Choi. Visualcomet: Reasoning
+      about the dynamic context of a still image. In ECCV, pages 508–524. Springer, 2020. 2
+
+[25] Jingwei Ji, Ranjay Krishna, Li Fei-Fei, and Juan Carlos Niebles. Action genome: Actions as compositions of
+      spatio-temporal scene graphs. In CVPR, pages 10236–10247, 2020. 2
+
+[26] Arka Sadhu, Tanmay Gupta, Mark Yatskar, Ram Nevatia, and Aniruddha Kembhavi. Visual semantic role labeling
+      for video understanding. In CVPR, pages 5589–5600, 2021. 2
+
+[27] Hammad A Ayyubi, Christopher Thomas, Lovish Chum, Rahul Lokesh, Yulei Niu, Xudong Lin, Long Chen,
+      Jaywon Koo, Sounak Ray, and Shih-Fu Chang. Multimodal event graphs: Towards event centric understanding of
+      multimodal world. arXiv preprint arXiv:2206.07207, 2022. 2
+
+[28] Anurag Arnab, Mostafa Dehghani, Georg Heigold, Chen Sun, Mario Lucˇic´, and Cordelia Schmid. Vivit: A video
+      vision transformer. In ICCV, pages 6836–6846, 2021. 2
+
+[29] Ze Liu, Jia Ning, Yue Cao, Yixuan Wei, Zheng Zhang, Stephen Lin, and Han Hu. Video swin transformer. In
+      CVPR, pages 3202–3211, 2022. 2
+
+[30] Marc Denecker, Lode Missiaen, and Maurice Bruynooghe. Temporal reasoning with abductive event calculus. In
+      ECAI, pages 384–388. John Wiley and Sons; Chichester, 1992. 2
+
+[31] Chandra Bhagavatula, Ronan Le Bras, Chaitanya Malaviya, Keisuke Sakaguchi, Ari Holtzman, Hannah Rashkin,
+      Doug Downey, Scott Wen-tau Yih, and Yejin Choi. Abductive commonsense reasoning. ICLR, 2019. 2
+
+[32] Corinna Elsenbroich, Oliver Kutz, and Ulrike Sattler. A case for abductive reasoning over ontologies. In OWLED,
+      volume 216, 2006. 2
+
+[33] Joerg Schoenfisch, Christian Meilicke, Janno von Stülpnagel, Jens Ortmann, and Heiner Stuckenschmidt. Root
+      cause analysis in it infrastructures using ontologies and abduction in markov logic networks. Information Systems,
+      74:103–116, 2018. 2
+
+                                                                     12
+Finding the Trigger: Causal Abductive Reasoning on Video Events  A PREPRINT
+
+[34] Judea Pearl et al. Causality: Models, reasoning and inference. Cambridge, UK: CambridgeUniversityPress, 19,
+      2000. 3.2
+
+[35] Dima Damen, Hazel Doughty, Giovanni Maria Farinella, Antonino Furnari, Evangelos Kazakos, Jian Ma, Davide
+      Moltisanti, Jonathan Munro, Toby Perrett, Will Price, et al. Rescaling egocentric vision: Collection, pipeline and
+      challenges for epic-kitchens-100. International Journal of Computer Vision, pages 1–23, 2022. 3.2.2
+
+[36] Zeyun Zhong, David Schneider, Michael Voit, Rainer Stiefelhagen, and Jürgen Beyerer. Anticipative feature
+      fusion transformer for multi-modal action anticipation. In Proceedings of the IEEE/CVF Winter Conference on
+      Applications of Computer Vision, pages 6068–6077, 2023. 3.2.2, 4.1, 5.1
+
+[37] Victor Sanh, Lysandre Debut, Julien Chaumond, and Thomas Wolf. Distilbert, a distilled version of bert: smaller,
+      faster, cheaper and lighter. NeurIPS, 2019. 4.1, 5.1
+
+[38] Yongmian Zhang, Yifan Zhang, Eran Swears, Natalia Larios, Ziheng Wang, and Qiang Ji. Modeling temporal
+      interactions with interval temporal bayesian networks for complex activity recognition. TPAMI, 35(10):2468–2483,
+      2013. 4.2
+
+[39] James F Allen. Maintaining knowledge about temporal intervals. Communications of the ACM, 26(11):832–843,
+      1983. 4.2, A.1
+
+[40] Anurag Arnab, Chen Sun, and Cordelia Schmid. Unified graph structured models for video understanding. In
+      ICCV, pages 8117–8126, 2021. 4.2
+
+[41] Feng Mao, Xiang Wu, Hui Xue, and Rong Zhang. Hierarchical video frame sequence representation with deep
+      convolutional graph network. In ECCV workshops, pages 0–0, 2018. 4.2
+
+[42] Wenguan Wang, Xiankai Lu, Jianbing Shen, David J Crandall, and Ling Shao. Zero-shot video object segmentation
+      via attentive graph neural networks. In ICCV, pages 9236–9245, 2019. 4.2
+
+[43] Jiarui Feng, Yixin Chen, Fuhai Li, Anindya Sarkar, and Muhan Zhang. How powerful are k-hop message passing
+      graph neural networks. NeurIPS, 2022. 4.3
+
+[44] Sepp Hochreiter and Jürgen Schmidhuber. Long short-term memory. Neural computation, 9(8):1735–1780, 1997.
+      5.2, B.2
+
+[45] Alex Graves and Jürgen Schmidhuber. Framewise phoneme classification with bidirectional lstm and other neural
+      network architectures. Neural networks, 18(5-6):602–610, 2005. 5.2, B.2
+
+[46] Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N Gomez, Łukasz Kaiser, and
+      Illia Polosukhin. Attention is all you need. NIPS, 30, 2017. 5.2, B.2
+
+[47] Will Kay, Joao Carreira, Karen Simonyan, Brian Zhang, Chloe Hillier, Sudheendra Vijayanarasimhan, Fabio
+      Viola, Tim Green, Trevor Back, Paul Natsev, et al. The kinetics human action video dataset. arXiv preprint
+      arXiv:1705.06950, 2017. 5.3.1
+
+[48] Diederik Kingma and Jimmy Ba. Adam: A method for stochastic optimization. ICLR, 2014. B.1
+
+13
+Finding the Trigger: Causal Abductive Reasoning on Video Events                A PREPRINT
+
+Supplementary material
+
+Introduction
+
+In this supplementary material, we provide further details on the implementation of our proposed method CERN and
+the baselines discussed in the Experiment section in the main paper and additional analyses. This includes:
+
+        • Additional details of CERN
+        • Implementation details
+        • Some qualitative results on the CARVE dataset
+
+A Additional Details of CERN
+
+A.1 Event temporal relations
+
+tjs − tis  tje − tie          tjs − tie  tje − tis         Interpretation
+   +          +                  +          +
+    -          -                  -          -       ei before ej (ei → ej )
+    -         +                  +           -       ej before ei (ei ← ej )
+   +           -                  -         +        ei during ej (ei → ej )
+   +          +                  +           -       ej during ei (ei ← ej )
+    -          -                 +           -      ei overlaps ej (ei → ej )
+   +          +                  +          0       ej overlaps ei (ei ← ej )
+    -          -                 0           -       ei meets ep (ei → ej )
+   0          +                   -         +        ej meets ei (ei ← ej )
+   0           -                  -         +        ei starts ep (ei → ej )
+    -         0                   -         +        ep starts ei (ei ← ej )
+   +          0                   -         +       ei finishes ej (ei → ej )
+   0          0                 any        any      ej finishes ei (ei ← ej )
+                                                     ei equals ej (ei → ej )
+
+Table 4: Identifying the temporal order between event ei and ep based on Allen’s atomic interval temporal relations.
+
+As mentioned in the main paper, we use Allen’s interval algebra [39] to determine the temporal relations between a pair
+of temporal events ei and ej. Specifically, given the temporal distance between the two events as in the Eq. 3 in the
+main paper, their order in time is determined using in Table 4. As can be seen, these orders are mainly based on the
+events’ start times. If the two events have the same start time, their end times will be considered.
+
+A.2 Event semantic relations
+
+The distance-based penalty factor of temporal distance γip in Eq. 5 of the main paper is computed by:
+
+                              γij = exp (−β ∗ dij) , where                     (12)
+
+                                          dij (ei, ej )i<j = (tsj − tsi)2 + (tej − tei)2 (13)
+is the Euclidean distance between events ei and ej; β is a learnable positive decay factor that compensates for the
+uncertainty in calculating the distance dij. The more distant the two events are in time, the weaker their relation is.
+
+B Implementation Details
+
+B.1 CERN
+
+We implemented our proposed method CERN using DGL 0.9.1 and Pytorch 1.11.0 or later. We have experimented with
+up to 4 layers of message passing in which we found slight improvements when increasing the number of layers as
+
+                                         14
+Finding the Trigger: Causal Abductive Reasoning on Video Events  A PREPRINT
+
+ reported in the Experiment section in the main paper. Our proposed model is optimized using Adam optimizer [48] with
+ initial learning rate is set to 10−4. The learning rate gradually decreases at every epoch. We train a total 100 epochs
+ with a batch size of 128 which takes approximately 18 hours on a single GPU NVIDIA A100 to finish the training on
+ the full CARVE dataset.
+
+ B.2 Baselines
+
+ This section provides details of the baselines used in the Experiment section, which include:
+
+ First collision: This experiment aims to verify whether it is sufficient to always set the first collision detected in video
+ input as the trigger event, regardless of the target event considered.
+
+ Node embeddings: Directly use node embeddings of the events by using a linear neural network layer. This experiment
+ does not consider video structure and relationships of any kinds between the nodes.
+
+ LSTM [44]: We first sort all the events localized from an input video by their occurrence in time. We then simply treat
+ them as a sequence and use LSTM networks to model the temporal relationships between the events. The output hidden
+ states of LSTM are then used as the latent representation hi of the events in Eq. (12) in the main paper.
+
+ BiLSTM [45]: Instead of using LSTM, we use a bidirectional LSTM variant to model the sequential relationships
+ between events. The objective is to take advantage of signals propagating both forward and backward in time.
+
+ Transformer [46]: Similarly, we also sort all the events by their occurrence times to create a sequence of events. We
+ implement a vanilla version of Transformer with 6 layers of self-attention to refine the representations of the events by
+ taking into account their relationships with all other events in the sequence. We use the same parameters as suggested
+ in the original paper in our implementation.
+
+ Video-LLaVA [5]: To evaluate whether large video-language models can comprehend the causal relationships between
+ video events, we conduct experiments with Video-LLaVA on the EpicKitchen-AR dataset using two settings: zero-shot
+ setting and in-context setting.
+
+ In the zero-shot setting, Video-LLaVA is instructed to respond to a templated question where it must identify the trigger
+ event for a target event from a list of premise events. Careful instructions are provided to ensure consistent responses
+ from Video-LLaVA. We have tried different prompts and reported the one with the best results.
+
+ In the in-context learning setting, for each sample in the test set of the EpicKitchen-AR, we provide 2 samples with
+ grouthtruth answers taken from the train set. These examples serve as context to guide Video-LLaVA’s responses. The
+ same instruction format as the zero-shot setting is used in this experiment. Specifically, the following prompt is given to
+ Video-LLaVA :
+
+“ USER: <video>Given a sequence of premise events include {premise_events}, what is the cause event of the event
+{target_event}? Choose a correct answer within the premise events. ASSISTANT:”
+
+ All of these baselines are implemented using Pytorch 1.11.0 or later with similar hyper-parameters as our proposed
+ model CERN for fair comparisons.
+
+C Analysis
+
+ Figure 5 presents typical examples where the graph structure modeled by CERN helps trace back events associated
+ with a co-referenced object between target-trigger events to identify the correct trigger events. In contrast, LSTM and
+ Transformer struggle to keep track of these event sequences due to their assumptions on the sequential relationships
+ between events. Furthermore, we also observe that LSTM and Transformer often make similar mistakes in these
+ examples as they tend to select events that occur at beginning of a video input as trigger events, thus fail to identify
+ trigger events that locate at the middle of the video.
+
+ However, we also showcase an example where all the studied methods struggle in Figure 6. This often occurs when
+ there are multiple concurrent events happen within a scene during the life of the trigger event. The inability of these
+ models to handle such scenarios suggest a need for a novel approach that goes beyond the common feature association
+ between events.
+
+15
+                     Finding the Trigger: Causal Abductive Reasoning on Video Events                                                                                        A PREPRINT
+
+Sample 1:
+
+...             ...            ...            ...                                        ...            ...                                      ...            ...
+
+                               Grouthtruth explanation event:                                                                             Target event:
+                     <small red circle, collide, large black platform, 118, 178>                                       <small red circle, collide, large blue triangle, 504, 508>
+
+                     Predictions:
+                     LSTM: <small brown circle, collide, large black platform, 114, 170>
+                     Transformer: <small green circle, collide, large black platform, 100, 186>
+                     OCEAN: <small red circle, collide, large black platform, 118, 178>
+
+Sample 2:       ...       ...            ...                                        ...            ...       ...                                      ...
+...
+
+                                   Grouthtruth explanation event:                                                               Target event:
+                          <small red circle, collide, large brown triangle, 102, 152>                        <small red circle, collide, large brown cirle, 278, 280>
+
+                     Predictions:
+                     LSTM: <small brown circle, collide, large black platform, 0, 85>
+                     Transformer: <small green circle, collide, large black platform, 0, 85>
+                     OCEAN: <small red circle, collide, large brown triangle, 102, 152>
+
+Figure 5: Qualitative examples demonstrating that sequential models struggle to identify correct trigger events while
+CERN handles successfully. Sequential models tend to predict events that occur early in time as the trigger events
+and often incapable of tracing back events associated with a co-referenced object between the target and trigger event.
+The graph structure learned by CERN has potential to facilitate the propagation of information along chains of events
+associated with dynamic objects, thereby benefiting the learning. Colored arrows indicate the direction of the movement
+of the corresponding objects. Best viewed in color.
+
+...        ...       ...            ...            ...                                        ...       ...       ...                                      ...         ...
+
+                                                                                                  Grouthtruth explanation event:                                    Target event:
+                                                                                         <large gray cube, collide, small brown cube, 169, 231>  <small blue circle, collide, small brown cube, 306, 362>
+
+           Predictions:
+           LSTM: <small brown cube, collide, large black platform, 62, 168>
+           Transformer: <large purple circle, collide, small green cube, 280, 367>
+           OCEAN: <small green cube, collide, large black platform, 83, 126>
+
+Figure 6: A showcase for the challenges of our CARVE dataset that all the studied methods struggle. This is often the
+case when there are multiple concurrent events occurring within the times of the trigger event. Best viewed in color.
+
+                                                                                         16
+

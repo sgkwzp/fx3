@@ -1,0 +1,3 @@
+# PDFs are already compressed binary files; delta compression is slow and
+# provides little benefit for this research repository.
+*.pdf binary -delta

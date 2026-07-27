@@ -1,0 +1,806 @@
+arXiv:2606.21579v1 [cs.CV] 19 Jun 2026  The Unreasonable Effectiveness of VLMs for Zero-shot
+                                                       Procedural Mistake Detection
+
+                                            Serdar Ozsoy*1,3 Lars Doorenbos*1,3 Federico Spurio1,3 Gianpiero Francesca2
+
+                                                                                          Juergen Gall1,3
+
+                                                                        1University of Bonn 2Toyota Motor Europe
+                                                            3Lamarr Institute for Machine Learning and Artificial Intelligence
+
+                                                               {soezsoy,doorenbos,spurio,gall}@iai.uni-bonn.de
+
+                                                                                                       *Equal Contribution
+
+                                                                                    Abstract
+
+                                                   Procedural mistake detection is important for quality control and user assistance
+                                                   across many disciplines. Recent work in this field has achieved significant gains by
+                                                   using the reasoning capabilities of Video-Language Models (VLMs) as components
+                                                  within multi-stage pipelines, which consist of separate modules for supervised tem-
+                                                   poral action segmentation, error detection, and explainability. Consequently, they
+                                                   remain dependent on tailored training datasets and require task-specific training,
+                                                   limiting their wider applicability. To remedy this, we introduce zero-shot procedu-
+                                                   ral mistake detection and propose a unified Zero-shot Procedural Mistake detection
+                                                  (ZeProM) framework that jointly solves procedural mistake detection and temporal
+                                                   action segmentation with a single pre-trained VLM. By evaluating our framework
+                                                   on two canonical mistake detection benchmarks, EgoPER and CaptainCook4D, we
+                                                   find that ZeProM can perform these tasks successfully, while approaching, or even
+                                                   outperforming, the performance of fully supervised methods. For instance, we
+                                                   achieve a 4.4 point improvement in EDA and a 2.0 point improvement in F1@.5 on
+                                                   average over all five EgoPER tasks compared to the strongest supervised methods.
+                                                   Overall, our results show the potential of unified methods for procedural mistake
+                                                   detection, and we hope this will steer the field away from highly complex pipelines
+                                                   and toward more generally applicable solutions.
+
+                                        1 Introduction
+
+                                        Human errors are unavoidable in procedural tasks, yet lead to major losses in efficiency, productivity,
+                                        and resources across a wide variety of domains (e.g., Suliburk et al. (2019)). As such, recognizing
+                                        when and where a mistake has occurred is of crucial importance. In this area, dedicated deep learning
+                                        methods have shown great potential. However, these methods are becoming increasingly complex,
+                                        consisting of multiple modules in supervised pipelines to segment the input video and predict which
+                                        segments are executed incorrectly, thereby limiting their broader applicability.
+                                        Unsurprisingly, recent works now turn to pre-trained Video-Language Models (VLM) in their
+                                        procedural mistake detection methods due to their capability to reason about video segments without
+                                        task-specific training. So far, however, VLMs are only incorporated as small components within
+                                        larger pipelines. For instance, VLMs are used to generate scene graphs (Guo et al., 2026), explain why
+                                        segments are labeled as errors (Flaborea et al., 2024), or extract features of specific segments (Lee and
+                                        Elhamifar, 2025). Still, the zero-shot success of modern VLMs on novel tasks motivates exploring
+
+                                        Preprint.
+A                                                                                       B                                               C  D
+
+MISTAKE: YES                                    MISTAKE: YES                            MISTAKE: YES                                    MISTAKE: YES
+EXPLANATION: The tortilla is placed                                                     EXPLANATION: The person tears the               EXPLANATION: The tortilla pieces are
+directly on the table surface instead of        EXPLANATION: This action has no         tortilla by hand instead of using a knife       placed into a bowl rather than onto a
+on the red cutting board as specified                                                   to slice it as required by the task graph.      plate as specified in the task graph.
+in the task graph.                              corresponding step in the task graph.
+                                                                                                                                     C                                               D
+                                             A  The task graph does not include adding
+
+                                                oats or any topping other than
+
+                                                banana slices.                   B
+
+Figure 1: Zero-shot procedural mistake detection with ZeProM. We show a video of the “que-
+sadilla" task from EgoPER. Without seeing any training samples, ZeProM successfully performs
+1) temporal action segmentation, 2) mistake detection, and 3) error explanation, all within a single
+module.
+
+their efficacy for the entire procedural mistake detection task, especially as removing the reliance
+of existing methods on densely labeled videos for training, where even small modifications to the
+procedure require re-acquiring and re-labeling a training dataset, would greatly expand the domains
+in which mistakes can be detected. Therefore, we depart from the classic fully-supervised regime
+to introduce zero-shot procedural mistake detection and address the question: can existing VLMs
+perform procedural mistake detection in a zero-shot manner?
+
+To do so, we introduce our framework for Zero-shot Procedural Mistake detection (ZeProM) with
+VLMs, and are the first to show that VLMs are capable of performing joint temporal action segmenta-
+tion and mistake detection from only the task description, while obtaining mistake explanations as a
+byproduct for free. ZeProM operates by segmenting the actions of the procedure and determining
+whether these segments are executed correctly, and performed in their correct order, as shown in
+Fig. 1, where it detects incorrect modifications to individual steps and an incorrectly added step with
+a single inference call.
+
+To quantify its effectiveness, we evaluate ZeProM on two canonical procedural mistake detection
+tasks: EgoPER (Lee et al., 2024) and CaptainCook4D (Peddi et al., 2024), where we show that
+ZeProM performs surprisingly well. For example, ZeProM outperforms the state-of-the-art fully
+supervised methods by 4.4 points in EDA and 2.0 points in F1@.5, respectively, on segment-level
+mistakes of EgoPER. For EgoPER omission errors and CaptainCook4D mistakes, it approaches
+fully supervised methods up to within a few points. In this way, our work advances the field by
+demonstrating the efficacy of zero-shot procedural mistake detection, offering strong training-free
+performance across tasks and matching or even outperforming fully supervised baselines. In contrast,
+previous methods are suitable for only one task and require training videos to learn their specifics,
+bringing additional computation and storage costs every time. Overall, the main contributions of our
+work are:
+
+                                                           2
+        • We introduce zero-shot procedural mistake detection, in which models need to detect errors
+           in procedural videos from the task instructions alone.
+
+        • We propose ZeProM, a simple and effective framework for joint zero-shot temporal action
+           segmentation and procedural mistake detection, while obtaining error explanations for free.
+
+        • We show through experiments on established benchmarks that our framework comes close
+           to, or even improves upon, fully supervised methods on standard benchmarks, despite not
+           requiring any training data.
+
+2 Related work
+
+Methods for procedural mistake detection can be roughly split into two categories: online and
+offline. Online methods process videos in a streaming manner and attempt to detect mistakes as they
+happen (Ding et al., 2023; Flaborea et al., 2024; Jang et al., 2019). In this work, we focus on the
+more common category of offline methods. These use a video of the entire procedure to identify all
+segments corresponding to mistakes (Lee et al., 2024; Ghoddoosian et al., 2023; Mazzamuto et al.,
+2025; Peddi et al., 2024; Wang et al., 2023).
+
+Previous offline methods split the procedural mistake detection tasks into two main components:
+temporal action segmentation (TAS) and mistake detection. These two components are then tackled
+with specialized modules within a larger pipeline. Most commonly, this takes the form of a standard
+fully supervised TAS network followed by a module that labels detected segments as correct or
+erroneous (Lee and Elhamifar, 2025; Huang et al., 2025). For instance, AEM (Guo et al., 2026) uses
+ActionFormer (Zhang et al., 2022) to obtain segment features, then perform action effect modeling to
+determine which segments correspond to mistakes.
+
+Within these pipelines, VLMs have gained popularity to handle small parts of the task. For example,
+Lee and Elhamifar (2025) use them to generate possible mistake descriptions based on the procedural
+instructions, and Guo et al. (2026) use them to generate task graphs. Flaborea et al. (2024) rely
+on VLMs to explain why a segment already labeled as a mistake would be one. As such, VLMs
+are typically only used in the mistake detection part of the pipeline, and these methods still rely on
+standard fully supervised networks for the temporal action segmentation. The single exception to this
+trend is the work of Peddi et al. (2024), who use VLMs for zero-shot error recognition. Here, the
+model has to categorize whether a single step contains an error, without focusing on its location in
+time. As a result, this setting is framed as a Video-Question-Answering task, for which the authors
+create segment-specific prompts with a large language model (LLM) to ask a VLM whether it was
+executed correctly. Our work differs in that, instead of asking whether a specific and predefined step
+is performed correctly, we identify every action step and determine which ones contain mistakes,
+jointly solving zero-shot temporal action segmentation and procedural mistake detection with a single
+module.
+
+While zero-shot procedural mistake detection remains unexplored, VLMs have enabled zero-shot
+solutions to problems in related domains. For instance, they have shown great results in video
+anomaly detection (Zanella et al., 2024; Lee et al., 2025), out-of-distribution detection (Ming et al.,
+2022; Miyai et al., 2024), long video understanding (Doorenbos et al., 2025), and so on. These
+successes form the motivation for ZeProM, through which we show for the first time that their
+zero-shot capabilities translate to both TAS and mistake detection as well.
+
+3 Method
+
+The goal of procedural mistake detection is to find segments within a video V where the procedure
+execution deviates from instructions. This requires predicting a binary label for every frame f in the
+video V = {fi}Ti=1, that denotes whether that frame corresponds to an error. Previous works do this
+by training a temporal action segmentation (TAS) module to predict a label yˆs ∈ {a0, a1, · · · , aS},
+with a0 the background and a1 to aS the procedural steps, for all frames f in V . Then, a subsequent
+module is responsible for assigning segments to a binary error label yˆe ∈ {0, 1}, where 1 denotes an
+error by convention. For instance, GTG2Vid (Lee and Elhamifar, 2025) uses DiffAct (Liu et al., 2023)
+to segment the video, then uses LLMs and VLMs to extract features and detect mistakes. However,
+this approach comes with a reliance on densely labeled videos for training the TAS module. To
+alleviate this, we introduce zero-shot procedural mistake detection, in which models should predict
+
+                                                           3
+error labels yˆe for any given video from only its task description, i.e., the action descriptions and their
+dependencies. We address this task by introducing ZeProM, and describe its design below.
+
+3.1 ZeProM: zero-shot procedural mistake detection
+
+ZeProM is a framework for zero-shot procedural mistake detection that does not require any training.
+Instead, the key choices that make our approach successful are the design of both the input and output
+representations.
+
+Input representation. The main design choices for the input representation are the format of
+1) the procedure description, and 2) the description of the task the model should perform. For
+the former, previous works for procedural mistake detection rely on standard TAS methods that
+encode instructional steps as one-hot vectors. In contrast, ZeProM exploits the semantic information
+encapsulated in their descriptive names to perform a zero-shot temporal action segmentation. As the
+procedure description is now the only source of information our model can rely on, the way in which
+this information is provided to the model becomes important. This should clearly describe both the
+descriptions of individual actions, as well as the way in which they relate to each other.
+
+We opt for a simple list of numbered actions with their corresponding names to describe the procedure.
+We found that more complex ways of describing the procedure, for example, with their full graph
+structure, did not result in better performance. In particular, listing explicit dependencies between
+actions tends to confuse the model unnecessarily, as an early wrong prediction for a segment affects
+the entire structure negatively, which offsets the benefits of the full graph. We justify this choice
+empirically in our ablation studies.
+
+Given the information about the procedure, we need to instruct the VLM to perform the correct task.
+Instead of asking the model to output the error labels yˆe directly, we follow the combination of TAS
+and mistake detection common in previous fully supervised pipelines. Thus, we ask the model to
+perform a segmentation of the video into its actions, then detect which ones constitute mistakes. In
+this way, the model is encouraged to spend more computation (i.e., tokens) to further reason about
+the task, thereby increasing performance similar to chain-of-thought or reasoning methods (Wei et al.,
+2022). We provide our full prompt in the appendix.
+
+Output representation. A final important aspect is the structure of the output. Rather than prompting
+the model to generate dense labels for every frame in the video, we instruct the model to generate a
+structured output in JSON format. Specifically, we task the VLM to generate a list of segments, where
+every segment is a data structure with the segment ID, its start and end time, the action description,
+and the step as to which it matches according to the model. Moreover, it contains a binary error field
+and a field to describe the error, which should only be populated if an error is detected. This way,
+ZeProM outputs an explanation of why certain segments are mistakes, leading to explainable results.
+We show examples of this in the next section. We do not specify the number of segments in advance.
+Furthermore, we found that the models are powerful enough to generate non-overlapping, contiguous
+segments, and, therefore, do not apply any post-processing to the output.
+
+ZeProM-MC: probabilistic mistake detection. By default, ZeProM assigns binary error labels
+to segments without probabilities. In some scenarios, however, probabilities can be helpful as an
+approximation of the confidence of the model. We found that directly prompting ZeProM to include a
+confidence score in its output did not provide satisfactory results. Instead, we additionally introduce
+ZeProM-MC, which uses the randomness in the VLM token generation process to obtain probabilistic
+predictions.
+
+Specifically, we rely on the sampling temperature t of the VLM, where t > 0 introduces randomness
+into the sampling procedure. Then, the main question becomes how to aggregate different predictions.
+As our main goal is to obtain probabilities for the mistake predictions, we first sample our action
+segmentation deterministically with t = 0 to obtain the most likely segmentation yˆs,0, and its
+corresponding mistake labels yˆe,0. Then, we increase the temperature and generate N more samples,
+{yˆs,t,i}Ni=1 and {yˆe,t,i}Ni=1. We match the segments of these N predictions to the segment in the
+original segmentation in which their midpoint falls. Then, the mistake label for any frame is the sum
+of the error predictions for that segment divided by the total number of predictions (i.e., N + 1).
+
+                                                           4
+4 Experiments
+
+ZeProM does not require any training samples, labels, or examples of errors, and is therefore
+generalizable to many tasks. We now proceed to the experimental results, where we show these
+benefits on real-world tasks.
+
+4.1 Experimental Set-up
+
+Baselines. As there are no previous attempt at zero-shot procedural mistake detection, direct
+comparisons to other methods are not possible. Instead, we include the state-of-the-art fully supervised
+approaches EgoPED (Lee et al., 2024), AMNAR (Huang et al., 2025), GTG2Vid (Lee and Elhamifar,
+2025), and AEM (Guo et al., 2026) into our evaluation to provide a reference point.
+
+Datasets. Following previous works (e.g., Guo et al. (2026)), we use two established and public
+benchmarks for our evaluation: EgoPER (Lee et al., 2024) and CaptainCook4D (Peddi et al., 2024).
+EgoPER contains egocentric videos spanning five recipes: pinwheels, quesadilla, oatmeal, coffee,
+and tea. There are 385 videos with a total duration of 28 hours, of which 213 videos are correct
+executions of the recipe, whereas the other 178 contain one or more mistakes. The mistakes come
+in five different types, namely omission, addition, modification, slip, and correction errors, and are
+defined per segment. We evaluate all models on the pre-defined test splits. CaptainCook4D also
+consists of egocentric cooking videos. There are 384 videos, which are generally longer than EgoPER
+at a total duration of 94.5 hours, and a wider variety of 24 recipes. Of these videos, 164 are performed
+correctly, while 220 videos contain one or more errors. Following common practice, we consider all
+videos with errors as the test set. There are seven error categories: preparation, measurement, timing,
+temperature, missing step, technique, and order.
+
+We separate these errors into segment-level and task-level errors. Segment-level errors are mistakes
+even when considering the segment in isolation, such as an action performed incorrectly. In contrast,
+task-level errors can only be seen in the context of the whole procedure, i.e., an omitted step. Some
+previous works can only detect segment-level errors (e.g., Guo et al. (2026); Huang et al. (2025),
+whereas others are capable of detecting both (Lee and Elhamifar, 2025). We split our evaluation
+explicitly into segment-level and task-level evaluations for clarity.
+
+Metrics. For segment-level errors, we compute the Error Detection Accuracy (EDA) (Lee et al.,
+2024; Huang et al., 2025) and the F1@.5, where 0.5 denotes the overlapping threshold between
+segments. We compute the F1@.5 by averaging over the F1 scores that are independently computed
+on the segments for each step or error type following Lee and Elhamifar (2025). For task-level errors,
+we follow Lee et al. (2024) and report the Omission Accuracy (O-Acc) and Omission Intersection
+over Union (O-IoU). We evaluate TAS by standard metrics: the Mean over Frames (MoF), IoU, Edit
+score, F1@K, and accuracy.
+
+Implementation details. We use all models with their default settings and set the frames-per-second
+to 4. For ZeProM-MC, we set t = 0.7. We ran the model on four H100 GPUs with 96GB of VRAM,
+128 CPUs, and 500GB of RAM. We used VLLM version 0.19.1 (Kwon et al., 2023) for hosting the
+VLMs (Qwen Team, 2026), Python 3.12.3, and PyTorch version 2.10.0 (Paszke et al., 2019).
+
+4.2 Main results
+
+Segment-level errors. We show our main results on segment-level errors of EgoPER in Tab. 1
+and CaptainCook4D in Tab. 2, where we find that ZeProM achieves promising results across all
+metrics. As ZeProM is the first zero-shot framework for procedural mistake detection and no direct
+comparison to previous methods is possible, we additionally report fully supervised methods to
+provide a frame of reference. The results on EgoPER show that, out of the fully supervised methods,
+GTG2Vid consistently outperforms the other supervised methods in EDA, leading to an average EDA
+of 79.7 across the five recipes. In contrast, AEM scores the highest F1@.5 of all supervised methods.
+Yet, despite being zero-shot, ZeProM outperforms both GTG2Vid and AEM in both metrics, reaching
+an average EDA of 84.1, improving the results on all recipes except oatmeal, and an average F1@.5
+of 41.0. For CaptainCook4D, we reach slightly lower performance than EgoPED, AMNAR, and
+AEM on the entire dataset, for example, trailing the state-of-the-art method in EDA by 2.7 points.
+GTG2Vid is evaluated on a different subset than the other models, using only five recipes out of a total
+
+                                                           5
+Table 1: Segment-level mistake detection performance on EgoPER. We report the EDA and
+F1@.5. Results for baselines are obtained from their official checkpoints. For ZeProM, we report
+results with Qwen3.5-35B-A3B (Q-M) and Qwen3.5-397B-A17B-GPTQ-Int4 (Q-L). Despite being
+zero-shot, ZeProM outperforms fully supervised methods on average in both metrics.
+
+                                               Recipe
+
+Method   Quesadilla  Oatmeal  Pinwheel                 Coffee        Tea         Average
+
+         EDA F1@.5 EDA F1@.5 EDA F1@.5 EDA F1@.5 EDA F1@.5 EDA F1@.5
+
+EgoPED                                                        Fully supervised
+AMNAR    62.7 27.7 51.4 21.1 59.6 19.6 55.3 9.2 56.0 35.1 57.0 22.5
+GTG2Vid  61.4 38.4 65.0 34.4 65.0 22.7 73.5 22.4 57.0 30.9 64.4 29.4
+AEM      79.9 31.5 86.5 47.4 70.8 23.3 86.1 18.6 75.4 44.2 79.7 33.0
+         68.1 45.2 68.6 27.0 61.2 41.8 66.4 39.3 69.4 41.5 66.7 39.0
+
+                                                                                 Zero-shot
+ZeProM (Q-M) 82.0 46.2 85.3 31.5 77.8 35.1 76.5 28.6 79.0 32.5 80.1 34.8
+ZeProM (Q-L) 85.2 51.5 83.1 34.0 80.2 36.3 89.3 41.2 82.7 41.9 84.1 41.0
+
+Table 2: Segment-level mistake detection performance on CaptainCook4D. We compare to
+reported numbers of EDA and F1@.5, for which GTG2Vid only uses a subset of 5 recipes instead of
+the full dataset. ZeProM reaches a performance close to fully supervised methods.
+
+         Method                                Average         5-recipe average
+
+         EgoPED (Lee et al., 2024)             EDA     F1@.5 EDA F1@.5
+         AMNAR (Huang et al., 2025)
+         GTG2Vid (Lee and Elhamifar, 2025)     69.8    Fully supervised
+         AEM (Guo et al., 2026)                72.3
+                                                       -       -          10.5
+         ZeProM (Q-M)                            -
+         ZeProM (Q-L)                          71.9    -       -          -
+
+                                               69.6    -       66.3       16.2
+                                               69.0
+                                                       -       -          -
+
+                                                           Zero-shot
+                                                       14.0 66.3 10.2
+                                                       17.9 67.4 16.0
+
+of 24. For completeness, we ran ZeProM also on this subset. Similar to the full dataset, ZeProM only
+slightly falls behind the fully supervised GTG2Vid, coming within 0.2 points in F1@.5.
+
+We want to stress that these performance gains are not simply due to the use of large models: baselines
+such as AEM and GTG2Vid also make use of LLMs and VLMs as building blocks in their approach.
+For instance, AEM uses GPT-4o to generate scene graphs from individual frames. However, by
+tackling the full task with the VLM, rather than only using it as a building block, ZeProM matches or
+even outperforms these methods in many cases.
+
+Task-level errors. We now turn to task-level mistakes, specifically, omissions of certain steps in a
+procedure. We consider EgoPER, as no other method provides results or checkpoints for this task
+on CaptainCook4D. Detecting these task-level errors requires understanding the entire video. As
+such, segment-level only methods such as AMNAR and AEM are excluded from our comparison
+in Tab. 3, which shows that ZeProM is also successful in detecting omission errors. Compared to
+the fully-supervised methods, ZeProM outperforms EgoPED in O-Acc, but trails GTG2Vid by 3.0
+O-Acc and 4.9 O-IoU. Nonetheless, the fact that these complicated errors are detected zero-shot with
+high accuracy shows the holistic video understanding capabilities of ZeProM.
+
+Temporal action segmentation. Additionally, we report the TAS results on the five recipes of
+EgoPER in Tab. 4a. ZeProM is able to produce high-quality segmentations of the procedural videos.
+Compared to the fully supervised methods, we find that there is no single best method, with a different
+method scoring highest in each of the four metrics.
+
+4.3 Qualitative results and failure cases
+
+While the performance of ZeProM is, in general, surprisingly high and can compete with fully
+supervised methods, there are still some interesting failure cases. Fig. 2 shows such an example. One
+interesting quirk of zero-shot methods is that the arbitrary nature of segment labels leads to predictions
+
+                                            6
+Table 3: Task-level mistake detection performance on EgoPER. We report the O-Acc and O-IoU
+for methods capable of detecting omission errors. Results for baselines are obtained from their official
+checkpoints. ZeProM approaches supervised-level performance without training.
+
+Method   Quesadilla  Oatmeal             Recipe  Coffee  Tea               Average
+                                  Pinwheel
+
+         O-Acc O-IoU O-Acc O-IoU O-Acc O-IoU O-Acc O-IoU O-Acc O-IoU O-Acc O-IoU
+
+EgoPED                                                      Fully supervised
+GTG2Vid  77.1 66.1 82.5 72.2 63.2 54.0 47.4 39.1 55.3 39.4 65.1 54.2
+         64.6 50.8 95.2 70.6 76.1 47.8 52.6 30.3 87.2 42.7 75.1 48.4
+
+                                                                                Zero-shot
+ZeProM (Q-M) 79.2 48.1 96.8 46.9 66.1 33.3 47.4 8.33 44.7 17.5 66.8 30.8
+ZeProM (Q-L) 83.3 52.6 93.6 80.6 65.2 46.6 52.6 10.5 66.0 27.0 72.1 43.5
+
+Table 4: Temporal action segmentation performance on EgoPER and 50Salads. We report the
+average performance over the five recipes for EgoPER, and over the standard five cross-validation
+splits for 50Salads. Higher is better for all metrics. ZeProM produces high-quality temporal action
+segmentations. We use Qwen3.5-397B-A17B-GPTQ-Int4 for ZeProM.
+
+         (a) EgoPER                                      (b) 50Salads
+
+Method IoU Edit F1@0.5 Acc        Method MoF Edit F1@10 F1@25 F1@50
+
+         Fully supervised                                Fully supervised
+
+EgoPED 44.6 61.3 47.5 68.5        MS-TCN 80.7 67.9 76.3 74.0 64.5
+
+AMNAR 56.3 69.4 57.3 75.3         LTC            87.7 83.2 89.4 87.7 82.0
+
+GTG2Vid 58.0 75.4 70.4 70.3       DiffAct 88.9 85.0 90.1 89.2 83.7
+
+AEM      58.5 69.7 58.5 73.5                                  Zero-shot
+                                  OVTAS 31.5 88.7 42.6 31.4 14.1
+                       Zero-shot  ZeProM 68.9 67.8 70.0 66.0 56.0
+ZeProM 48.8 81.0 59.5 64.1
+
+that are evaluated as wrong, even though they are correct in another, equally valid, interpretation. For
+instance, the two “pour water into bowl" segments are labeled as mistakes, because the person first
+pours water into a cup, then into the bowl. ZeProM considers this a single segment, where the water
+is correctly poured into the bowl. In general, we find that the performance of ZeProM is relatively low
+on these ambiguous correction errors, as we show in the appendix, and whether corrections should be
+considered as mistakes is debatable in the first place. Moreover, the exact start and end frames of the
+segment are not well-defined, as there is empty space between actions, and multiple frames could
+denote the boundary. Both of these effects negatively affect ZeProM’s performance, yet stem from
+factors unrelated to model quality. Therefore, we believe the ZeProM’s zero-shot performance to be a
+lower bound, limited by the label ambiguity on which supervised methods overfit. Other mistakes
+come from limitations of ZeProM itself: segments C and D are both due to ZeProM hallucinating or
+misunderstanding the visual content.
+
+Besides segmenting and detecting mistakes, ZeProM provides explainable descriptions as to why a
+segment is labeled as an error. We show an example of this in Fig. 3, where a mistake segment is
+correctly detected, described, and explained.
+
+4.4 Temporal action segmentation
+
+Before in Tab. 4a, we compared our TAS results on procedural mistake detection benchmarks against
+the TAS modules of mistake detection methods. Here, we additionally provide experiments on a
+standard TAS benchmark, 50 Salads (Stein and McKenna, 2013), following the standard 5-split
+cross-validation of Farha and Gall (2019). From Tab. 4b, we find that ZeProM outperforms the only
+previous zero-shot TAS method, OVTAS (Unmesh et al., 2026). For instance, it improves upon
+OVTAS by 41.9 points in F1@50. While it still falls behind specialized supervised methods on this
+task (MS-TCN (Farha and Gall, 2019), LTC (Bahrami et al., 2023), and DiffAct (Liu et al., 2023)),
+the segmentations of ZeProM are surprisingly high-quality, as also shown in the qualitative examples.
+
+                                                           7
+AB                                              CD
+
+ACTION DESCRIPTION:Person pours                 ACTION DESCRIPTION:Person pours                 MISTAKE: YES                              ACTION DESCRIPTION:Person stirs
+water from a pitcher into a small glass         the measured water from the glass cup                                                     the mixture in the bowl with a spoon.
+measuring cup.                                  into the bowl containing oats.                  EXPLANATION: The task graph               MISTAKE: NO
+MISTAKE: NO                                     MISTAKE: NO
+                                                                                                specifies adding raisins, but the person                                               D
+                                             A                                               B
+                                                                                                adds contents from a red packet that
+
+                                                                                                appear to be instant coffee or
+
+                                                                                                flavored powder, not raisins.         C
+
+Figure 2: Limitations of dataset labels and ZeProM on EgoPER. The GT labels the two “pour
+water into bowl" segments as mistakes, because the person first pours water into a cup, then into the
+bowl. ZeProM considers this a single correct segment pouring water into the bowl. Together with
+ambiguous start and end frames, these label ambiguities negatively affect ZeProM’s performance,
+yet are unrelated to model quality. The other mistakes are due to ZeProM itself: in segment C, it
+confuses the raisins for coffee, while in segment D, it considers the knife a spoon.
+
+                        Predicted action: Put coffee beans in the coffee grinder
+
+Action description by ZeProM: "Person attempts to pour weighed coffee beans from the bowl into the grinder
+jar, spilling many beans onto the table."
+Error explanation by ZeProM: "Although the intent matches, significant spillage occurred during transfer,
+indicating improper execution requiring cleanup later."
+
+Figure 3: Qualitative example of explainable mistake detection on EgoPER’s coffee recipe. The
+frames show an example of a “slip" error, where the coffee beans are dropped on the table rather than
+put into the grinder. ZeProM matches the segment to the correct action, describes what is shown in
+the segment, then correctly explains why this is an error compared to its predicted step.
+
+4.5 Evaluating probabilistic predictions
+
+While our base ZeProM only assigns binary error labels to segments, ZeProM-MC assigns error
+probabilities. As a result, we can evaluate ZeProM-MC with metrics that assume probabilistic
+predictions that need to be thresholded. In particular, the AUC is commonly used to evaluate the
+binary mistake detection task (Guo et al., 2026), and we evaluate the effect of the number of samples
+on this metric to assess whether the probabilities obtained by ZeProM-MC improve with more
+samples.
+
+                                                           8
+Table 5: Probabilistic predictions on segment-level mistake detection for EgoPER. We report
+the EDA, AUC, and F1@.5 with Qwen3.5-35B-A3B. Using more samples leads to improved AUC
+scores.
+
+Method (Q-L)  Quesadilla  Oatmeal         Recipe  Coffee  Tea        Average
+                                    Pinwheel
+
+              EDA AUC EDA AUC EDA AUC EDA AUC EDA AUC EDA AUC
+
+                                                                            Zero-shot
+ZeProM-MC (n=1) 85.2 67.7 83.1 53.7 80.2 62.4 89.3 57.0 82.7 63.4 84.1 60.8
+ZeProM-MC (n=5) 84.5 70.3 88.9 58.2 82.8 73.8 92.2 56.5 85.1 68.9 86.7 65.5
+ZeProM-MC (n=10) 83.5 72.1 89.2 58.3 81.3 77.2 92.3 55.3 84.2 71.8 86.1 66.9
+
+Table 6: Ablation studies on EgoPER. We use Qwen3.5-397B-A17B-GPTQ-Int4 for all experiments.
+(left) We ablate the effect of the procedure input representation on the performance. Using an ordered
+list of actions leads to the best performance. (right) Ablation of the output representation. We find
+that jointly solving TAS and mistake detection leads to the best performance.
+
+              Actions Input EDA F1  Prediction Output EDA F1
+
+              DOT-graph  81.4 40.2  No-TAS                79.2 32.8
+              DAG        82.5 40.9  ZeProM                84.1 41.0
+              ZeProM     84.1 41.0
+
+Tab. 5 shows that increasing the number of samples from one to five improves the EDA by 2.6, and
+especially the AUC by 4.7 points. Increasing the number of samples further to 10 leads to a small
+decrease in EDA but a further increase in the AUC of 1.4 points. We note that this does come at
+the cost of N inference calls to a large VLM. Therefore, while higher number of samples leads to
+increased performance, when to use ZeProM-MC, and with how many samples, is use-case specific,
+and we stick to ZeProM in our main experiments.
+
+4.6 Ablation studies
+
+Input format. We provide the procedure instructions as an ordered list to the VLM. In Tab. 6 (left),
+we show that this outperforms the procedure as a directed acyclic graph (DAG) or as a DOT-graph.
+
+Output format. We compare to a No-TAS approach, where the model performs error detection
+directly rather than providing the temporal segmentation as well. Tab. 6 (right) shows that jointly
+solving TAS and mistake detection leads to the best performance.
+
+4.7 Limitations
+
+We rely on large VLMs to do our zero-shot procedural mistake detection, and full models can be
+large and difficult to run on consumer-grade hardware. However, memory optimization techniques
+such as quantization make their usage feasible even in constrained settings. Our main results
+with the Qwen3.5-397B-A17B-GPTQ-Int4 model show that, despite aggressive quantization, the
+performance ZeProM remains high and can be run on a single node with 4 H100 GPUs. On this
+node, processing the full EgoPER dataset takes 87.8 minutes. Still, these models are large and, as a
+result, ZeProM requires modern GPUs to use. Moreover, as we show in our qualitative results, even
+though ZeProM approximates fully supervised results in many cases, there are still some segments
+and mistakes misdetected due to hallucinations or limitations of labels in existing datasets, leaving
+substantial room for improvement.
+
+5 Conclusion
+
+In this work, we introduced zero-shot procedural mistake detection and proposed ZeProM. We
+showed that ZeProM enables state-of-the-art VLMs to simultaneously perform action segmentation
+and mistake detection in a zero-shot fashion by using them as a standalone module rather than
+a component in a larger pipeline. On both EgoPER and CaptainCook4D, ZeProM can approach
+
+                                                           9
+or even outperform fully supervised methods, without needing any task-specific training, data, or
+annotations. As a result, our framework is readily applicable to unseen tasks. Future work will
+explore the benefits of lightweight adaptation, for instance, via prompt learning (Miyai et al., 2023),
+to increase performance further at the cost of some computational resources. Overall, our results
+show the potential of unified methods for procedural mistake detection, and we hope this will steer
+the field away from highly complex pipelines and toward more generally applicable solutions.
+
+References
+
+Emad Bahrami, Gianpiero Francesca, and Juergen Gall. How much temporal long-term context is needed for
+   action segmentation? In Proceedings of the IEEE/CVF International Conference on Computer Vision, pages
+   10351–10361, 2023.
+
+Guodong Ding, Fadime Sener, Shugao Ma, and Angela Yao. Every mistake counts in assembly. arXiv preprint
+   arXiv:2307.16453, 2023.
+
+Lars Doorenbos, Federico Spurio, and Juergen Gall. Video panels for long video understanding. arXiv preprint
+   arXiv:2509.23724, 2025.
+
+Yazan Abu Farha and Jurgen Gall. Ms-tcn: Multi-stage temporal convolutional network for action segmentation.
+   In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition, pages 3575–3584,
+   2019.
+
+Alessandro Flaborea, Guido Maria D’Amely di Melendugno, Leonardo Plini, Luca Scofano, Edoardo De Matteis,
+   Antonino Furnari, Giovanni Maria Farinella, and Fabio Galasso. Prego: Online mistake detection in procedural
+   egocentric videos. In IEEE Conference on Computer Vision and Pattern Recognition (CVPR), 2024.
+
+Reza Ghoddoosian, Isht Dwivedi, Nakul Agarwal, and Behzad Dariush. Weakly-supervised action segmentation
+   and unseen error detection in anomalous instructional videos. In Proceedings of the IEEE/CVF International
+   Conference on Computer Vision, pages 10128–10138, 2023.
+
+Wenliang Guo, Yujiang Pu, and Yu Kong. Procedural mistake detection via action effect modeling. International
+   Conference on Learning Representations, 2026.
+
+Wei-Jin Huang, Yuan-Ming Li, Zhi-Wei Xia, Yu-Ming Tang, Kun-Yu Lin, Jian-Fang Hu, and Wei-Shi Zheng.
+   Modeling multiple normal action representations for error detection in procedural tasks. In Proceedings of
+   the Computer Vision and Pattern Recognition Conference, pages 27794–27804, 2025.
+
+Youngkyoon Jang, Brian Sullivan, Casimir Ludwig, Iain Gilchrist, Dima Damen, and Walterio Mayol-Cuevas.
+   Epic-tent: An egocentric video dataset for camping tent assembly. In Proceedings of the IEEE/CVF Interna-
+   tional Conference on Computer Vision Workshops, pages 0–0, 2019.
+
+Woosuk Kwon, Zhuohan Li, Siyuan Zhuang, Ying Sheng, Lianmin Zheng, Cody Hao Yu, Joseph E. Gon-
+   zalez, Hao Zhang, and Ion Stoica. Efficient memory management for large language model serving with
+   pagedattention. In Proceedings of the ACM SIGOPS 29th Symposium on Operating Systems Principles, 2023.
+
+Hyogun Lee, Haksub Kim, Ig-Jae Kim, and Yonghun Choi. Flashback: Memory-driven zero-shot, real-time
+   video anomaly detection. arXiv preprint arXiv:2505.15205, 2025.
+
+Shih-Po Lee and Ehsan Elhamifar. Error recognition in procedural videos using generalized task graph. In
+   Proceedings of the IEEE/CVF International Conference on Computer Vision, pages 10009–10021, 2025.
+
+Shih-Po Lee, Zijia Lu, Zekun Zhang, Minh Hoai, and Ehsan Elhamifar. Error detection in egocentric procedural
+   task videos. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition, pages
+   18655–18666, 2024.
+
+Daochang Liu, Qiyue Li, Anh-Dung Dinh, Tingting Jiang, Mubarak Shah, and Chang Xu. Diffusion action
+   segmentation. In Proceedings of the IEEE/CVF international conference on computer vision, pages 10139–
+   10149, 2023.
+
+Michele Mazzamuto, Antonino Furnari, Yoichi Sato, and Giovanni Maria Farinella. Gazing into missteps:
+   Leveraging eye-gaze for unsupervised mistake detection in egocentric videos of skilled human activities. In
+   Proceedings of the Computer Vision and Pattern Recognition Conference, pages 8310–8320, 2025.
+
+Yifei Ming, Ziyang Cai, Jiuxiang Gu, Yiyou Sun, Wei Li, and Yixuan Li. Delving into out-of-distribution
+   detection with vision-language representations. Advances in neural information processing systems, 35:
+   35087–35102, 2022.
+
+                                                          10
+Atsuyuki Miyai, Qing Yu, Go Irie, and Kiyoharu Aizawa. Locoop: Few-shot out-of-distribution detection via
+   prompt learning. Advances in Neural Information Processing Systems, 36:76298–76310, 2023.
+
+Atsuyuki Miyai, Jingkang Yang, Jingyang Zhang, Yifei Ming, Yueqian Lin, Qing Yu, Go Irie, Shafiq Joty,
+   Yixuan Li, Hai Li, et al. Generalized out-of-distribution detection and beyond in vision language model era:
+   A survey. arXiv preprint arXiv:2407.21794, 2024.
+
+Adam Paszke, Sam Gross, Francisco Massa, Adam Lerer, James Bradbury, Gregory Chanan, Trevor Killeen,
+   Zeming Lin, Natalia Gimelshein, Luca Antiga, et al. Pytorch: An imperative style, high-performance deep
+   learning library. Advances in neural information processing systems, 32, 2019.
+
+Rohith Peddi, Shivvrat Arya, Bharath Challa, Likhitha Pallapothula, Akshay Vyas, Bhavya Gouripeddi, Qifan
+   Zhang, Jikai Wang, Vasundhara Komaragiri, Eric Ragan, et al. Captaincook4d: A dataset for understanding
+   errors in procedural activities. Advances in Neural Information Processing Systems, 37:135626–135679,
+   2024.
+
+Qwen Team. Qwen3.5: Towards native multimodal agents, 2026.
+Sebastian Stein and Stephen J McKenna. Combining embedded accelerometers with computer vision for
+
+   recognizing food preparation activities. In Proceedings of the 2013 ACM international joint conference on
+   Pervasive and ubiquitous computing, pages 729–738, 2013.
+James W Suliburk, Quentin M Buck, Chris J Pirko, Nader N Massarweh, Neal R Barshes, Hardeep Singh, and
+   Todd K Rosengart. Analysis of human performance deficiencies associated with surgical adverse events.
+   JAMA network open, 2(7), 2019.
+Asim Unmesh, Kaki Ramesh, Mayank Patel, Rahul Jain, and Karthik Ramani. Exploring vision-language
+   models for open-vocabulary zero-shot action segmentation. arXiv preprint arXiv:2602.21406, 2026.
+Xin Wang, Taein Kwon, Mahdi Rad, Bowen Pan, Ishani Chakraborty, Sean Andrist, Dan Bohus, Ashley Feniello,
+   Bugra Tekin, Felipe Vieira Frujeri, et al. Holoassist: an egocentric human interaction dataset for interactive ai
+   assistants in the real world. In Proceedings of the IEEE/CVF International Conference on Computer Vision,
+   pages 20270–20281, 2023.
+Jason Wei, Xuezhi Wang, Dale Schuurmans, Maarten Bosma, Fei Xia, Ed Chi, Quoc V Le, Denny Zhou, et al.
+   Chain-of-thought prompting elicits reasoning in large language models. Advances in neural information
+   processing systems, 35:24824–24837, 2022.
+Luca Zanella, Willi Menapace, Massimiliano Mancini, Yiming Wang, and Elisa Ricci. Harnessing large language
+   models for training-free video anomaly detection. In Proceedings of the IEEE/CVF Conference on Computer
+   Vision and Pattern Recognition, pages 18527–18536, 2024.
+Chen-Lin Zhang, Jianxin Wu, and Yin Li. Actionformer: Localizing moments of actions with transformers. In
+   European Conference on Computer Vision, pages 492–510. Springer, 2022.
+
+                                                          11
+Appendix
+A Per-mistake performance
+
+Table 7: Performance per error type. We show results with Qwen3.5-397B-A17B-GPTQ-Int4
+(Q-L) on EgoPER. ZeProM performs relatively worse on correction errors due to their ambiguous
+nature, but detects all other mistakes at a similar rate.
+
+Task        Modification Slip Correction Addition
+
+Quesadilla                 59.7  56.0 58.4  72.5
+
+Oatmeal                    37.6  35.4 29.7  14.6
+
+Pinwheel                   45.9  31.9 17.9  44.6
+
+Coffee                     10.2  40.8 28.6  -
+
+Tea                        60.2  57.2 24.6  59.9
+
+Average                    42.7  44.3 31.8  47.9
+
+We show the performance per segment-level mistake type (addition, modification, slip, and correction)
+on EgoPER in Tab. 7. Overall, we find that the performance of ZeProM is relatively low on correction
+errors. As discussed in the main paper, this comes from ambiguous labeling, and whether corrections
+should be considered as mistakes is debatable in the first place. The performance is similar on the
+other mistake types, between 42.7 F1@.5 for modifications and 47.9 F1@.5 for additions.
+
+B Additional Qualitative Results
+
+In this section, we show further qualitative results of our model for different tasks of EgoPER datasets.
+While Fig. 4 belongs to the oatmeal task, Fig. 5 and Fig. 6 are samples from the pinwheels and tea
+tasks, respectively.
+
+Figure 4: Zero-shot procedural mistake detection with ZeProM. This result belongs to the
+“oatmeal" task from EgoPER.
+
+                                                           12
+Figure 5: Zero-shot procedural mistake detection with ZeProM. This result belongs to the
+“pinwheels" task from EgoPER.
+
+Figure 6: Zero-shot procedural mistake detection with ZeProM. This result belongs to the “tea"
+task from EgoPER.
+
+                                                           13
+C Full prompt
+
+  VLM Prompt Template
+
+  You are an expert at analyzing cooking procedure videos and detecting mistakes.
+  {task_graph_block}
+   Watch this video carefully and perform the following tasks:
+
+           1. SEGMENT the video into discrete action segments. For each segment provide:
+                   - start and end timestamps (in seconds)
+                   - a concise description of the action performed
+                   - Total duration of all segments MUST equal the exact video length (final end_time_sec =
+                      last frame timestamp). Verify this before finalizing. No gaps or overlaps allowed.
+                   - Typical cooking actions last 5-30 seconds. If a segment would exceed 45 seconds, re-
+                      examine it: it very likely contains multiple distinct actions that should be split.
+                   - When uncertain whether to split, prefer splitting over merging.
+                   - Start a new segment whenever: the person picks up or puts down an object, changes the
+                      object they are interacting with, or begins a visually distinct motion (e.g., switching from
+                      spreading to sprinkling).
+                   - End a segment at the last moment of active motion. Do NOT let idle pauses or brief
+                      hesitations extend a segment’s end time.
+
+           2. For each segment, MATCH it to the task graph steps above using these rules:
+                   - The matched_step must be the exact step name from the task graph (or "background"
+                     /"unexpected").
+                   - Compare the observed action precisely against every key detail of the matched step: location
+                     (e.g., "cutting board" vs "table"), object (e.g., "Nutella" vs "butter"), and tool (e.g., "knife"
+                     vs "spoon").
+                   - If all key details match -> has_error = false.
+                   - If any key detail differs (even though the general action type is right) -> has_error = true,
+                      error_type = "Wrong execution", and explain the specific mismatch in error_explanation.
+
+           3. DETECT ERRORS using these precise rules:
+                (a) Wrong execution: the step matches a task graph step in type but not in key detail (e.g.,
+                      tortilla placed on table instead of cutting board).
+                     -> has_error = true, error_type = "Wrong execution"
+                (b) Wrong order / missing prerequisite: a step is performed before its prerequisites are com-
+                      pleted.
+                     -> Do NOT flag the step itself as having an error. The physical action may be correct.
+                      Instead, add the unfinished prerequisite steps to missing_steps.
+                     -> The segment where the out-of-order step is performed should have has_error = false as
+                      long as the action itself was correctly executed.
+                (c) Missing step: a required step was never performed at any point in the video.
+                     -> Record it in missing_steps. Do not propagate this as an error on later steps.
+                (d) Wrong action: an action is performed that has no correspondence in the task graph.
+                     -> has_error = true, error_type = "Wrong action", matched_step = "unexpected"
+
+           4. BACKGROUND classification rules:
+                   - Only classify a segment as "background" (matched_step = "background") if it involves
+                      NONE of the main task objects: tortilla, knife, Nutella, banana, cinnamon, plate, cutting
+                      board.
+                   - If the activity touches or affects any main task object, do NOT classify it as background.
+                      Instead, treat it as a proper task segment and evaluate it for errors.
+
+           5. List any task graph steps that were NEVER performed (missing_steps).
+           6. Give an OVERALL VERDICT: "correct" if no errors were found, "has_mistakes" if any has_error
+
+               = true or missing_steps is non-empty.
+
+   Be precise with timestamps. If a step is missing entirely, still flag it in missing_steps.
+
+The task_graph_block, for the example of the EgoPER recipe “oatmeal", looks as follows:
+
+                                                          14
+   TASK GRAPH
+
+   Action segments:
+   [0] background
+   [1] Measure 4 Tablespoons of quick-cook oats
+   [2] Measure 1/2 cup water
+   [3] Pour water to the bowl
+   [4] Put bowl in the microwave
+   [5] Microwave for X seconds
+   [6] Remove the bowl from the microwave
+   [7] Add handful of raisins
+   [8] Stir using spoon
+   [9] Sprinkle cinnamon on the bowl
+   [10] Drizzle honey in the bowl
+
+D Variability in results
+
+While ZeProM is a deterministic method, we can increase the sampling temperature to obtain
+randomness between individual runs and assess the variance in the results. We do so for the
+“quesadilla" recipe of EgoPER and report the results in Tab. 8, which shows that the variation in
+performance is small.
+
+E Licenses
+
+List of licenses for existing assets used in this paper.
+Models:
+
+        • Qwen3.5-35B-A3B (Qwen Team, 2026): Apache license 2.0
+        • Qwen3.5-397B-A17B-GPTQ-Int4 (Qwen Team, 2026): Apache license 2.0
+
+Data:
+
+        • EgoPER (Lee et al., 2024): Custom Academic License
+        • CaptainCook4D (Peddi et al., 2024): Apache license 2.0
+
+F Broader Impact
+
+Detecting errors, in particular errors that cause harm, is very important and helps to prevent them in
+the future. While the zero-shot approach is a major step forward and is more practical than previous
+methods that require annotation of errors for training, the underlying VLM can encode societal biases
+present in its training data. This can lead to misclassifications of errors depending on gender, race,
+or other demographic attributes. The model can also hallucinate errors or provide misleading error
+explanations.
+
+Table 8: Standard deviation in segment-level mistake detection performance for ZeProM. We
+report standard deviation for EDA and F1@.5 with Qwen3.5-397B-A17B-GPTQ-Int4 (Q-L) when
+using t = 0.7 over five runs.
+
+                    Recipe
+                  Quesadilla
+
+EDA F1@.5
+
+Standard deviation
+
+ZeProM (Q-L) 0.4  1.7
+
+15
+

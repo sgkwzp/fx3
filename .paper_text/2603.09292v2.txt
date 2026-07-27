@@ -1,0 +1,899 @@
+                                        IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE                                                                                  1
+
+                                            See, Plan, Rewind: Progress-Aware
+                                        Vision-Language-Action Models for Robust
+
+                                                      Robotic Manipulation
+
+                                                  Tingjun Dai*, Mingfei Han*†, Tingwen Du, Zhiheng Liu, Zihao Zhang, Zhihui Li,
+                                                              Salman Khan, Jun Yu, Xiaojun Chang, Senior Member, IEEE
+
+arXiv:2603.09292v2 [cs.RO] 30 May 2026  Abstract—Measurement of task progress through explicit, actionable milestones is critical for robust robotic manipulation. This
+                                        progress awareness enables a model to ground its current task status, anticipate verifiable intermediate states, and detect and recover
+                                        from failures when progress stalls. To embody this capability, we introduce See, Plan, Rewind (SPR), a progress-aware
+                                        vision-language-action framework that dynamically grounds language instructions into a sequence of spatial subgoals. SPR operates
+                                        through a continuous core cycle, Seeing the current state and upcoming milestone, Planning a trajectory towards the next 2D waypoint,
+                                        and Rewinding to a recoverable state upon failure by monitoring progress against the expected sequence. This closed-loop approach
+                                        enables robust error correction without requiring additional training data or auxiliary models. Extensive experiments demonstrate the
+                                        framework’s effectiveness, generalization and robustness: SPR outperforms the MolmoAct baseline by 5% on the LIBERO benchmark.
+                                        On the challenging LIBERO-Plus benchmark with unseen instructions and initial states, SPR achieves state-of-the-art robustness with
+                                        the smallest performance drop, surpassing OpenVLA-OFT and UniVLA, demonstrating superior out-of-distribution robustness.
+
+                                        Index Terms—Progress Awareness, Robotic Manipulation, Vision-Language-Action Models, Spatial Reasoning
+
+                                                                                                        ✦
+
+                                        1 INTRODUCTION                                                             Task: Put both the alphabet soup and the tomato sauce in the basket
+
+                                        Robotic manipulation requires a continual, closed-loop in-                 Init Observation                     ⋅ 4 tasks to complete
+                                        teraction with a dynamic 3D environment. While existing                                                         ⋅ Next actions
+                                        approaches [1], [2], [3], [4], [5], [6], [7], [8] have enabled basic
+                                        task execution and flexible behaviors, robust performance                                          Environment
+                                        demands an agent to not only perceive and act, but also
+                                        maintain a grounded, quantitative awareness of its progress                ⋅ Rewind to last state               ⋅ Fail to finish task 1
+                                        toward a goal. We formalize this capability as progress                    ⋅ Next SPR cycle                     ⋅ Trigger rewind
+                                        awareness, the ability to measure task execution against a
+                                        sequence of concrete and actionable milestones.                            Fig. 1: See-Plan-Rewind framework’s closed-loop execution
+                                                                                                                   workflow. Starting from the initial state (top-left), the model
+                                            Recent research recognized this need and explored                      performs See-Plan reasoning to generate actions (arrow to
+                                        progress monitoring capabilities. Several approaches [9],                  top-right), which visualizes the subtask decomposition and
+                                        [10], [11] have explored progress monitoring, such as ECOT                 trajectory planning. Under normal execution, the loop re-
+                                        [9] which connects semantics to features via visual chain-                 turns to top-left. When progress monitoring detects failures
+                                        of-thought, yet its progress signals remain abstract and lack              (bottom-right), the Rewind mechanism activates (bottom-left),
+                                        spatial grounding. In failure recovery, approaches include                 returning the robot to the initial state before resuming the
+                                                                                                                   loop. This closed-loop design enables autonomous error
+                                        *Authors contribute equally. †Project lead.                                recovery through explicit progress awareness.
+
+                                        • Tingjun Dai, Mingfei Han, Tingwen Du, Zhihui Li and                      generating scalable failure-reasoning data [4], [5], [12] and
+                                             Xiaojun Chang are with School of Information Science
+                                             and Technology, University of Science and Technology
+                                             of China, Anhui, China. E-mail: {hmf282@gmail.com,
+                                             dutw2023@mail.ustc.edu.cn,{lizhihuics,xjchang}@ustc.edu.cn}
+
+                                        • Tingjun Dai is also with University of Technology Sydney, Ultimo, NSW,
+                                             Australia. E-mail: {tingjun.dai@student.uts.edu.au}
+
+                                        • Mingfei Han, Salman Khan are with Department of Com-
+                                             puter Vision, Mohamed Bin Zayed University of Artificial Intel-
+                                             ligence, Abu Dhabi, United Arab Emirates. E-mail: {mingfei.han,
+                                             salman.khan}@mbzuai.ac.ae.
+
+                                        • Zhiheng Liu is with The University of Hong Kong, Hong Kong, China.
+                                             E-mail: {zhihengl0528@connect.hku.hk}.
+
+                                        • Zihao Zhang is with Institute of AI for Industry, Chinese Academy of
+                                             Sciences, Jiangsu, China. E-mail: {zhangzihao@ict.ac.cn}.
+
+                                        • Jun Yu is with School of Intelligent Science and Engineering,
+                                             Harbin Institute of Technology (Shenzhen), Guangdong, China. E-mail:
+                                             {yujun@hit.edu.cn}.
+IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE   2
+
+employing LLMs for error analysis and correction [6], [7].       challenging scenarios involving long-horizon multi-object
+However, methods like FailSafe [12] rely on extensive ad-        tidying and continuous-contact pushing, where the baseline
+ditional failure data collection, which is costly, while RE-     fails entirely on both challenging tasks while SPR maintains
+FLECT [7] depends heavily on pre-defined LLM prompt-             consistent performance.
+ing, limiting adaptability in unseen scenarios. While these
+approaches advance progress awareness, their signals often           To summarize, we make the following contributions:
+remain abstract linguistic constructs or binary flags, lacking
+explicit spatial grounding for robot action. Also, their recov-     • Progress Awareness with Spatial Subtasks: We es-
+ery mechanisms typically depend on auxiliary models or                 tablish a new paradigm for progress monitoring by
+substantial data collection. This gap underscores the need             decomposing tasks into a sequence of 2D spatial sub-
+for a unified framework that provides robot-interpretable,             goals, replacing abstract plans with concrete, verifiable
+spatially-grounded progress planning with an intrinsically             waypoints that enable fine-grained, robot-executable
+embedded and data-efficient recovery mechanism.                        progress tracking without auxiliary models.
+
+    To address these limitations, we introduce See, Plan,           • Progress-Driven Error Recovery: We formulate
+Rewind (SPR), a framework that endows vision-language-                 progress monitoring as an executable recovery policy
+action models with explicit completion awareness of task               that detects anomalies through progress tracking and
+milestones through concrete spatial subgoals. Unlike ab-               restores the robot to in-distribution states.
+stract descriptions and plans lacking measurable progress
+benchmarks, SPR leverages gripper interactions from ex-             • Effetiveness and OOD Robustness: We demonstrate
+isting demonstrations to decompose tasks into sequences                that SPR achieves superior performance and general-
+of grounded spatial waypoints. Each waypoint serves as                 ization, outperforming strong baselines on the LIBERO
+a verifiable intermediate target that provides perceptual              benchmark and setting a new state-of-the-art for out-
+anchoring, simplifies trajectory planning, and enables un-             of-distribution robustness on LIBERO-Plus suite with
+ambiguous progress evaluation. Specifically, SPR first Sees            minimal performance degradation.
+to identify remaining subtasks, then Plans 2D trajectories to
+the next sub-goal bounded waypoint, and finally Rewinds          2 RELATED WORKS
+to restore in-distribution states upon detecting anomalies,
+without additional training data or auxiliary models.            Vision-Language-Action Models. Building on the capa-
+                                                                 bilities of pretrained vision foundation models and large
+    To establish the explicit awareness, we propose an ex-       language models, vision-language models (VLMs) [19], [20],
+tensible pipeline that automatically decomposes tasks into       [21], [22], [23] have demonstrated strong performance in
+spatially-grounded subgoals from demonstrations. For pick-       multimodal understanding. Motivated by these strengths,
+and-place tasks, subtask boundaries are identified directly      researchers have begun treating robot control as an ad-
+from gripper state transitions; for other manipulation types,    ditional output modality, fine-tuning VLMs on large-scale
+we employ Gemini-3 to annotate subtask segments with             robot datasets [24], [25], [26], [27], [28] to transfer their
+boundary frames and semantic descriptions. For each seg-         end-to-end prediction abilities to robotic tasks. Pioneering
+ment, we extract 2D subgoal coordinates by leveraging            work RT-2 [29] co-fine-tunes on web-scale VQA and robot
+DINOv3 [13] for gripper feature matching and SAM [14] for        data, enhancing generalization and emergent capabilities.
+precise segmentation. Finally, the model learns to associate     OpenVLA [30] provides an open-source counterpart that
+observations with spatial subgoals, task status, and motion      explores efficient fine-tuning via LoRA and quantization
+trajectories within structured behavioral sequences. During      for deployment. The π0 model [31] leverages high-quality
+execution, progress is monitored in a closed loop via a state    data to improve performance and employs a flow-matching
+recorder that continuously tracks predicted subtask counts       architecture to enhance real-time control capabilities. π0.5
+and planned 2D trajectories. Sustained count increases in-       [32] generalizes to long-horizon household tasks in unseen
+dicate execution failures such as repeated failed grasps,        environments through co-training on multi-modal data and
+while unchanged trajectories over extended timesteps signal      decomposes tasks into semantic subtasks for hierarchical
+progress stagnation where the robot remains trapped in un-       decision-making. Errors in manipulation can accumulate
+productive states due to collisions, misalignment, or other      over time, making them susceptible to propagation. There-
+environmental constraints. Both anomaly types trigger the        fore, perceiving execution progress and enacting timely
+Rewind mechanism to restore operational stability.               corrections is vital for robust robot policies.
+                                                                 Progress Awareness and Execution Monitoring. Early
+    We evaluate SPR on both simulation and real-robot            progress monitoring relied on external human supervision,
+settings. On the LIBERO [15] benchmark, SPR surpasses            with systems like OLAF [1] using verbal guidance to syn-
+MolmoAct baseline by 3.8%, and in the one-policy-for-all         thesize recovery data and YAY [2] updating policies through
+setup achieves an additional 1.2% improvement, in contrast       direct interventions, both facing scalability limitations. Re-
+to methods like OpenVLA-OFT [16] which regress in this           cent works have explored autonomous progress monitoring
+challenging scenario. On the out-of-distribution LIBERO-         using VLMs [9], [10], [11], [33] through various mechanisms.
+Plus suite [17] with over 6800 test-time variants, SPR           ECOT [9] introduced visual chain-of-thought for subgoal
+maintains minimal performance drop across variation types        decomposition and progress awareness. Other structured
+(18.8% average v.s. 27.0% for OpenVLA-OFT [16] and 37.5%         approaches include MolmoAct [10] generating mid-level
+for UniVLA [18]), establishing new state-of-the-art cross-       spatial plans with sparse waypoints (though coarse sam-
+domain robustness. We further validate SPR on three real-        pling may limit precision) and SeqVLA [11] using a de-
+robot tasks, including one basic pick-and-place task and two     tection head for subtask completion awareness. However,
+IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE    3
+
+many VLM-driven approaches still depend on prompt-                not shown in figure), predicting remaining subtask count,
+based heuristics and lack explicit grounding in dynamic           and sequentially generating semantic descriptions with 2D
+physical task states, leading to unreliable progress aware-       coordinates for each subtask, establishes comprehensive
+ness under visual ambiguity or occlusion.                         progress awareness. In the subsequent Plan phase, the
+Failure Recovery and Robust Control. While these moni-            model generates a 2D trajectory with up to 5 waypoints
+toring capabilities enhance task awareness, the occurrence        from the current gripper position to the next subtask goal.
+of failures during execution remains inevitable, making           Unlike the baseline that plans directly toward the final goal,
+autonomous recovery crucial for preventing error accu-            our next-subtask planning provides more robust execution
+mulation and ensuring overall task success. Early failure         guidance, particularly for long-horizon tasks where the final
+recovery methods relied on external human knowledge [1],          goal may be spatially irrelevant or even misleading before
+[2], [34], facing scalability limitations. With the emergence of  intermediate subtasks are completed, rendering end-to-end
+VLMs, research shifted toward autonomous reasoning [6],           trajectory planning ineffective.
+[7], [35], [36], [37], where REFLECT [7] uses LLMs to inter-
+pret execution experiences and suggest corrections, while         3.1.2 Action Reasoning with Subtask Awareness
+COME-robot [6] employs GPT-4V for adaptive replanning.
+Relying solely on VLMs’ reasoning often leads to unreli-          Building upon MolmoAct’s depth-conditioned reasoning,
+able recovery in novel environments, prompting methods            our framework extends the autoregressive generation pro-
+like AHA [4], RoboFAC [5], and FailSafe [12] to generate          cess to incorporate explicit subtask planning. Given an
+targeted failure-and-recovery data. However, these data-          RGB observation I and language instruction T (which
+driven methods require extensive failure data collection,         includes the action CoT prompt), the model sequentially
+which is costly. This motivates alternatives that leverage        generates five token streams: (i) depth perception tokens d;
+successful demonstrations to synthesize recovery behaviors,       (ii) remaining subtask count n; (iii) subtask specifications
+reducing dependency on failure-specific data.                     s = (s1, . . . , sn), where each si = (semi, coordi) consists
+                                                                  of semantic description and 2D completion coordinates; (iv)
+3 SEE-PLAN-REWIND FRAMEWORK                                       trajectory tokens τ from current gripper position to the next
+                                                                  subtask waypoint; (v) action tokens a = (a1, . . . , aD) with
+We introduce our See-Plan-Rewind framework, a progress-           D degrees of freedom. This factorization follows:
+aware vision-language-action model that achieves robust
+manipulation through fine-grained spatial subtask planning            p(a, d, n, s, τ |I, T ) = p(d) · p(n) · p(s) · p(τ ) · p(a) (1)
+and error recovery. As illustrated in Figure 2, our approach
+operates through a continuous cycle: the model first Sees         where each component conditions on the observation I,
+the current state and subtask remain (Section 3.1), Plans         instruction T , and all previously generated tokens in the
+a trajectory towards next 2D waypoint, and Rewinds to a           autoregressive sequence.
+recoverable state when anomalies are detected (Section 3.3).
+The foundation of this framework lies in our comprehensive        3.2 See-Plan Data Curation
+data generation pipeline (Section 3.2), which automatically
+constructs supervision for subtask boundaries, spatial coor-      Our See-Plan framework requires two types of supervision:
+dinates, and rewind trajectories without additional human         (i) subtask boundaries and counts, (ii) spatial coordinates for
+annotation or auxiliary models.                                   subtask waypoints and trajectories. We design an automated
+                                                                  pipeline to extract all supervision signals from existing
+3.1 Fine-Grained Spatial Subtask Planning                         demonstration data, eliminating the need for additional hu-
+                                                                  man annotation or auxiliary vision-language models during
+Grasping and manipulating objects is so routine for humans        both training and inference.
+that we rarely notice the sophisticated progress awareness
+driving these actions. Our brain naturally decomposes ma-         3.2.1 Subtasks Segmentation and Description.
+nipulation goals into intermediate milestones, plans hand
+trajectories toward each subgoal, and continuously monitors       Our method segments demonstration trajectories into mean-
+execution progress—all without conscious thought. Inspired        ingful subtasks through task-adaptive boundary detection.
+by this cognitive process, we design a fine-grained spatial       For pick-and-place tasks, we identify subtask boundaries
+subtask planning mechanism that endows VLA models with            directly from gripper state transitions (open/close), which
+analogous progress-aware reasoning. By explicitly modeling        reliably mark subtask completion points. For tasks where
+the “See-Plan” cycle—identifying remaining subtasks and           gripper actuation alone is insufficient to delineate subtasks
+planning trajectories to concrete spatial waypoints—our           (e.g., pushing, closing cabinets), we employ Gemini-3 to
+framework enables robots to approach manipulation with            generate subtask annotations, including start and end frame
+the structured, milestone-driven strategy that humans em-         indices and semantic descriptions for each segment. For
+ploy effortlessly.                                                each frame, we compute the remaining number of sub-
+                                                                  tasks, which serves as ground truth for training the model’s
+3.1.1 Spatial Subtask See and Plan                                progress monitoring. As a special case, since LIBERO [15]
+                                                                  tasks are predominantly pick-and-place, we apply the
+As illustrated in Figure 2, upon receiving the observation        gripper-based segmentation and prompt DeepSeek-R1 [38]
+and task instruction, the model performs the See phase:           with the task instruction and detected subtask count to
+outputting depth perception tokens (following MolmoAct,           generate semantic descriptions for each segment.
+IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE                                                                                           4
+
+Large Language Model                                                              Task Description                         Observation
+
+                          See                              Output                The task is pick up the book
+                                                                                 and place it in the back
+There are 2 subtasks remain toward                          Action Tokens        compartment of the caddy.
+completion of the task:
+1. pick up the book at [80,146]                2  [128,230,127,110,190,201,255]
+2. place the book in the back         1
+compartment of the caddy at [178,89]                        State Recorder
+                                                                                                  See-Plan Framework
+                          Plan                       Subtask Remain Update:
+                                                        [S���−3, ������−2, ������−1, ������]                         Rewind
+Gripper trajectory to next subtask:
+                                                     Trajectory Update:                                Executed N Step?    Yes      Task
+    [122,69], [101,83], [99,101],                        [������−7, ⋯, ������−1, ������]                                                    Description
+          [82,124], [80,146]                                                                      Yes
+                                                                                                                                   Rewind
+                                                                                 In Rewind Mode?  No                       No   Description
+
+                                                                                                       Any Abnormality Yes
+                                                                                                       in State Recorder?
+
+Fig. 2: SPR framework overview. Left: Upon receiving the task description and observation, the model performs See-Plan
+reasoning(Sec. 3.1), which identifies remaining subtasks with 2D spatial coordinates (See) and plans a gripper trajectory
+to the next subtask waypoint (Plan), then outputs action tokens for execution. Each inference step also updates the state
+recorder, where SN denotes the predicted subtask count and TN the planned 2D trajectory at the current timestep. Right:
+The Rewind mechanism (Sec. 3.3) examines the state recorder after each step: if no anomaly is detected, the original task
+description is retained; if sustained anomalies are identified, the task description is switched to a rewind instruction for N
+steps before reverting to normal execution. Data generation in Sec. 3.2.
+
+3.2.2 Gripper Trajectory Extraction.                            through joint training on constructed rewind data, without
+                                                                additional recovery demonstrations or auxiliary models.
+To obtain spatial coordinates for subtask waypoints and
+2D trajectories, we combine DINOv3 [13] and SAM [14]            3.3.1 Rewind Data Construction
+for robust gripper detection without task-specific training.
+We maintain a reference image of the gripper endpoint and       To endow the model with rewind capability, we construct
+use DINOv3’s patch-level features to identify the image         reverse trajectories by inverting successful forward demon-
+region with highest similarity. This coarse localization is     strations from the first subtask waypoint back to the robot’s
+then refined by SAM, using the previously obtained posi-        initial position. The construction involves: (i) temporal re-
+tion as point prompt for gripper segmentation. Followingly,     versal of frame sequences, (ii) negation of action token
+we compute final coordinates by leveraging each method’s        values (inverting end-effector delta movements), and (iii)
+strength: x from SAM’s bounding box center (precise hor-        setting the task instruction to “return to initial position.” All
+izontal boundaries) and y from DINOv3 detection (accu-          other supervision signals—subtask boundaries, waypoint
+rate vertical endpoint localization). All 2D coordinates are    coordinates, and 2D trajectories—are automatically inher-
+discretized to [0, 255]. Finally, we smooth the trajectory by   ited from the data curation pipeline described in Section 3.2.
+detecting and interpolating over outlier points with unusu-
+ally large movements, and then applying a median filter         3.3.2 Progress-Based Anomaly Detection
+with a small temporal window while preserving subtask
+boundaries. Given gripper coordinates for all frames, we        We maintain a state recorder, a first-in-first-out queue that
+extract subtask waypoints as the gripper positions at de-       continuously tracks the model’s predicted subtask counts
+tected boundary frames. We uniformly sample 1-5 gripper         over the most recent 4 timesteps and the planned 2D tra-
+positions from the current frame to the next subtask comple-    jectories over the most recent 8 timesteps. Anomalies are
+tion frame, providing intermediate waypoints for trajectory     detected through two complementary criteria:
+planning.                                                       Subtask Count Anomaly. Under normal execution, the pre-
+                                                                dicted subtask count either remains constant or decreases
+3.3 Error Recovery via Progress-Aware Rewind                    monotonically as subtasks complete. We detect anomalies
+                                                                by examining whether the subtask count increases across
+While our subtask planning framework enables accurate           both the current and the immediately prior window in the
+progress monitoring, robust spatial planning alone cannot       queue, indicating sustained execution failure that causes the
+eliminate all failure modes. Inspired by human problem-         model to regress to earlier stages.
+solving strategies of “stepping back” when encountering         Progress Stagnation. If the planned 2D trajectories remain
+obstacles, we propose a Rewind mechanism that disengages        identical across all 8 recorded timesteps, we identify the
+the model from erroneous states through a brief learned         robot as trapped in an out-of-distribution state caused by
+retraction, preventing the robot from persisting in failure     collisions, misalignment, or other unexpected environmen-
+modes with diminishing returns. Leveraging our frame-           tal conditions. In such states, the model encounters config-
+work’s subtask counting and 2D trajectory grounding capa-       urations absent from its training data and fails to generate
+bilities, we can detect potential execution anomalies in real   effective actions, resulting in repeated identical plans with-
+time and trigger timely recovery—implemented entirely           out meaningful progress toward the current subtask.
+IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE                                                      5
+
+TABLE 1: Out-of-distribution robustness evaluation on LIBERO-Plus benchmark. We report task success rates across five
+perturbation types, with subscripts indicating performance degradation relative to the original LIBERO test sets. Bold and
+underlined values denote the best and second-best success rates, respectively. Red bold and red underlined subscripts
+highlight the smallest and second-smallest performance drops, indicating superior OOD robustness. Our method achieves
+the highest average success rate (71.8%) with the smallest average degradation (18.8%), demonstrating strong generalization
+to unseen perturbations.
+
+Method                                                          LIBERO-PLUS
+
+OpenVLA [30]           Background                Robot          Language     Layout           Light         Avg
+OpenVLA-OFT [16]
+OpenVLA-OFT w [16]     25.3%↓51.2%            4.1%↓72.4%        26.8%↓49.7%  31.6%↓44.9%  4.4%↓72.1%   18.7%↓57.8%
+π0 [31]                83.6%↓14.0%            30.6%↓67.0%       83.6%↓14.0%  73.2%↓24.4%  91.6%↓6.0%   70.6%↓27.0%
+π0-fast [39]            92.5%↓2.8%            43.7%↓51.6%       73.2%↓22.1%  72.3%↓23.0%  68.2%↓27.1%  68.5%↓26.8%
+WorldVLA [40]          78.5%↓15.7%            6.6%↓87.6%        61.0%↓33.2%  70.4%↓23.8%  79.6%↓14.6%  56.6%↓37.6%
+Nora [41]              67.7%↓17.8%            24.8%↓60.7%       63.3%↓22.2%  70.3%↓15.2%  73.0%↓12.5%  58.4%↓27.1%
+UniVLA [18]            14.5%↓64.6%            30.2%↓48.9%       44.2%↓34.9%  39.4%↓39.7%  29.4%↓49.7%  32.8%↓46.3%
+                       50.5%↓37.4%            41.1%↓46.8%       67.0%↓20.9%  63.9%↓24.0%  31.0%↓56.9%  51.8%↓36.1%
+Ours                   80.0%↓15.2%            50.3%↓44.9%       71.8%↓23.4%  34.3%↓60.9%  59.1%↓36.1%  57.7%↓37.5%
+
+                        86.0%↓4.6%            47.7%↓42.9%       78.5%↓12.1%  69.6%↓21.0%  85.0%↓5.6%   71.8%↓18.8%
+
+TABLE 2: Performance on LIBERO benchmark. We report             4 EXPERIMENTS
+results for two training configurations: separately-trained
+models (Ours) fine-tuned individually on each subset, and       We evaluate SPR in four key dimensions: 1) Overall Per-
+a jointly-trained model (Ours∗) trained on all four subsets.    formance: How does SPR compare to state-of-the-art VLA
+Bold and underlined values indicate the best and second-        models on standard simulation benchmarks and real-robot
+best results respectively.                                      tasks? 2) OOD Robustness: How does SPR perform across
+                                                                five diverse perturbation types in LIBERO-Plus (novel back-
+                                LIBERO                          grounds, robot initial state, language phrasings, object lay-
+                                                                outs, and lighting conditions)? 3) Ablations: What are the
+Method                 Spatial  Object Goal   Long    Avg       individual contributions of spatial subgoal planning and the
+                                                                rewind mechanism? Does extended interaction time enable
+Diffusion Policy [42]  78.3%    92.5%  68.3%  50.5%  72.4%      recovery from more complex failures? 4) Visualization:
+Octo [43]              78.9%    85.7%  84.6%  51.1%  75.1%      How does SPR decompose tasks and prove error recovery
+OpenVLA [30]           84.7%    88.4%  79.2%  53.7%  76.5%      effective?
+GRAPE [8]              88.5%    92.1%  83.1%  57.2%  80.2%
+ThinkAct [3]           88.3%    91.4%  87.1%  70.9%  84.4%      4.1 Implementation Details
+π0-fast [39]           96.4%    96.8%  88.6%  60.2%  85.5%
+MolmoAct [10]          87.0%    95.4%  87.6%  77.2%  86.8%      We initialize from MolmoAct’s mid-trained checkpoint and
+                                                                apply LoRA fine-tuning (rank 32, alpha 16) with action
+Ours                   92.4%    93.0% 94.2%   82.8%  90.6%      chunking following their post-training protocol. We detail
+Ours∗                  93.2%    95.4% 93.2%   85.4%  91.8%      the training configurations for both simulation and real-
+                                                                robot experiments below.
+    Both criteria require anomalies to persist over multiple    Training on Simulation (LIBERO). We evaluate two train-
+timesteps, filtering transient prediction noise while reliably  ing configurations across 32 NVIDIA A100-80G GPUs. We
+identifying sustained execution failures.                       apply the same data augmentation strategy as MolmoAct,
+                                                                including random cropping, resizing, and color jittering
+3.3.3 Rewind Execution Strategy                                 to improve robustness. Table 4 summarizes the complete
+                                                                training configuration.
+Through joint training on forward demonstrations and con-
+structed rewind data, the model learns to retreat to its            The separately-trained models fine-tune both vision en-
+initial position upon receiving a “return to initial position”  coder and language model on each LIBERO subset individ-
+instruction. During execution, if an anomaly is detected,       ually with batch size 128 and learning rate 5×10−4, training
+we substitute the original task instruction with this rewind    for 40K-80K steps until optimal validation performance is
+command for a fixed duration of N timesteps. This allows        reached.
+the robot to backtrack toward its starting configuration.
+After N steps, the system reverts to the original instruction       The jointly-trained model freezes the vision encoder
+and resumes the task from the new state. The duration           and fine-tunes only the language model on all four sub-
+N is critical: a value too small fails to provide sufficient    sets combined with a two-stage training process. First, we
+operational clearance, while a value too large risks the arm    train on the original MolmoAct dataset for 20K steps with
+exiting the camera’s view or assuming unrecoverable poses.      learning rate 1.5×10−4 to maintain broad manipulation ca-
+We empirically set N = 3 for optimal performance.               pabilities. Then, we continue training on our SPR-annotated
+                                                                LIBERO data for 10K steps with learning rate 1.5×10−3
+                                                                to learn progress-aware planning. During both stages, we
+                                                                sample data from the four subsets with a ratio of 5:5:4:8
+IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE                                                                         6
+
+initial state                                                   subtask steps
+
+Tidy up the table  (1) pick up the bowl into the basket                            (2) throw the milk carton into the rubbish bin
+
+Push-T             (1) approach  (2) adjust                     (3) push                (4) align           (5) finetune
+
+Fig. 3: Real-robot task setup and subtask decomposition for Tidy up the Table and Push-T. Each task shows the initial scene
+configuration alongside the model’s subtask decomposition, demonstrating that SPR produces structured and interpretable
+subtask plans for both pick-and-place and continuous-contact manipulation tasks.
+
+(Spatial:Object:Goal:Long), proportional to their individual    TABLE 3: Training configuration for real-robot tasks. We
+training requirements. All configurations use batch size        collect 100 demonstrations for Pick up the Object and 200
+1024.                                                           each for Tidy up the Table and Push-T. All three tasks
+Training with Real-Robot Tasks. We collect 100 demonstra-       are trained separately with the vision encoder frozen. The
+tion trajectories for Pick up the Object and 200 trajectories   action chunk size is 4 during training, but only the first 2
+each for Tidy up the Table and Push-T. Each task is trained     actions are executed at each inference step to enable more
+separately on 4 NVIDIA A100-80G GPUs with batch size 64,        responsive closed-loop control.
+learning rate 5×10−4, and 5,000 training steps. We freeze the
+vision encoder and fine-tune only the language model. The                                          Real-Robot Tasks
+action chunk size is set to 4 during training, but only the
+first 2 actions are executed at each inference step to enable   Parameter          Pick up         Tidy up       Push-T
+more responsive closed-loop control. All other hyperparam-
+eters remain consistent with the simulation setup. Table 3      Demonstrations     100             200               200
+summarizes the real-robot training configuration.               Steps
+Inference. SPR maintains identical per-step inference cost as   Global Batch Size  5K              5K                              5K
+MolmoAct, sharing the same 7B architecture. The additional      Vision Encoder
+subtask planning outputs add minimal tokens compared            GPUs (A100s)       64              64                              64
+to other predictions, resulting in negligible computational     Input Images
+overhead. Furthermore, our error recovery mechanism op-         Image Size                         Frozen
+erates through simple logical comparisons of subtask counts     DoF
+and trajectory records in the state recorder, requiring no      Obs. History                            4
+additional model inference and thus having zero impact on       Proprioception
+execution speed. On 4×RTX 4090 GPUs, our model achieves         Action Chunk           1 Third-person + 1 Wrist-mounted
+2.08 Hz inference speed, closely matching the baseline while
+enabling robust error recovery.                                                                    256 × 256 px
+
+4.2 Environment Setup                                                              7 (3 Translations + 3 Rotations + 1 Gripper State)
+
+Simulation Benchmarks. We evaluate our method on two                                        No (Single-step Inputs)
+robotic manipulation benchmarks:
+• LIBERO [15]: A widely-used benchmark suite for                                                       No
+
+  language-instructed manipulation in diverse kitchen sce-                         4 Steps (Predict but Only Execute 2)
+  narios. We report results on its four distinct subtask
+  categories: Long (complex multi-step tasks), Goal (goal-        object layout), and Light (unseen scene lighting). Our
+  conditioned tasks), Object (object-centric manipulation),       model is trained exclusively on the original LIBERO train-
+  and Spatial (tasks requiring spatial reasoning).                ing data, demonstrating strong generalization to these
+• LIBERO-Plus [17]: A challenging out-of-distribution             diverse unseen variations.
+  benchmark that creates over 10,000 task variants across
+  the four LIBERO test sets through seven types of pertur-      Real-Robot Tasks. We further validate SPR on three real-
+  bations. We evaluate on five subsets: Background (unseen      robot tasks, including one basic pick-and-place task and two
+  background texture), Robot (unseen robot initial state),      challenging scenarios involving long-horizon multi-object
+  Language (unseen instruction phrasing), Layout (unseen        tidying and continuous-contact pushing without grasping:
+
+                                                                • Pick up the Object: Given a table with four objects (egg-
+                                                                  plant, biscuit box, toy, bowl), the robot must identify the
+                                                                  correct object specified by the language instruction. This
+                                                                  basic single-object task validates the model’s fundamental
+                                                                  language grounding and manipulation capability.
+
+                                                                • Tidy up the Table: As shown in Figure 3, the workspace
+                                                                  contains 1-4 target objects (towel, biscuit box, bowl, milk
+                                                                  carton) along with distractors such as a tissue box. The
+                                                                  robot must organize 1–4 objects (towel, biscuit box, bowl,
+                                                                  milk carton) on the table into their designated recepta-
+                                                                  cles—bowl and towel into a basket, biscuit box and milk
+                                                                  carton into a rubbish bin—while ignoring distractors such
+IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE                                                                                                    7
+
+              85.0%  Long                           95.0%         Spatial             95.0%       Goal                   95.0%       Object
+
+              80.0%                                 90.0%                             90.0%                              90.0%
+
+Success Rate  75.0%                                 85.0%                             85.0%                              85.0%               SPR (with Rewind)
+              70.0%                                 80.0%                             80.0%                              80.0%               w/o Rewind
+              65.0% 400 600 800                     75.0%100                          75.0%                              75.0%               Baseline (MolmoAct)
+
+                           max episode length                     200 300 400                200  400               600         200  300               400
+                                                                  max episode length            max episode length                 max episode length
+
+Fig. 4: Task success rate vs. maximum episode length across LIBERO subsets. Progress-aware models continue improving
+after the baseline plateaus, demonstrating the ability to leverage extended horizons for complex error recovery.
+
+TABLE 4: Training configuration for LIBERO task suites.                               Fig. 5: Component ablation on LIBERO-Long and LIBERO-
+The first four columns show separately-trained models                                 Plus variants. Performance progressively improves from
+fine-tuned on individual subsets with both vision encoder                             w/o Rewind & Semantics (spatial coordinates only) to w/o
+and language model trainable. The last column shows the                               Rewind (spatial + semantic) to Ours (full SPR with Rewind),
+jointly-trained model with a two-stage process: first training                        validating the contribution of each component.
+on original MolmoAct data for 20K steps, then on our SPR-
+annotated data for 10K steps with data sampled at ratio                               Both show strong gains on the challenging Long bench-
+5:5:4:8 (Spatial:Object:Goal:Long).                                                   mark (+5.6% and +8.2% respectively), demonstrating that
+                                                                                      SPR effectively tackles complex multi-step manipulation.
+                                               LIBERO Task Suite                      Moreover, the performance gain from joint training—rather
+                                                                                      than degradation—indicates that SPR learns generalizable
+Parameter            Spat. Obj. Goal Long                                       All   progress-aware reasoning rather than overfitting to specific
+                                                                                      task distributions.
+Steps                      50K                 50K         40K    80K 20K+10K
+Global Batch Size                                                                     Robustness Evaluation on LIBERO-Plus. Table 1 presents
+Vision Frozen              128                 128         128    128           1024  results on the LIBERO-Plus benchmark under various dis-
+GPUs (A100s)                                                                          tribution shifts. Notably, all state-of-the-art models exhibit
+Input Images               No                  No          No     No            Yes   substantial performance degradation on LIBERO-Plus com-
+Image Size                                                                            pared to the original LIBERO test sets, underscoring the
+DoF                                                           32                      benchmark’s difficulty. Among all evaluated methods, SPR
+Obs. History                                                                          demonstrates the smallest overall performance drop, high-
+Proprioception                  1 Third-person + 1 Wrist-Mounted                      lighting its exceptional out-of-distribution robustness—a
+Action Chunk                                                                          direct consequence of its fine-grained, geometry-grounded
+                                                    256 × 256 px                      planning and built-in failure recovery mechanism. Particu-
+                                                                                      larly noteworthy, SPR achieves the most competitive perfor-
+                                               7 (3 Trans. + 3 Rot. + 1 Grip.)        mance degradation on Language (-12.1%), Light (-5.6%), and
+                                                                                      Robot (-42.9%) perturbations. These results validate SPR’s
+                                               No (Single-step Inputs)                superior capability in handling semantic ambiguity and
+                                                                                      novel robot initial configurations. The strong performance
+                                                              No                      under Language shifts demonstrates the effectiveness of
+                                                                                      our semantics-based progress awareness, while the robust-
+                                               8 Steps (Predict and Execute 8)        ness to Robot configuration changes highlights the value
+                                                                                      of our Rewind mechanism in adjusting gripper poses to
+  as a tissue box. A trial is successful only when all objects                        recoverable states. Together, these capabilities enable SPR
+  are placed in their correct locations. This long-horizon                            to maintain robust performance across diverse OOD scenar-
+  setup with variable object counts serves to validate SPR’s                          ios, establishing superior zero-shot adaptation compared to
+  ability to plan and execute extended subtask sequences.                             existing approaches.
+• Push-T: As shown in Figure 3, a T-shaped block and a
+  target zone are placed on the table. The robot uses a cylin-
+  drical end-effector to push a T-shaped block into a target
+  zone, with success requiring full alignment. The figure
+  illustrates how SPR decomposes this continuous-contact
+  task into five subtask steps: approach, adjust, push, align,
+  and fine-tune. This continuous contact manipulation task
+  validates SPR’s generalization beyond simple pick-and-
+  place tasks.
+Evaluation Metric. We evaluate task success rate, defined as
+the proportion of successful task completions. For LIBERO,
+we test 50 episodes per task across 10 tasks in each subset.
+For LIBERO-Plus, we test one episode per task across over
+300 tasks for each of five perturbation types. For real-robot
+tasks, we conduct 10 trials per task configuration.
+
+4.3 Simulation Results
+
+Effectiveness Evaluation on LIBERO. Table 2 presents
+SPR results on LIBERO. We evaluate two configurations:
+separately-trained models per subset (90.6%, +3.8% over
+MolmoAct) and jointly-trained on all subsets (91.8%, +5.0%).
+IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE                                                                                                                                                               8
+
+Success Rate (%)  96 N=2                  92.60 94.20 93.00 92.40 93.00 92.60 91.80 92.60 92.00                   TABLE 5: Performance on real-robot tasks. We report success
+                  92 N=3                                                                                          rates for our method and the MolmoAct baseline across
+                                                                                                                  three tasks: Pick up the Object, Tidy up the Table (evalu-
+                           N=4                                                                                    ated in the 3-object setting), and Push-T. Additional task
+                  88                                                                                              configurations and visualizations are provided in the sup-
+                                                                                                                  plementary material. Bold values indicate the best results.
+                  84 81.80 82.80 81.80
+
+                  80  Long                Goal                     Object  Spatial                                                                Real-Robot Tasks
+
+Fig. 6: Effect of rewind step count N on LIBERO. N =3                                                             Method              Pick up Tidy up Push-T
+achieves optimal performance across all subsets.
+                                                                                                                  MolmoAct [10]       50%         0%                0%
+                                                                                                                  Ours
+                                                                                                                                      70%         30%               40%
+
+                                                                                                                  4.5 Ablation Study
+
+                                (a) Ours                                                                          Effect of Spatial Subgoals and Semantics. We first investi-
+
+                                                                                                                  gate whether subtask-level semantic planning can improve
+
+                                                                                                                  model performance—specifically, the model with only See
+
+                                                                                                                  and Plan capabilities but without Rewind. As shown in
+
+                      (b) MolmoAct                                                                                Table 6, comparing with the baseline MolmoAct model
+
+                                                                                                                  across all LIBERO test sets, the model with only See and
+Fig. 7: Scaling analysis on real-robot Tidy up the Table with Plan (w/o Rewind) achieves an overall 4.0% performance
+1–4 objects. The planning visualization (left) compares SPR improvement over the baseline, strongly demonstrating the
+and MolmoAct on a 3-object trial, where yellow circles effectiveness of our progress-aware approach.
+denote subtask wInacoyntprasot toinourtfsinea-grnainded sgubrtaeske-lenvellpirongreessspliannnidng,icate planned
+                                                                                                                  To assess the individual importance of spatial coordi-
+trajectories. The MsoulmcoAccet'sscsoarsre-agrtaienedcwuayprovintes fai(lsrtoighanhdlte)thisslohngo- ws that SPR
+                                        horizon task effectively.                                                 nates and semantic descriptions, we evaluate w/o Rewind
+
+degrades gracefully as object count increases, whiilnietial sMtate ol-(1) & approach Sem(2)aadnjustt ics, which retains 2D coordinates but removes
+moAct’s coarse-grained planning collapses beyond 2 ob- semantic generation. Figure 5 reveals that both components
+jects.
+                                                                                                                  are essential. While w/o Rewind & Semantics outperforms
+
+                                                                                                                  the baseline on LIBERO-Long by 6%—demonstrating spa-
+
+4.4 Real-Robot Results                                                                                            tial coordinates’ contribution—it underperforms the w/o
+                                                                                                                  Rewind model by 3.4%. The gap also exists on LIBERO-
+
+Table 5 summarizes results across three tasks. Additional Plus, where removing semantics significantly degrades ro-
+
+setup details and visualizations for all real-robot tasks are bustness. These results demonstrate that spatial coordinates
+
+provided in the supplementary material.                                                                           and semantic descriptions play complementary roles: coor-
+
+Pick up the Object. On this basic single-object task, SPR dinates provide precise spatial grounding, while semantics
+
+achieves 70% success rate compared to 50% for MolmoAct. enable higher-level task understanding. Both are crucial for
+
+Even for a single-step task, SPR’s explicit spatial grounding effective progress-aware reasoning.
+
+of the target object as a subtask waypoint enhances the Effect of Rewind Mechanism. We ablate the rewind mech-
+
+model’s comprehension of the task goal and provides more anism to evaluate its contribution. As shown in Table 6,
+
+precise trajectory planning toward the grasping target.                                                           our full model achieves higher or comparable success rates
+
+Tidy up the Table. In the 3-object setting, SPR achieves 30% across all LIBERO subsets compared to the model without
+
+success rate while MolmoAct fails entirely. SPR’s subtask rewind, with an overall performance gain of 1%. To further
+
+planning decomposes this complex long-horizon task into test its robustness, we evaluate on the more challenging
+
+clearly ordered steps, guiding the model to complete them Long suite of the LIBERO-Plus [17] benchmark, which in-
+
+incrementally. In contrast, the baseline’s coarse planning troduces test-time variance. Results in Figure 5 show that
+
+from the start to the final goal produces 2D waypoints our model with rewind maintains superior performance
+
+that become noise rather than guidance as task complexity on both its Language and Robot variants. These findings
+
+grows, ultimately failing to provide meaningful execution confirm that the rewind mechanism consistently enhances
+
+signals. A detailed analysis of how performance scales with performance and provides critical robustness in complex,
+
+object count is presented in Section 4.5.                                                                         out-of-distribution scenarios.
+
+Push-T. SPR achieves a 40% success rate while MolmoAct Impact of Inference Episode Length. Our work endows the
+
+scores 0%. This task involves continuous-contact manipula- model with progress-aware capability, granting it enhanced
+
+tion where gripper state transitions cannot delineate subtask retry ability after failed task executions. This raises a natural
+
+boundaries, yet SPR successfully decomposes it into five question: if we allow the model more generous step limits,
+
+sequential phases (approach, adjust, push, align, and fine- providing additional opportunities to complete tasks, will
+
+tune), progressively guiding the T-block toward the target it achieve higher success rates? To investigate this, we
+
+zone. This confirms that SPR is not confined to pick-and- evaluate three model variants on all four LIBERO subsets
+
+place tasks, but can perceive and track progress across with a maximum episode length of 980 steps: the baseline
+
+diverse manipulation types through its extensible subtask MolmoAct model, the w/o Rewind model, and our best
+
+planning framework.                                                                                               model. As shown in the figure 4, across all LIBERO subsets,
+IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE                                                                                                          9
+
+                          ❌             ❌                       ✅                 ✅                                ✅
+
+                                 (a) open the top drawer and put the bowl inside
+
+            ❌             ❌             ✅                       ✅                 ✅                                ✅
+
+                          (b) pick up the book and place it in the back compartment of the caddy
+
+                          ❌             ❌                       ✅                 ✅                                ✅
+
+                   (c) put the white mug on the left plate and put the yellow and white mug on the right plate
+
+Fig. 8: SPR’s error recovery across diverse failure scenarios (red dashed boxes: error states). (a) Dynamic replanning: Recovers
+from object relocation and environment state changes by updating spatial subtasks. (b) Robustness to suboptimal initial
+starts: Mitigates challenging initial configurations by rewinding to regain spatial freedom and replanning the approach. (c)
+Execution failure recovery: Detects OOD states from failed grasps and resets to familiar configurations for retry.
+
+TABLE 6: Ablation study on LIBERO benchmark. Both                                         Spatial subgoals:                                   Spatial subgoals:
+See-Plan capabilities (w/o Rewind) and the complete                                                                                           1 Pick up first moka pot
+SPR framework (Ours) outperform the MolmoAct baseline                                     1 Pick up the yellow
+across all subsets.                                                                          and white mug                                    2 Place the fist moka
+                                                                                                                                                 pot on the stove
+Method      Spatial Object Goal Long Avg                                                  2 Place the mug inside
+                                                                                             the microwave                                    3 Pick up the second
+MolmoAct†   89.4%  92.4%  88.2%  72.4%  85.6%                                                                                                    moka pot
+w/o Rewind  92.6%  91.8%  92.2%  81.8%  89.6%                                             3 Grasp/move to close
+Ours        92.4%  93.0%  94.2%  82.8%  90.6%                                                the microwave                                    4 Place the second
+                                                                                                                                                 moka pot on the stove
+†Results reproduced using our training setup; differs from                                4 Close the microwave
+                              original [10].                                                                       (b) put both moka pots on the stove - OOD
+                                                                  (a) Put the yellow and white mug in the
+both our best model and the w/o Rewind model demon-                        microwave and close it                                            Spatial subgoals:
+strate superior ability to leverage extended episode lengths
+compared to the baseline, consistently achieving higher task                             Spatial subgoals:                                   1 Pick up the
+success rates. Notably, after the baseline model’s success                                                                                       alphabet soup
+rate plateaus, our models continue to complete additional                                 1 Pick up the black
+tasks. This validates our model’s progress-aware capability,                                  bowl on the cabinet                            2 Place the alphabet
+enabling recovery from more complex error scenarios.                                                                                            soup in the basket
+                                                                                          2 Place the black bowl
+    Furthermore, we observe that our best model exhibits                                     on the plate          (d) pick up the alphabet soup and place it
+faster task completion efficiency compared to the w/o                                                                                in the basket
+Rewind model. This demonstrates that the Rewind mecha-          (c) pick up the black bowl on the wooden
+nism effectively reduces time required to re-execute failed          cabinet and place it on the plate
+subtasks, validating the theoretical correctness of elevat-
+ing the arm to provide greater operational and observa-         Fig. 9: Fine-grained spatial subtask decomposition across
+tional space for improved error recovery. Especially on the     diverse manipulation tasks. (a) Complex sequential task
+two more complex subsets—LIBERO-LONG and LIBERO-                with multiple interaction types. (b) Robust decomposition
+Goal—our best model achieves significantly faster task com-     under OOD layout configurations. (c) Spatial relationship
+pletion efficiency compared to both other variants.             understanding with relative positioning. (d) Basic pick-and-
+                                                                place with clear semantic grounding. Each subtask pairs
+                                                                semantic descriptions with 2D spatial coordinates, enabling
+                                                                interpretable progress monitoring.
+
+                                                                Effect of Rewind Step Count N. When the Rewind mech-
+                                                                anism triggers, the model executes N consecutive “return
+                                                                to initial position” instructions. We investigate the optimal
+                                                                value by testing N ∈ {2, 3, 4} across all LIBERO test sets
+                                                                (Figure 6). Results show N = 3 consistently achieves the
+                                                                best performance. Too few steps (N < 3) fail to provide suf-
+IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE                                                                                  10
+
+                                                       ❌               (b) put the yellow and white mug
+                                                                         in the microwave and close it
+                       (a) put the white mug on the plate and put the
+                         chocolate pudding to the right of the plate
+
+                                                                             (c) pick up the bbq sauce and place it in the basket
+
+Fig. 10: Representative failure cases: (a) discrete action tokens limit precision for careful placement tasks, (b) rewind
+mechanism fails when robot is physically stuck, and (c) model fails to complete task despite successful rewind due to
+persistent spatial misalignment and action-planning inconsistency.
+
+ficient operational space for error recovery, while too many           without the required object. SPR’s progress monitoring de-
+steps (N > 3) cause the arm to drift excessively far from the          tects the anomaly (subtask count unchanged despite reach-
+task region. Moreover, we observe that continuous rewind               ing the goal) and triggers Rewind, returning the arm to the
+instructions beyond three steps cause pose distortion, with            initial position to successfully re-grasp.
+the arm eventually moving outside the camera’s field of                Robustness to Unexpected Perturbations. Figure 8 (a) high-
+view. Thus, N = 3 balances effective error recovery with               lights dynamic replanning under environmental perturba-
+pose stability.                                                        tions. When the bowl inadvertently closes the drawer and
+Scaling to Long-Horizon Real-Robot Tasks. To further                   falls to a new location, SPR’s spatial awareness enables rapid
+investigate SPR’s advantage in extended real-world task                adaptation. The model relocalizes the bowl, updates spatial
+sequences, we evaluate Tidy up the Table with object counts            subtask coordinates, and completes the task, demonstrating
+from 1 to 4. Shown in Figure 7, as the number of objects               spatial awareness that extends beyond in, distribution sce-
+increases, both SPR and MolmoAct experience performance                narios.
+degradation, but SPR degrades more gracefully. When ob-                Handling Challenging Initial Configurations. Figure 8 (b)
+ject count reaches 3 and above, MolmoAct fails entirely                shows robustness to suboptimal initial poses, a key chal-
+while SPR continues to achieve successful completions. This            lenge in LIBERO-Plus Robot. The arm begins with poor
+widening gap confirms that subtask-level progress planning             alignment to the book, and the first grasp fails. Unlike
+becomes increasingly critical as task complexity grows, and            baselines that persist with failures or knock over objects,
+that SPR’s structured decomposition scales effectively to              SPR’s Rewind mechanism detects the failure and returns
+challenging long-horizon scenarios.                                    to the initial position, enabling a successful approach from
+                                                                       a better angle. This autonomous recovery is valuable for
+4.6 Visualization                                                      deployment scenarios with variable initial conditions.
+
+We present representative examples demonstrating SPR’s                 4.7 Failure Analysis
+fine-grained spatial planning and robust error recovery
+across diverse scenarios.                                              Figure 10 illustrates representative failure modes of our
+Fine-Grained Spatial Subtask Decomposition. Figure 9                   approach and their underlying causes. Despite the robust
+illustrates SPR’s task decomposition capabilities. (d) shows           performance of our SPR framework, we identify three pri-
+accurate decomposition of basic pick-and-place with seman-             mary failure patterns that highlight remaining challenges in
+tic descriptions and spatial coordinates. (c) demonstrates             vision-language-action models.
+understanding of relative positioning constraints. (b) val-
+idates robustness under distribution shift: SPR maintains                  Precision limitation from discrete action tokens. Our
+accurate subtask decomposition when object layouts deviate             model outputs actions as discrete token sequences, which
+from training configurations. (a) showcases generalization             inherently limits the precision of continuous control com-
+to complex sequential tasks like door closing, correctly               mands. This discretization, while beneficial for leveraging
+identifying distinct manipulation phases and spatial goals.            language model architectures, introduces quantization er-
+Error Recovery through Rewind. Figure 8 (c) demonstrates               rors that become particularly problematic for tasks requiring
+handling execution failures that create unexpected state               fine-grained manipulation. As shown in Figure 10(a), when
+transitions. When the mug grasp fails but the arm continues            tasked with placing a mug precisely at the center of a
+to the plate position, standard VLA models struggle with               plate, the model instead places it near the edge. This occurs
+this severe distribution shift—the robot reaches the target            because the discrete action space cannot adequately capture
+                                                                       the subtle control nuances needed for millimeter-level preci-
+                                                                       sion. Such failures are especially prevalent in tasks involving
+IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE   11
+
+careful object placement, alignment, or insertion operations     REFERENCES
+where small deviations lead to task failure.
+                                                                 [1] H. Liu, A. Chen, Y. Zhu, A. Swaminathan, A. Kolobov, and C.-A.
+    Rewind ineffectiveness when physically stuck. While                Cheng, “Interactive robot learning from verbal correction,” arXiv
+our progress-aware rewind mechanism successfully detects               preprint arXiv:2310.17555, 2023.
+anomalies through subtask count monitoring, it fundamen-
+tally relies on the robot’s ability to execute actions that      [2] L. X. Shi, Z. Hu, T. Z. Zhao, A. Sharma, K. Pertsch, J. Luo,
+change its state. When the robot becomes physically con-               S. Levine, and C. Finn, “Yell at your robot: Improving on-the-fly
+strained or stuck during execution, the rewind mechanism               from language corrections,” arXiv preprint arXiv:2403.12910, 2024.
+fails because the physical obstruction prevents meaningful
+state transitions. Figure 10(b) demonstrates this limitation:    [3] C.-P. Huang, Y.-H. Wu, M.-H. Chen, Y.-C. F. Wang, and F.-E. Yang,
+when attempting to place a mug in a microwave, the mug                 “Thinkact: Vision-language-action reasoning via reinforced visual
+becomes lodged at the microwave’s edge. Despite the model              latent planning,” arXiv preprint arXiv:2507.16815, 2025.
+issuing rewind commands, the physical constraint prevents
+the robot from moving, leaving the subtask count un-             [4] J. Duan, W. Pumacay, N. Kumar, Y. R. Wang, S. Tian, W. Yuan,
+changed and the anomaly detection unable to trigger proper             R. Krishna, D. Fox, A. Mandlekar, and Y. Guo, “Aha: A vision-
+recovery. This failure mode reveals a critical gap between             language-model for detecting and reasoning over failures in
+progress awareness and physical state awareness—our sys-               robotic manipulation,” arXiv preprint arXiv:2410.00371, 2024.
+tem can detect logical inconsistencies but cannot directly
+sense physical impediments.                                      [5] W. Lu, M. Ye, Z. Ye, R. Tao, S. Yang, and B. Zhao, “Robofac: A com-
+                                                                       prehensive framework for robotic failure analysis and correction,”
+    Persistent failure despite successful rewind. Perhaps              arXiv preprint arXiv:2505.12224, 2025.
+most concerning are cases where our model correctly iden-
+tifies execution errors, successfully triggers and executes the  [6] P. Zhi, Z. Zhang, Y. Zhao, M. Han, Z. Zhang, Z. Li, Z. Jiao, B. Jia,
+rewind procedure, yet remains unable to complete the task.             and S. Huang, “Closed-loop open-vocabulary mobile manipula-
+Figure 10(c) illustrates this complex failure pattern during           tion with gpt-4v,” arXiv preprint arXiv:2404.10220, 2025.
+a grasp bbq sauce task. Initially, the model encounters
+spatial misalignment between the gripper and target object,      [7] Z. Liu, A. Bahety, and S. Song, “Reflect: Summarizing robot
+correctly triggering a rewind. However, after rewinding, the           experiences for failure explanation and correction,” arXiv preprint
+model fails to correct the misalignment. In subsequent at-             arXiv:2306.15724, 2023.
+tempts, even after returning to the initial position, the model
+exhibits hallucination behavior with significant positional      [8] Z. Zhang, K. Zheng, Z. Chen, J. Jang, Y. Li, S. Han, C. Wang,
+deviations from the target object. Most troublingly, even in           M. Ding, D. Fox, and H. Yao, “Grape: Generalizing robot policy
+instances where the predicted 2D trajectory and subtask                via preference alignment,” arXiv preprint arXiv:2411.19309, 2024.
+waypoints accurately indicate the correct target location,
+the generated actions fail to align with these planned way-      [9] M. Zawalski, W. Chen, K. Pertsch, O. Mees, C. Finn, and S. Levine,
+points, resulting in the gripper moving to different posi-             “Robotic control via embodied chain-of-thought reasoning,” arXiv
+tions than intended. This reveals a fundamental disconnect             preprint arXiv:2407.08693, 2024.
+between the model’s spatial planning capabilities and its
+action execution—while it can correctly perceive and plan        [10] J. Lee, J. Duan, H. Fang, Y. Deng, S. Liu, B. Li, B. Fang, J. Zhang,
+where to go, the actions it generates do not faithfully follow         Y. R. Wang, S. Lee, W. Han, W. Pumacay, A. Wu, R. Hendrix,
+these plans. Such failures indicate that spatial awareness             K. Farley, E. VanderBilt, A. Farhadi, D. Fox, and R. Krishna,
+and trajectory planning alone are insufficient without ensur-          “Molmoact: Action reasoning models that can reason in space,”
+ing consistency between planned waypoints and executed                 arXiv preprint arXiv:2508.07917, 2025.
+actions.
+                                                                 [11] R. Yang, Z. An, L. ZHou, and Y. Feng, “Seqvla: Sequential task
+5 CONCLUSION                                                           execution for long-horizon manipulation with completion-aware
+                                                                       vision-language-action model,” arXiv preprint arXiv:2509.14138,
+We introduce See, Plan, Rewind (SPR), a vision-language-               2025.
+action framework for robust manipulation via spatial sub-
+task decomposition and autonomous recovery. Extensive            [12] Z. Lin, J. Duan, H. Fang, D. Fox, R. Krishna, C. Tan, and
+experiments validate our approach: SPR outperforms Mol-                B. Wen, “Failsafe: Reasoning and recovery from failures in vision-
+moAct by 5% on LIBERO. On the challenging LIBERO-Plus                  language-action models,” arXiv preprint arXiv:2510.01642, 2025.
+benchmark, it achieves state-of-the-art robustness, exhibit-
+ing the smallest performance degradation (–18.8% in aver-        [13] O. Sime´oni, H. V. Vo, M. Seitzer, F. Baldassarre, M. Oquab, C. Jose,
+age) across unseen instructions and initial states perturba-           V. Khalidov, M. Szafraniec, S. Yi, M. Ramamonjisoa, F. Massa,
+tions, underscores its superior generalization. Future work            D. Haziza, L. Wehrstedt, J. Wang, T. Darcet, T. Moutakanni,
+will be extending our method to diverse simulations, and               L. Sentana, C. Roberts, A. Vedaldi, J. Tolan, J. Brandt, C. Couprie,
+real-world scenarios while handling noisy or suboptimal                J. Mairal, H. Je´gou, P. Labatut, and P. Bojanowski, “DINOv3,”
+training demonstrations.                                               arXiv preprint arXiv:2508.10104, 2025.
+
+                                                                 [14] A. Kirillov, E. Mintun, N. Ravi, H. Mao, C. Rolland, L. Gustafson,
+                                                                       T. Xiao, S. Whitehead, A. C. Berg, W.-Y. Lo, P. Dolla´r, and R. Gir-
+                                                                       shick, “Segment anything,” arXiv:2304.02643, 2023.
+
+                                                                 [15] B. Liu, Y. Zhu, C. Gao, Y. Feng, Q. Liu, Y. Zhu, and P. Stone,
+                                                                       “Libero: Benchmarking knowledge transfer for lifelong robot
+                                                                       learning,” Advances in Neural Information Processing Systems,
+                                                                       vol. 36, pp. 44 776–44 791, 2023.
+
+                                                                 [16] M. J. Kim, C. Finn, and P. Liang, “Fine-tuning vision-language-
+                                                                       action models: Optimizing speed and success,” arXiv preprint
+                                                                       arXiv:2502.19645, 2025.
+
+                                                                 [17] S. Fei, S. Wang, J. Shi, Z. Dai, J. Cai, P. Qian, L. Ji, X. He, S. Zhang,
+                                                                       Z. Fei et al., “Libero-plus: In-depth robustness analysis of vision-
+                                                                       language-action models,” arXiv preprint arXiv:2510.13626, 2025.
+
+                                                                 [18] Q. Bu, Y. Yang, J. Cai, S. Gao, G. Ren, M. Yao, P. Luo, and
+                                                                       H. Li, “Univla: Learning to act anywhere with task-centric latent
+                                                                       actions,” arXiv preprint arXiv:2505.06111, 2025.
+
+                                                                 [19] L. Beyer, A. Steiner, A. S. Pinto, A. Kolesnikov, X. Wang, D. Salz,
+                                                                       M. Neumann, I. Alabdulmohsin, M. Tschannen, E. Bugliarello
+                                                                       et al., “Paligemma: A versatile 3b vlm for transfer,” arXiv preprint
+                                                                       arXiv:2407.07726, 2024.
+
+                                                                 [20] S. Karamcheti, S. Nair, A. Balakrishna, P. Liang, T. Kollar, and
+                                                                       D. Sadigh, “Prismatic vlms: Investigating the design space of
+                                                                       visually-conditioned language models,” in Forty-first International
+                                                                       Conference on Machine Learning, 2024.
+
+                                                                 [21] J.-B. Alayrac, J. Donahue, P. Luc, A. Miech, I. Barr, Y. Hasson,
+                                                                       K. Lenc, A. Mensch, K. Millican, M. Reynolds et al., “Flamingo: a
+                                                                       visual language model for few-shot learning,” Advances in neural
+                                                                       information processing systems, vol. 35, pp. 23 716–23 736, 2022.
+IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE                  12
+
+[22] X. Yang, J. Lu, and E. Yu, “Walking the tightrope: Disentan-                     vision language action model for embodied tasks,” arXiv preprint
+      gling beneficial and detrimental drifts in non-stationary custom-               arXiv:2504.19854, 2025.
+      tuning,” in The Thirty-ninth Annual Conference on Neural Information      [42] C. Chi, Z. Xu, S. Feng, E. Cousineau, Y. Du, B. Burchfiel,
+      Processing Systems, 2025.                                                       R. Tedrake, and S. Song, “Diffusion policy: Visuomotor policy
+                                                                                      learning via action diffusion,” The International Journal of Robotics
+[23] E. Yu, J. Lu, X. Yang, G. Zhang, and Z. Fang, “Learning robust                   Research, vol. 44, no. 10-11, pp. 1684–1704, 2025.
+      spectral dynamics for temporal domain generalization,” in The             [43] O. M. Team, D. Ghosh, H. Walke, K. Pertsch, K. Black, O. Mees,
+      Thirty-ninth Annual Conference on Neural Information Processing                 S. Dasari, J. Hejna, T. Kreiman, C. Xu et al., “Octo: An open-source
+      Systems, 2025.                                                                  generalist robot policy,” arXiv preprint arXiv:2405.12213, 2024.
+
+[24] A. O’Neill, A. Rehman, A. Maddukuri, A. Gupta, A. Padalkar,
+      A. Lee, A. Pooley, A. Gupta, A. Mandlekar, A. Jain et al., “Open
+      x-embodiment: Robotic learning datasets and rt-x models: Open x-
+      embodiment collaboration 0,” in 2024 IEEE International Conference
+      on Robotics and Automation (ICRA). IEEE, 2024, pp. 6892–6903.
+
+[25] F. Ebert, Y. Yang, K. Schmeckpeper, B. Bucher, G. Georgakis,
+      K. Daniilidis, C. Finn, and S. Levine, “Bridge data: Boosting
+      generalization of robotic skills with cross-domain datasets,” arXiv
+      preprint arXiv:2109.13396, 2021.
+
+[26] A. Khazatsky, K. Pertsch, S. Nair, A. Balakrishna, S. Dasari,
+      S. Karamcheti, S. Nasiriany, M. K. Srirama, L. Y. Chen, K. Ellis et al.,
+      “Droid: A large-scale in-the-wild robot manipulation dataset,”
+      arXiv preprint arXiv:2403.12945, 2024.
+
+[27] A. Brohan, N. Brown, J. Carbajal, Y. Chebotar, J. Dabis, C. Finn,
+      K. Gopalakrishnan, K. Hausman, A. Herzog, J. Hsu et al., “Rt-1:
+      Robotics transformer for real-world control at scale,” arXiv preprint
+      arXiv:2212.06817, 2022.
+
+[28] D. Qu, H. Song, Q. Chen, Y. Yao, X. Ye, Y. Ding, Z. Wang,
+      J. Gu, B. Zhao, D. Wang et al., “Spatialvla: Exploring spatial
+      representations for visual-language-action model,” arXiv preprint
+      arXiv:2501.15830, 2025.
+
+[29] A. Brohan, N. Brown, J. Carbajal, Y. Chebotar, X. Chen, K. Choro-
+      manski, T. Ding, D. Driess, A. Dubey, C. Finn et al., “Rt-2: Vision-
+      language-action models transfer web knowledge to robotic con-
+      trol, 2023,” URL https://arxiv. org/abs/2307.15818, 2024.
+
+[30] M. Kim, K. Pertsch, S. Karamcheti, T. Xiao, A. Balakrishna, S. Nair,
+      R. Rafailov, E. Foster, G. Lam, P. Sanketi, Q. Vuong, T. Kollar,
+      B. Burchfiel, R. Tedrake, D. Sadigh, S. Levine, P. Liang, and C. Finn,
+      “Openvla: An open-source vision-language-action model,” arXiv
+      preprint arXiv:2406.09246, 2024.
+
+[31] K. Black, N. Brown, D. Driess, A. Esmail, M. Equi, C. Finn, N. Fu-
+      sai, L. Groom, K. Hausman, B. Ichter et al., “π0: A vision-language-
+      action flow model for general robot control. corr, abs/2410.24164,
+      2024. doi: 10.48550,” arXiv preprint ARXIV.2410.24164, 2025.
+
+[32] P. Intelligence, K. Black, N. Brown, J. Darpinian, K. Dhabalia,
+      D. Driess, A. Esmail, M. Equi, C. Finn, N. Fusai et al., “π0. 5:
+      a vision-language-action model with open-world generalization,
+      2025,” URL https://arxiv. org/abs/2504.16054, vol. 1, no. 2, p. 3, 2025.
+
+[33] Q. Gu, Y. Ju, S. Sun, I. Gilitschenski, H. Nishimura, M. Itkina, and
+      F. Shkurti, “Safe: Multitask failure detection for vision-language-
+      action models,” arXiv preprint arXiv:2506.09937, 2025.
+
+[34] K. Palempalli, R. Banerjee, S. Dean, and T. Bhattacharjee, “Human-
+      in-the-loop foundation model failure recovery for robot-assisted
+      bite acquisition,” in 1st Workshop on Safely Leveraging Vision-
+      Language Foundation Models in Robotics: Challenges and Opportuni-
+      ties.
+
+[35] H. Chen, Y. Yao, R. Liu, C. Liu, and J. Ichnowski, “Automating
+      robot failure recovery using vision-language models with opti-
+      mized prompts,” arXiv preprint arXiv:2409.03966, 2024.
+
+[36] Y. Dai, J. Lee, N. Fazeli, and J. Chai, “Racer: Rich language-guided
+      failure recovery policies for imitation learning,” in 2025 IEEE
+      International Conference on Robotics and Automation (ICRA). IEEE,
+      2025, pp. 15 657–15 664.
+
+[37] M. S. Sakib and Y. Sun, “Star: A foundation model-driven frame-
+      work for robust task planning and failure recovery in robotic
+      systems,” arXiv preprint arXiv:2503.06060, 2025.
+
+[38] DeepSeek-AI, “Deepseek-r1: Incentivizing reasoning capability in
+      llms via reinforcement learning,” arXiv preprint arXiv:2501.12948,
+      2025.
+
+[39] K. Pertsch, K. Stachowicz, B. Ichter, D. Driess, S. Nair, Q. Vuong,
+      O. Mees, C. Finn, and S. Levine, “Fast: Efficient action to-
+      kenization for vision-language-action models,” arXiv preprint
+      arXiv:2501.09747, 2025.
+
+[40] J. Cen, C. Yu, H. Yuan, Y. Jiang, S. Huang, J. Guo, X. Li, Y. Song,
+      H. Luo, F. Wang et al., “Worldvla: Towards autoregressive action
+      world model,” arXiv preprint arXiv:2506.21539, 2025.
+
+[41] C.-Y. Hung, Q. Sun, P. Hong, A. Zadeh, C. Li, U.-X. Tan, N. Ma-
+      jumder, and S. Poria, “Nora: A small open-sourced generalist
+

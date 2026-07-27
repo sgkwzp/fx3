@@ -1,0 +1,1067 @@
+                                        Cross-task weakly supervised learning from instructional videos
+
+                                        Dimitri Zhukov1,2  Jean-Baptiste Alayrac1,3                                   Ramazan Gokberk Cinbis4  David Fouhey5
+                                                                   Ivan Laptev1,2                                       Josef Sivic1,2,6
+
+arXiv:1903.08225v2 [cs.CV] 29 Apr 2019                          Abstract                                              Making Meringue               …
+                                                                                                                            Pour egg
+                                           In this paper we investigate learning visual models for                         Add sugar           Making Lemonade
+                                        the steps of ordinary tasks using weak supervision via in-                                                  Pour water
+                                        structional narrations and an ordered list of steps instead                     Whisk mixture
+                                        of strong supervision via temporal annotations. At the
+                                        heart of our approach is the observation that weakly su-                          Making Pancakes
+                                        pervised learning may be easier if a model shares com-                                Pour mixture
+                                        ponents while learning different steps: “pour egg” should
+                                        be trained jointly with other tasks involving “pour” and                      Figure 1. Our method begins with a collection of tasks, each con-
+                                        “egg”. We formalize this in a component model for recog-                      sisting of an ordered list of steps and a set of instructional videos
+                                        nizing steps and a weakly supervised learning framework                       from YouTube. It automatically discovers both where the steps oc-
+                                        that can learn this model under temporal constraints from                     cur and what they look like. To do this, it uses the order, narration
+                                        narration and the list of steps. Past data does not permit                    and commonalities in appearance across tasks (e.g., the appear-
+                                        systematic studying of sharing and so we also gather a new                    ance of pour in both making pancakes and making meringue).
+                                        dataset, CrossTask, aimed at assessing cross-task sharing.
+                                        Our experiments demonstrate that sharing across tasks im-                     similarly learn visual models from instructional videos and
+                                        proves performance, especially when done at the compo-                        in particular, make use of shared information across tasks
+                                        nent level and that our component model can parse previ-                      (e.g., making lattes and making ﬁlter coffee).
+                                        ously unseen tasks by virtue of its compositionality.
+                                                                                                                         The conventional approach for building visual models
+                                        1. Introduction                                                               of how to do things [8, 30, 31] is to ﬁrst annotate each
+                                                                                                                      step of each task in time and then train a supervised clas-
+                                           Suppose you buy a fancy new coffee machine and you                         siﬁer for each. Obtaining strong supervision in the form
+                                        would like to make a latte. How might you do this? After                      of temporal step annotations is time-consuming, unscal-
+                                        skimming the instructions, you may start watching instruc-                    able and, as demonstrated by humans’ ability to learn from
+                                        tional videos on YouTube to ﬁgure out what each step en-                      demonstrations, unnecessary. Ideally, the method should be
+                                        tails: how to press the coffee, steam the milk, and so on. In                 weakly supervised (i.e., like [1, 18, 22, 29]) and jointly learn
+                                        the process, you would obtain a good visual model of what                     when steps occur and what they look like. Unfortunately,
+                                        each step, and thus the entire task, looks like. Moreover,                    any weakly supervised approach faces two large challenges.
+                                        you could use parts of this visual model of making lattes                     Temporally localizing steps in the input videos for each task
+                                        to help understand videos of a new task, e.g., making ﬁl-                     is hard as there is a combinatorial set of options for the step
+                                        ter coffee, since various nouns and verbs are shared. The                     locations; and, even if the steps were localized, each visual
+                                        goal of this paper is to build automated systems that can                     model learns from limited data and may work poorly.
+
+                                             1Inria, France                                                              We show how to overcome these challenges by sharing
+                                             2De´partement d’informatique de l’Ecole Normale Supe´rieure, PSL         across tasks and using weaker and naturally occurring forms
+                                        Research University, Paris, France                                            of supervision. The related tasks let us learn better visual
+                                             3Now at DeepMind                                                         models by exploiting commonality across steps as illus-
+                                             4Middle East Technical University, Ankara, Turkey                        trated in Figure 1. For example, while learning about pour
+                                             5University of Michigan, Ann Arbor, MI                                   water in making latte, the model for pour also depends on
+                                             6CIIRC – Czech Institute of Informatics, Robotics and Cybernetics at     pour milk in making pancakes and the model for water also
+                                        the Czech Technical University in Prague
+
+                                                                                                                   1
+depends on put vegetables in water in making bread and          proposed method does not depend on having lots of anno-
+butter pickles. We assume an ordered list of steps is given     tated data for our problem.
+per task and that the videos are instructional (i.e., have a
+natural language narration describing what is being done).         We are not the ﬁrst to try to learn with weak supervision
+As it is often the case in weakly supervised video learning     in videos and our work bears resemblances to past efforts.
+[2, 18, 29], these assumptions constrain the search for when    For instance, we make use of ordering constraints to obtain
+steps occur, helping tackle a combinatorial search space.       supervision, as was done in [5, 18, 22, 26, 6]. The aim of
+                                                                our work is perhaps closest to [1, 24, 29] as they also use
+   We formalize these intuitions in a framework, described      narrations in the context of instructional videos. Among
+in Section B, that enables compositional sharing across         a number of distinctions with each individual work, one
+tasks together with temporal constraints for weakly super-      signiﬁcant novelty of our work is the compositional model
+vised learning. Rather than learning each step as a mono-       used, where instead of learning a monolithic model inde-
+lithic weakly-supervised classiﬁer, our formulation learns a    pendently per-step as done in [1, 29], the framework shares
+component model that represents the model for each step as      components (e.g., nouns and verbs) across steps. This shar-
+the combination of models of its components, or the words       ing improves performance, as we empirically conﬁrm, and
+in each step (e.g., pour in pour water). This empirically im-   enables the parsing of unseen tasks.
+proves learning performance and these component models
+can be recombined in new ways to parse videos for tasks            In order to properly evaluate the importance of sharing,
+for which it was not trained, simply by virtue of their rep-    we gather a dataset of instructional videos. These have
+resentation. This component model, however, prevents the        attracted a great deal of attention recently [1, 2, 19, 20,
+direct application of techniques previously used for weakly     24, 29, 35] since the co-occurrence of demonstrative vi-
+supervised learning in similar settings (e.g., DIFFRAC [3]      sual actions and natural language enables many interesting
+in [2]); we therefore introduce a new and more general for-     tasks ranging from coreference resolution [19] to learning
+mulation that can handle more arbitrary objectives.             person-object interaction [2, 10]. Existing data, however, is
+                                                                either not large (e.g., only 5 tasks [2]), not diverse (e.g.,
+   Existing instructional video datasets do not permit the      YouCookII [35] is only cooking), or not densely tempo-
+systematic study of this sharing. We gather a new dataset,      rally annotated (e.g., What’s Cooking? [24]). We thus col-
+CrossTask, which we introduce in Section C. This dataset        lect a dataset that is: (i) relatively large (83 tasks, 4.7K
+consists of 4.7K instructional videos for 83 different tasks,   videos); (ii) simultaneously diverse (Covering car mainte-
+covering 376 hours of footage. We use this dataset to com-      nance, cooking, crafting) yet also permitting the evaluation
+pare our proposed approach with a number of alternatives in     of sharing as it has related tasks; and (iii) annotated for tem-
+experiments described in Section D. Our experiments aim         poral localization, permitting evaluation. The scale, and re-
+to assess the following three questions: how well does the      latedness, as we demonstrate empirically contribute to in-
+system learn in a standard weakly supervised setup; can it      creased performance of visual models.
+exploit related tasks to improve performance; and how well
+can it parse previously unseen tasks.                              Our technical approach to the problem builds particu-
+                                                                larly heavily on the use of discriminative clustering [3, 32],
+   The paper’s contributions include: (1) A component           or the simultaneous constrained grouping of data samples
+model that shares information between steps for weakly su-      and learning of classiﬁers for groups. Past work in this area
+pervised learning from instructional videos; (2) A weakly       has either had operated with complex constraints and a re-
+supervised learning framework that can handle such a            stricted classiﬁer (e.g., minimizing the L2 loss with linear
+model together with constraints incorporating different         model [3, 2]) or an unrestricted classiﬁer, such as a deep
+forms of weak supervision; and (3) A new dataset that is        network, but no constraints [4, 7]. Our weakly supervised
+larger and more diverse than past efforts, which we use to      setting requires the ability to add constraints in order to
+empirically validate the ﬁrst two contributions. We make        converge to a good solution while our compositional model
+our dataset and our code publically available1.                 and desired loss function requires the ability to use an un-
+                                                                restricted classiﬁer. We therefore propose an optimization
+2. Related Work                                                 approach that handles both, letting us train with a composi-
+                                                                tional model while also using temporal constraints.
+   Learning the visual appearance of steps of a task from
+instructional videos is a form of action recognition. Most         Finally, our sharing between tasks is enabled via the
+work in this area, e.g., [8, 30, 31], uses strong supervision   composition of the components of each step (e.g., nouns,
+in the form of direct labels, including a lot of work that fo-  verbs). This is similar to attributes [12, 13], which have
+cuses on similar objectives [9, 11, 14]. We build our feature   been used in action recognition in the past [23, 33]. Our
+representations on top of advances in this area [8], but our    components are meaningful (representing, e.g., “lemon”)
+                                                                but also automatically built; they are thus different than
+     1https://github.com/DmZhukov/CrossTask                     pre-deﬁned semantic attributes (not automatic) and the non-
+   Shared   ...| pour | milk | whisk | mixture | egg | spread | ...
+Components
+                                                                                         Video
+
+Tasks       Make                                                                                                                                                              Update Y
+              pancakes
+
+                                                                    Make
+                                                                      meringue
+                                                                                                                                                                    Update F
+            ..., pour milk, ..., whisk mixture, ...  pour egg, ..., spread mixture, ...    Alternate                                                                                    pour milk?
+                                                                                         Optimization
+
+   Step                                                                                  Constraints                                                                                    Time
+Classifier
+
+                                                                                         Narration "[...] now I'm gonna pour some milk into the bowl and [...]"
+
+Figure 2. Our approach expresses classiﬁers for each step of each task in terms of a component model (e.g., writing the pour milk as a pour
+and milk classiﬁer). We thus cast the problem of learning the steps as learning an underlying set of component models. We learn these
+models by alternating between updating labels for these classiﬁers and the classiﬁers themselves while using constraints from narrations.
+
+semantic attributes (not intrinsically meaningful) as deﬁned         Problem formulation. We denote the set of narrated in-
+in [12]. It is also related to methods that compose new clas-        structional videos V. Each video v ∈ V contains a sequence
+siﬁers from others, including [25, 34, 15] among many oth-           of Nv segments of visual features Xv = (x1, . . . , xNv ) as
+ers. Our framework is orthogonal, and shows how to learn             well as narrations we use later. For every task τ we assume
+these in a weakly-supervised setting.                                to be given a set of videos Vτ together with a set of ordered
+                                                                     natural language steps Kτ .
+3. Overview
+                                                                        Our goal is then to discover a set of classiﬁers F that
+   Our goal is to build visual models for a set of tasks from        can identify the steps of the tasks. In other words, if τ is a
+instructional videos. Each task is a multi-step process such         task and k is its step, the classiﬁer f τk determines whether
+as making latte consisting of multiple steps, such as pour           a visual feature depicts step k of τ or not. To do this, we
+milk. We aim to learn a visual model for each of these steps.        also learn a labeling Y of the training set for the classiﬁers,
+Our approach uses component models that represent each               or for every video v depicting task τ , a binary label matrix
+step in terms of its constituent components as opposed to            Y v ∈ {0, 1}Nv×Kτ where Y vtk = 1 if time t depicts step
+a monolithic entity, as illustrated in Figure 2. For instance,       k and 0 otherwise. While jointly learning labels and clas-
+rather than building a classiﬁer solely for whisk mixture in         siﬁers leads to trivial solutions, we can eliminate these and
+the context of make pancakes, we learn a set of classiﬁers           make meaningful progress by constraining Y and by shar-
+per-component, one for whisk, spread, mixture and so on,             ing information across the classiﬁers of F .
+and represent whisk mixture as the combination of whisk
+and mixture and share mixture with spread mixture. This              4.1. Component Classiﬁers
+shares data between steps and enables the parsing of previ-
+ously unseen tasks, which we both verify empirically.                   One of the main focuses of this paper is in the form of
+                                                                     the step classiﬁer f . Speciﬁcally, we propose a component
+   We make a number of assumptions. Throughout, we as-               model that represents each step (e.g., “pour milk”) as a com-
+sume that we are given an ordered list of steps for each task.       bination of components (e.g., “pour” and “milk”). Before
+This list is our only source of manual supervision and is            explaining how we formulate this, we place it in context by
+done once per-task and is far less time consuming than an-           introducing a variety of alternatives that vary in terms of
+notating a temporal segmentation of each step in the input           how they are learned and formulated.
+videos. At training time, we also assume that our training
+videos contain audio that explains what actions are being               The simplest approach, a task-speciﬁc step model, is
+performed. At test time, however, we do not use the audio            to learn a classiﬁer for each step in the training set (i.e., a
+track: just like a person who watches a video online, once           model for pour egg for the particular task of making pan-
+our system is shown how to make a latte with narration, it           cakes). Here, the model simply learns τ Kτ classiﬁers,
+is expected to follow along without step-by-step narrations.         one for each of the Kτ steps in each task, which is simple
+                                                                     but which permits no sharing.
+4. Modeling Instructional Videos
+                                                                        One way of adding sharing would be to have a shared
+   We now describe our technical approach for using a list           step model, where a single classiﬁer is learned for each
+of steps to jointly learn the labels and visual models on a set      unique step in the dataset. For instance, the pour egg clas-
+of narrated instructional videos. This is weakly supervised          siﬁer learns from both making meringues and making pan-
+since we provide only the list of steps, but not their temporal      cakes. This sharing, however, would be limited to exact
+locations in training videos.                                        duplicates of steps, and so while whisk milk and pour milk
+                                                                     both share an object, they would be learned separately.
+
+                                                                        Our proposed component model ﬁxes this issue. We au-
+tomatically generate a vocabulary of components by taking             narrated videos contain spurious mentions of tasks (e.g.,
+                                                                      ”before putting the steak on the grill, we clean the grill”)
+the set of stemmed words in all the steps. These compo-               we do not directly use this matrix, but instead ﬁnd an as-
+                                                                      signment of steps to locations that maximizes the total sim-
+nents are typically objects, verbs and prepositions and we            ilarity while respecting the ordering constraints. The visual
+                                                                      model must then more precisely identify when the action
+combine classiﬁers for each component to yield our steps.             appears. We then impose a simple hard constraint of disal-
+                                                                      lowing labelings Y v where any step is outside of the text-
+In particular, for a vocabulary of M components, we deﬁne             based interval (average length 9s)
+a per-task matrix Aτ ∈ {0, 1}Kτ ×M where Aτk,m = 1 if the
+step k involves components m and 0 otherwise. We then                 4.3. Optimization and Inference
+
+learn M classiﬁers g1, . . . , gM such that the prediction of a          We solve problem (2) by alternating between updating
+step f τk is the average of predictions provided by component         assignments Y and the parameters of the classiﬁers F .
+classiﬁers                                                            Updating Y . When F is ﬁxed, we can minimize (2) w.r.t.
+                                                                      Y independently for each video. In particular, ﬁxing F ﬁxes
+fkτ (x) = Aτkmgm(x)/ Akm τ .                              (1)         the classiﬁer scores, meaning that minimizing (2) with re-
+                                                                      spect to Y v is a constrained minimization of a linear cost in
+           m             m                                            Y subject to constraints. Our supplemental shows that this
+                                                                      can be done by dynamic programming.
+For instance, the score for pour milk is the average of out-
+puts of gpour and gmilk. In other words, when optimizing over         Updating F . When Y is ﬁxed, our cost function reduces
+the set of functions F , we optimize over the parameters of           to a standard supervised classiﬁcation problem. We can
+{gi} so that when combined together in step models via (1),           thus apply standard techniques for solving these, such as
+they produce the desired results.                                     stochastic gradient descent. More details are provided be-
+                                                                      low and in the supplemental material.
+4.2. Objective and Constraints                                        Initialization. Our objective is non-convex and has local
+                                                                      minima, thus a proper initialization is important. We ob-
+   Having described the setup and classiﬁers, we now de-              tain such an initialization by treating all assignments that
+scribe the objective function we minimize. Our goal is to si-         satisfy the temporal text localization constraints as ground-
+multaneously optimize over step location labels Y and clas-           truth and optimizing for F for 30 epochs, each time drawing
+siﬁers F over all videos and tasks                                    a random sample that satisﬁes the constraints.
+
+min                   h(Xv, Y v; F ),                     (2)         Inference. Once the model has been ﬁt to the data, in-
+Y ∈C,F ∈F                                                             ference on a new video v of a task τ is simple. After ex-
+           τ v∈V(τ )                                                  tracting features, we run each classiﬁer f on every temporal
+                                                                      segment, resulting in a Nv × Kτ score matrix. To obtain
+where C is the set of temporal constraints on Y deﬁned be-            a hard labeling, we use dynamic programming to ﬁnd the
+                                                                      best-scoring labeling that respects the given order of steps.
+low, and F is a family of considered classiﬁers. Our objec-
+                                                                      4.4. Implementation Details
+tive function per-video is a standard cross-entropy loss
+                                                                         Networks: Due to the limited data size and noisy super-
+                                                                    vision, we use a linear classiﬁer with dropout for regulariza-
+                                                                      tion. Preliminary experiments with deeper models did not
+h(Xv, Y v; F ) = − Ytkv log  τ v exp (fkτ (xvt ))  .                yield improvements. We use ADAM [21] with the learning
+                        t,k k exp(fk (xt ))                           rate of 10−5 for optimization. Features: We represent each
+                                                                 (3)  video segment xi using RGB I3D features [8] (1024D),
+                                                                      Resnet-152 features [16] (2048D) extracted at each frame
+Optimizing (2) may lead to trivial solutions (e.g., Y v =             and averaged over one-second temporal windows, and au-
+                                                                      dio features from [17] (128D). Components: We obtain
+0 and F outputting all zeros). We thus constrain our label-           the dictionary of components by ﬁnding the set of unique
+                                                                      stemmed words over all step descriptions. The total number
+ing of Y to avoid this and ensure a sensible solution. In             of components is 383. Hyperparameters: Dropout and the
+                                                                      learning rate are chosen on a validation data set.
+particular, we impose three constraints:
+
+At least once. We assume that every video v of a task de-
+
+picts each step k at least once, or t Y vtk ≥ 1.
+Temporal ordering. We assume that steps occur in the
+
+given order. While not always strictly correct, this dramati-
+
+cally reduces the search space and leads to better classiﬁers.
+
+Temporal text localization. We assume that the steps and
+
+corresponding narrations happen close in time, e.g., the nar-
+
+rator of a grill steak video may say “just put the marinated
+
+steak on the grill”. We automatically compare the text de-
+
+scription of each step to automatic YouTube subtitles. For
+
+a task with Kτ steps and a video with Nv frames, we con-
+struct a [0, 1]Nv×Kτ matrix of cosine similarities between
+
+steps and a sliding-window word vector representations of
+
+narrations (more details in supplementary materials). Since
+      Video Dataset                      Primary Tasks                                      Related Tasks
+
+                                  Make Bread & Butter Pickles                              Can Tomato Sauce
+
+                                  Cut cucumber, cut onion, add salt, pour water, …  Boil tomatoes, remove tomato skin, cut tomato, …
+
+                                                                 Make Latte         Make Caramel Macchiato
+
+                                  Build Simple Floating Shelves                     Build a Desk
+
+Figure 3. Our new dataset, used to study sharing in a weakly supervised learning setting. It contains primary tasks, such as make bread and
+butter pickles, as well as related tasks, such as can tomato sauce. This lets us study whether learning multiple tasks improves performance.
+
+Table 1. A comparison of CrossTask with existing instructional   how to get into a relationship); their step order must be de-
+datasets. Our dataset is both large and more diverse while also  terministic (unlike e.g., how to play chess); and they must
+having temporal annotations.                                     appear frequently on YouTube. We asked annotators to re-
+                                                                 view the tasks in ﬁve sections of wikihow to get tasks sat-
+      Num.   Total Num. Not only  Avail.                         isfying the ﬁrst two criteria, yielding ∼ 7K candidate tasks,
+      Vids  Length Tasks Cooking  Annots                         and manually ﬁlter for the third criteria.
+
+[2]   150   7h       5   Windows                                   We select 18 primary tasks and 65 related tasks from
+                                                                 these 7K candidate tasks. The primary tasks cover a va-
+[29]  1.2K+85 100h 17    Windows                                riety of themes (e.g., auto repair to cooking to DIY) and
+                                                                 include building ﬂoating shelves and making latte. We ﬁnd
+[35]  2K    176h 89              Windows                        65 related tasks by ﬁnding related tasks for each primary
+                                                                 task. We generate potential related tasks for a primary task
+[24]  180K 3,000h               Recipes                        by comparing the wikiHow articles using a TF-IDF on a
+                                                                 bag-of-words representation, which ﬁnds tasks with similar
+CrossTask 4.7K 376h 83   Windows                                descriptions. We then ﬁlter out near duplicates (e.g., how to
+                                                                 jack up a car and how to use a car jack) by comparing top
+5. CrossTask dataset                                             YouTube search results and removing candidates with over-
+                                                                 laps, and manually remove a handful of irrelevant tasks.
+   One goal of this paper is to investigate whether sharing
+improves the performance of weakly supervised learning              We deﬁne steps and their order for each task by exam-
+from instructional videos. To do this, we need a dataset cov-    ining the wikiHow articles, beginning with the summaries
+ering a diverse set of interrelated tasks and annotated with     of each step. Using the wikiHow summary itself is insufﬁ-
+temporal segments. Existing data fails to satisfy at least       cient, since many articles contain non-visual steps and some
+one of these criteria and we therefore collect a new dataset     steps combine multiple physical actions. We thus manually
+(83 tasks, 4.7K videos) related to cooking, car maintenance,     correct the list yielding a set of tasks with 7.4 steps on aver-
+crafting, and home repairs. These tasks and their steps          age for primary tasks and 8.8 for related tasks.
+are derived from wikiHow, a website that describes how to
+solve many tasks, and the videos come from YouTube.                 We then obtain videos for each task by searching
+                                                                 YouTube. Since the related tasks are only to aid the pri-
+   CrossTask dataset is divided into two sets of tasks to in-    mary tasks, we take the top 30 results from YouTube. For
+vestigate sharing. The ﬁrst is primary tasks, which are          primary tasks, we ask annotators to ﬁlter a larger pool of
+the main focus of our investigation and the backbone of the      top results while examining the video, steps, and wikiHow
+dataset. These are fully annotated and form the basis for        illustrations, yielding at least 80 videos per task.
+our evaluations. The second is related tasks with videos
+gathered in a more automatic way to share some, but not          5.2. Annotations and Statistics
+all, components with the primary tasks. One goal of our ex-
+periments is to assess whether these related tasks improve       Task localization annotations. Since our focus is the pri-
+the learning of primary tasks, and whether one can learn a       mary tasks, annotators mark the temporal extent of each pri-
+good model only on related tasks.                                mary task step independently. We do this for our 18 primary
+                                                                 tasks and make annotations publically available1.
+5.1. Video Collection Procedure                                  Dataset. This results in a dataset containing 2750 videos
+
+   We begin the collection process by deﬁning our tasks.
+These must satisfy three criteria: they must entail a se-
+quence of physical interactions with objects (unlike e.g.,
+                      Predictions on Unseen Data                                                           Failure Modes
+
+              Cut     Assemble  Sand         Paint               Attach             Lemonade French Toast  Whisk    Pour
+                                                                 Shelf
+Build         Shelf   Shelf     Shelf        Shelf                            Make                         Mixture  Egg
+   Shelves
+
+Make Banana     Peel    Cut     Put Bananas  Pour                    Mix      Make                          Cut     Squeeze
+   Ice Cream  Banana  Banana     in Blender  Milk                Ingredients                               Lemon    Lemon
+
+Figure 4. Predictions on unseen data as well as typical failure modes. Our method does well on steps with distinctive motions and
+appearances. Failure modes include (top) features that cannot make ﬁne-grained distinctions between e.g., egg and vanilla extract; and
+(bottom) models that overreact to particular nouns, preferring a more visible lemon over a less visible lemon actually being squeezed.
+
+of 18 primary tasks comprising 212 hours of video; and           performance of the model and showing that it outperforms
+1950 videos of 65 related tasks comprising 161 hours of          step-based alternatives. We answer (3) empirically in Sec-
+video. We contrast this dataset with past instructional video    tion 6.3 by training only on related tasks, and show that we
+datasets in Table 1. Our dataset is simultaneously large         are able to perform well on primary tasks.
+while also having precise temporal segment annotations.
+                                                                 6.1. Cross-task Learning
+   To illustrate the dataset, we report a few summary statis-
+tics about the primary task videos. The videos are quite            We begin by evaluating whether our proposed compo-
+long, with an average length of 4min 57sec, and depict fairly    nent model approach can use sharing to improve perfor-
+complex tasks, with 7.4 steps on average. Less complex           mance on a ﬁxed set of tasks. We ﬁx our evaluation to be
+tasks include jack up a car (3 steps); more complex ones         the 18 primary tasks and evaluate whether the model can
+include pickle cucumbers or change tire (11 steps each).         use the 65 related tasks to improve performance.
+Challenges. In addition to being long and complex, these         Metrics and setup. We evaluate results on 18 primary tasks
+videos are challenging since they do not precisely show the      over the videos that make up the test set. We quantify per-
+ordered steps we have deﬁned. For instance, in add oil to        formance via recall, which we deﬁne as the ratio between
+car, 85% of frames instead depict background information         the number of correct step assignments (deﬁned as falling
+such as shots of people talking or other things. This is not an  into the correct ground-truth time interval) and the total
+outlier: on average 72% of the dataset is background. On         number of steps over all videos. In other words, to get a
+the other hand, on average 31% of steps are not depicted         perfect score, a method must correctly identify one instance
+due to variances in procedures and omissions (pickle cu-         of each step of the task in each test video. All methods
+cumber has 48% of steps missing). Moreover, the steps do         make a single prediction per step, which prevents the trivial
+not necessarily appear in the correct order: to estimate the     solution of assigning all frames to all actions.
+order consistency, we compute an upper bound on perfor-
+mance using our given order and found that the best order-          We run experiments 20 times, each time making a train
+respecting parse of the data still missed 14% of steps.          set of 30 videos per task and leaving the remaining 1850
+                                                                 videos for test. We report the average. Hyperparameters are
+6. Experiments                                                   set for all methods using a ﬁxed validation set of 20 videos
+                                                                 per primary task that are never used for training or testing.
+   Our experiments aim to address the following three ques-      Baselines. Our goal is to examine whether our sharing ap-
+tions about cross-task sharing in the weakly-supervised set-     proach can leverage related tasks to improve performance
+ting: (1) Can the proposed method use related data to im-        on our primary task. We compare our method to its version
+prove performance? (2) How does the proposed component           without sharing as well as to a number of baselines. (1) Uni-
+model compare to sharing alternatives? (3) Can the compo-        form: simply predict steps at ﬁxed time intervals. Since this
+nent model transfer to previously unseen tasks? Through-         predicts steps in the correct order and steps often break tasks
+out, we evaluate on the large dataset introduced in Section C    into roughly equal chunks, this is fairly well-informed prior.
+that consists of primary tasks and related tasks. We address     (2) Alayrac’16: the weakly supervised learning method for
+(1) in Section 6.1 by comparing our proposed approach with       videos, proposed in [1]. This is similar in spirit to our ap-
+methods that do not share and show that our proposed ap-         proach except it does not share and optimizes a L2-criterion
+proach can use related tasks to improve performance on           via the DIFFRAC [3] method. (3) Richard’18: the weakly
+primary asks. Section 6.2 addresses (2) by analyzing the         supervised learning method [27] that does not rely on the
+Table 2. Weakly supervised recall scores on test set (in %). Our approach, which shares information across tasks, substantially and
+consistently outperforms non-sharing baselines. The standard deviation for reported scores does not exceed 1%.
+
+                             Make
+                               Kimchi Rice
+                                      Pickle
+                                         Cucumber
+                                             Make Banana
+                                                Ice Cream
+                                                     Grill
+                                                        Steak
+                                                            Jack Up
+                                                                Car
+                                                                    Make
+                                                                       Jello Shots
+                                                                           Change
+                                                                               Tire
+                                                                                   Make
+                                                                                      Lemonade
+                                                                                           Add Oil
+                                                                                              to Car
+                                                                                                  Make
+                                                                                                     Latte
+                                                                                                          Build
+                                                                                                             Shelves
+                                                                                                                  Make
+                                                                                                                    Taco Salad
+                                                                                                                         Make
+                                                                                                                            French Toast
+                                                                                                                                 Make
+                                                                                                                                    Irish Coffee
+                                                                                                                                        Make
+                                                                                                                                           Strawberry Cake
+                                                                                                                                                Make
+                                                                                                                                                   Pancakes
+                                                                                                                                                       Make
+                                                                                                                                                          Meringue
+                                                                                                                                                               Make
+                                                                                                                                                                  Fish Curry
+                                                                                                                                                                          Average
+
+Supervised                   19.1 25.3 38.0 37.5 25.7 28.2 54.3 25.8 18.3 31.2 47.7 12.0 39.5 23.4 30.9 41.1 53.4 17.3 31.6
+
+Uniform                      4.2 7.1 6.4 7.3 17.4 7.1 14.2 9.8 3.1 10.7 22.1 5.5 9.5 7.5 9.2 9.2 19.5 5.1 9.7
+
+Alayrac’16 [1]               15.6 10.6 7.5 14.2 9.3 11.8 17.3 13.1 6.4 12.9 27.2 9.2 15.7 8.6 16.3 13.0 23.2 7.4 13.3
+
+Richard’18 [27]              7.6 4.3 3.6 4.6 8.9 5.4 7.5 7.3 3.6 6.2 12.3 3.8 7.4 7.2 6.7 9.6 12.3 3.1 6.7
+
+Task-Speciﬁc Step-Based 13.2 17.6 19.3 19.3 9.7 12.6 30.4 16.0 4.5 19.0 29.0 9.1 29.1 14.5 22.9 29.0 32.9 7.3 18.6
+
+Proposed                     13.3 18.0 23.4 23.1 16.9 16.5 30.7 21.6 4.6 19.5 35.3 10.0 32.3 13.8 29.5 37.6 43.0 13.3 22.4
+
+Gain from Sharing            0.2 0.4 4.1 3.8 7.2 3.9 0.3 5.6 0.1 0.6 6.3 0.9 3.2 -0.7 6.6 8.7 10.1 6.0 3.7
+
+            Predicted        Ground Truth      Related Task         Quantitative results. Table 2 shows results summarized
+                                                                    across steps. The uniform baseline provides a strong lower
+          Make Lemonade      Make Lemonade    Make Tomato Rice      bound, achieving an average recall of 9.7% and outperform-
+            Stir Mixture        Stir Mixture        Stir Rice       ing [27]. Note, however, that [27] is designed to adress
+                                                                    a different problem and cannot be fairly compared with
+Stir                                                                other methods in our setup. While [1] improves on this
+                                                                    (13.3%), it does substantially worse than our task-speciﬁc
+               Make Shelves  Make Shelves      Grill Kabobs         step method (18.6%). We found that predictions from [1]
+                 Cut Shelf     Cut Shelf      Cut Ingredients       often had several steps with similar scores, leading to poor
+                                                                    parse results, which we attribute to the convex relaxation
+Cut                                                                 used by DIFFRAC. This was resolved in the past by the use
+                                                                    of narration at test time; our approach does not depend on
+Figure 5. Components that share well and poorly: while stir shares  this.
+well between steps of tasks, cut shares poorly when transferring
+from a food context to a home improvement context.                     Our full approach, which shares across tasks, produces
+                                                                    substantially better performance (22.4%) than the task-
+known order of steps. (4) Task-Speciﬁc Steps: Our approach          speciﬁc step method. More importantly, this improvement
+trained independently for each step of each task. In other          is systematic: the full method improves on the task-speciﬁc
+words, there are separate models for pour egg in the con-           step baseline in 17 tasks out of 18.
+texts of making pancakes and making meringue. This dif-
+fers from Alayrac in that it optimizes a cross-entropy loss            We illustrate some qualitative examples of steps beneﬁt-
+using our proposed optimization method. It differs from             ing and least beneﬁting from sharing in Figure 5. Typically,
+our full proposed approach since it performs no sharing.            sharing can help if the component has distinctive appear-
+Note, that the full method in [1] includes automatic discov-        ance and is involved in a number of steps: steps involve
+ery of steps from narrations. Here, we only use the visual          stirring, for instance, have an average gain of 15% recall
+model of [1], while providing the same constraints as in our        over independent training because it is frequent (in 30 steps)
+method. This allows for a fair comparison between [1] and           and distinctive. Of course, not all steps beneﬁt: cut shelf
+our method, since both use the same amount of supervision.          is harmed (47% independent → 28% shared) because cut
+At test time, the method presented in [27] has no prior about       mostly occurs in cooking tasks with dissimilar contexts.
+which steps are present or the order in which they occur. To
+make a fair comparison, we use the trained classiﬁer of the         Verifying optimizer on small-scale data. We now evalu-
+method in [27], and apply the same inference procedure as           ate our approach on the smaller 5-task dataset of [1]. Since
+in our method.                                                      here there are no common steps across tasks, we are able
+Qualitative results. We illustrate qualitative results of our       to test only the basic task-speciﬁc step-based version. To
+full method in Figure 4. We show a parses of unseen videos          make a fair comparison, we use the same features, ordering
+of Build Shelves and Make Banana Ice Cream and failure              constraints, as well as constraints from narration for every
+modes. Our method can handle well a large variety of tasks          K as provided by the authors of [1], and we evaluate using
+and steps but may struggle to identify some details (e.g.,          the F1 metric as in [1]. As a result, the two formulations are
+vanilla vs. egg) or actions.                                        on par, where [1] versus our approach result in 22.8% ver-
+                                                                    sus 21.8% for K=10 and 21.0% versus 21.1% for K=15, re-
+                                                                    spectively. While these scores are slightly lower compared
+Table 3. Average recall scores on the test set for our method when              0.20
+changing the sharing settings and the model.
+
+            Unshared Shared Shared Primary                                      0.18
+            Primary Primary + Related
+                                                                                0.16
+
+Step-based  18.6          18.9  19.8                                    Recall
+
+Component-based 18.7      20.2  22.4                                            0.14
+
+                                                                                                     Uniform
+
+       Source Steps          Unseen Task: Make                                  0.12                 Trained on target
+  From Related Tasks      French Strawberry Cake
+                                                                                                     Transfered
+Cut Steak Cut Tomato            Cut Strawberry
+                                                                                0.10
+
+                                                                                      0  10  20  30  40  50                      60
+
+ Add        Add Cherries  Add Strawberry                                                     Number of training task
+Tomato         to Cake        To Cake
+                                                                        Figure 7. Recall while transferring a learned model to unseen tasks
+
+                                                                        as a function of the number of tasks used for training. Our compo-
+
+                                                                        nent model approaches training directly on these tasks.
+
+Figure 6. Examples of identiﬁed steps for an unseen task. While         Setup. As in Section 6.1, we quantify performance with re-
+the model has not seen these steps and objects e.g., strawberries, its  call on the 18 primary tasks. However, we train on a subset
+knowledge of other components leads to reasonable predictions.          of the 65 related tasks and never on any primary task.
+                                                                        Qualitative results. We show a parse of steps of Make
+to those obtained by the single-task probabilistic model in             Strawberry Cake in Figure 6 using all related tasks. The
+Sener [28] (25.4% at K=10 and 23.6% at K=15), we are                    model has not seen cut strawberry before but has seen other
+unable to compare using our full cross-task model on this               forms of cutting. Similarly, it has seen add cherries to cake,
+dataset. Overall, these results verify the effectiveness of our         and can use this step to parse add strawberries to cake.
+optimization technique.                                                 Quantitative results. Figure 7 shows performance as a
+                                                                        function of the number of related tasks used for training. In-
+6.2. Experimental Evaluation of Cross-task Sharing                      creasing the number of training tasks improves performance
+                                                                        on the primary tasks, and does not plateau even when 65
+   Having veriﬁed the framework and the role of sharing,                tasks are used.
+we now more precisely evaluate how sharing is performed
+to examine the contribution of our proposed compositional               7. Conclusion
+model. We vary two dimensions. The ﬁrst is the granularity,
+or at what level sharing occurs. We propose sharing at a                   We have introduced an approach for weakly supervised
+component level, but one could share at a step level as well.           learning from instructional videos and a new CrossTask
+The second is what data is used, including (i) independently            dataset for evaluating the role of sharing in this setting. Our
+learning primary tasks; (ii) learning primary tasks together;           component model has been shown ability to exploit com-
+(iii) learning primary plus related tasks together.                     mon parts of tasks to improve performance and was able to
+                                                                        parse previously unseen tasks. Future work would beneﬁt
+   Table 3 reveals that increased sharing consistently helps            from improved features as well as from improved versions
+and component-based sharing extracts more from sharing                  of sharing.
+than step-based (performance increases across rows). This
+gain over step-based sharing is because step-based shar-                Acknowledgements. This work was supported in part by
+ing requires exact matches. Most commonality between                    the MSR-Inria joint lab, the Louis Vuitton ENS Chair on
+tasks occurs with slight variants (e.g., cut is applied to              Artiﬁcial Intelligence, ERC grants LEAP No. 336845 and
+steak, tomato, pickle, etc.) and therefore a component-                 ACTIVIA No. 307574, the DGA project DRAAF, CIFAR
+based model is needed to maximally enable sharing.                      Learning in Machines & Brains program, the European Re-
+                                                                        gional Development Fund under the project IMPACT (reg.
+6.3. Novel Task Transfer                                                no. CZ.02.1.01/0.0/0.0/15003/0000468), the TUBITAK
+                                                                        Grant 116E445 and a research fellowship by the Embassy
+   One advantage of shared representations is that they can             of France. We thank Francis Bach for helpful discussions
+let one parse new concepts. For example, without any mod-               about the optimization procedure.
+iﬁcations, we can repeat our experiments from Section 6.1
+in a setting where we never train on the 18 tasks that we test
+on but instead on the 65 related tasks. The only information
+given about the test tasks is an ordered list of steps.
+References                                                             [19] D.-A. Huang, J. J. Lim, L. Fei-Fei, and J. C. Niebles. Un-
+                                                                             supervised visual-linguistic reference resolution in instruc-
+ [1] J.-B. Alayrac, P. Bojanowski, N. Agrawal, I. Laptev, J. Sivic,          tional videos. In CVPR, 2017. 2
+      and S. Lacoste Julien. Unsupervised learning from narrated
+      instruction videos. In CVPR, 2016. 1, 2, 6, 7                    [20] D.-A. Huang, V. Ramanathan, D. Mahajan, L. Torresani,
+                                                                             M. Paluri, L. Fei-Fei, and J. C. Niebles. Finding ”it”:
+ [2] J.-B. Alayrac, J. Sivic, I. Laptev, and S. Lacoste-Julien. Joint        Weakly-supervised reference-aware visual grounding in in-
+      discovery of object states and manipulation actions. In ICCV,          structional video. In CVPR, 2018. 2
+      2017. 2, 5
+                                                                       [21] D. Kingma and J. Ba. Adam: A method for stochastic opti-
+ [3] F. Bach and Z. Harchaoui. DIFFRAC: A discriminative and                 mization. arXiv preprint arXiv:1412.6980, 2014. 4
+      ﬂexible framework for clustering. In NIPS, 2007. 2, 6
+                                                                       [22] H. Kuehne, A. Richard, and J. Gall. Weakly supervised
+ [4] P. Bojanowski and A. Joulin. Unsupervised learning by pre-              learning of actions from transcripts. In CVIU, 2017. 1, 2
+      dicting noise. In ICML, 2017. 2
+                                                                       [23] J. Liu, B. Kuipers, and S. Savarese. Recognizing human ac-
+ [5] P. Bojanowski, R. Lajugie, F. Bach, I. Laptev, J. Ponce,                tions by attributes. In CVPR, 2011. 2
+      C. Schmid, and J. Sivic. Weakly supervised action labeling
+      in videos under ordering constraints. In ECCV, 2014. 2           [24] J. Malmaud, J. Huang, V. Rathod, N. Johnston, A. Rabi-
+                                                                             novich, and K. Murphy. What’s cookin’? Interpreting cook-
+ [6] P. Bojanowski, R. Lajugie, E. Grave, F. Bach, I. Laptev,                ing videos using text, speech and vision. In NAACL, 2015.
+      J. Ponce, and C. Schmid. Weakly-supervised alignment of                2, 5
+      video with text. In ICCV, 2015. 2
+                                                                       [25] I. Misra, A. Gupta, and M. Hebert. From Red Wine to Red
+ [7] M. Caron, P. Bojanowski, A. Joulin, and M. Douze. Deep                  Tomato: Composition with Context. In CVPR, 2017. 3
+      Clustering for Unsupervised Learning of Visual Features. In
+      ICCV, 2018. 2                                                    [26] A. Richard, H. Kuehne, and J. Gall. Weakly supervised
+                                                                             action learning with rnn based ﬁne-to-coarse modeling. In
+ [8] J. Carreira and A. Zisserman. Quo vadis, action recognition?            CVPR, 2017. 2
+      a new model and the kinetics dataset. In CVPR, 2017. 1, 2,
+      4                                                                [27] A. Richard, H. Kuehne, and J. Gall. Action sets: Weakly
+                                                                             supervised action segmentation without ordering constraints.
+ [9] D. Damen, H. Doughty, G. Maria Farinella, S. Fidler,                    In CVPR, 2018. 6, 7
+      A. Furnari, E. Kazakos, D. Moltisanti, J. Munro, T. Per-
+      rett, W. Price, and M. Wray. Scaling egocentric vision: The      [28] F. Sener and A. Yao. Unsupervised learning and segmenta-
+      EPIC-KITCHENS dataset. In ECCV, 2018. 2                                tion of complex activities from video. In CVPR, 2018. 8
+
+[10] D. Damen, T. Leelasawassuk, O. Haines, A. Calway, and             [29] O. Sener, A. Zamir, S. Savarese, and A. Saxena. Unsuper-
+      W. Mayol-Cuevas. You-do, i-learn: Discovering task rele-               vised semantic parsing of video collections. In ICCV, 2015.
+      vant objects and their modes of interaction from multi-user            1, 2, 5
+      egocentric video. In BMVA, 2014. 2
+                                                                       [30] K. Simonyan and A. Zisserman. Two-stream convolutional
+[11] K. Fang, T.-L. Wu, D. Yang, S. Savarese, and J. J.                      networks for action recognition in videos. In NIPS, 2014. 1,
+      Lim. Demo2vec: Reasoning object affordances from online                2
+      videos. In CVPR, 2018. 2
+                                                                       [31] H. Wang and C. Schmid. Action recognition with improved
+[12] A. Farhadi, I. Endres, D. Hoiem, and D. Forsyth. Describing             trajectories. In ICCV, 2013. 1, 2
+      objects by their attributes. In CVPR, 2009. 2, 3
+                                                                       [32] L. Xu, J. Neufeld, B. Larson, and D. Schuurmans. Maximum
+[13] V. Ferrari and A. Zisserman. Learning visual attributes. In             margin clustering. In NIPS, 2004. 2
+      NIPS, 2007. 2
+                                                                       [33] B. Yao, X. Jiang, A. Khosla, A. L. Lin, L. Guibas, and L. Fei-
+[14] D. F. Fouhey, W. Kuo, A. A. Efros, and J. Malik. From                   Fei1. Human action recognition by learning bases of action
+      lifestyle vlogs to everyday interactions. In CVPR, 2018. 2             attributes and parts. In ICCV, 2011. 2
+
+[15] S. Guadarrama, N. Krishnamoorthy, G. Malkarnenkar,                [34] M. Yatskar, V. Ordonez, L. Zettlemoyer, and A. Farhadi.
+      S. Venugopalan, R. Mooney, T. Darrell, and K. Saenko.                  Commonly uncommon: Semantic sparsity in situation recog-
+      Youtube2text: Recognizing and describing arbitrary activi-             nition. In Proceedings of the CVPR, 2017. 3
+      ties using semantic hierarchies and zero-shot recognition. In
+      ICCV, 2013. 3                                                    [35] L. Zhou, X. Chenliang, and J. J. Corso. Towards automatic
+                                                                             learning of procedures from web instructional videos. In
+[16] K. He, X. Zhang, S. Ren, and J. Sun. Deep residual learning             AAAI, 2018. 2, 5
+      for image recognition. In CVPR, 2016. 4
+
+[17] S. Hershey, S. Chaudhuri, D. P. W. Ellis, J. F. Gemmeke,
+      A. Jansen, C. Moore, M. Plakal, D. Platt, R. A. Saurous,
+      B. Seybold, M. Slaney, R. Weiss, , and K. Wilson. Cnn ar-
+      chitectures for large-scale audio classiﬁcation. In ICASSP,
+      2017. 4
+
+[18] D.-A. Huang, L. Fei-Fei, and J. C. Niebles. Connectionist
+      temporal modeling for weakly supervised action labeling. In
+      ECCV, 2016. 1, 2
+A. Outline of supplementary material                             steps, by solving a linear problem
+
+   This supplementary material provides more details on                                   min Sl,kAl,k                          (4)
+our method and our dataset, together with some additional                                 A∈A
+results of our method.                                                                         l,k
+
+   In Section B we describe details of our narration-based       where A is a set of assignments that satisfy at-least-one
+temporal constraints and the optimization procedure. Sec-
+tion C provides more information about our dataset and           and ordering constraints. This problem can be efﬁciently
+video collection procedure, including a complete list of pri-
+mary and related tasks and task-wise statistics. In Section      solved via dynamic programming, as described in Section
+D we illustrate additional quantitative and qualitative re-
+sults of our method, including classiﬁer scores and local-       B.2. Imposing the ordering constraints during step local-
+ized steps. We also provide more examples and analysis of
+failure cases.                                                   ization helps to avoid spurious mentions of steps, that don’t
+
+B. Modeling instructional videos                                 follow the scenario of a task.
+
+B.1. Temporal text localization                                  We try different choices of mapping f . The ﬁrst is TF-
+
+   In this section we explain in detail how we obtain tempo-     IDF representation of the text within sliding window. The
+ral constraints from subtitles of the video. We assume that
+each step in the video occurs roughly at the same time as it is  second is a Word2Vec-like word embedding [37], followed
+mentioned in the narration. Step localization in narrations is
+challenging for several reasons. First, the same step may be     by a max-pooling over sliding window. We obtain our word
+described in different ways (e.g. cut steak and slice meat).
+It may contain a reference (e.g. cut it). Second, a mention      embedding by training the Fasttext model [38] with dimen-
+of a step doesn’t guarantee, that the step occurs at the same
+time (e.g. Let the steak rest before cutting it). Since most     sion 100. The model is trained on a corpus of subtitles of 2
+of the videos in our dataset are unprofessional, the narrator
+doesn’t usually follow a strict scenario and often talks about   million YouTube videos for 6729 tasks from wikiHow.
+unrelated topics. Finally, most of the subtitles are produced
+by YouTube automatic speech recognition, and, therefore,         Finally, we propose a way to learn a better aggregation
+contain errors and lack punctuation.
+                                                                 function than max-pooling for the word vectors. Assume
+   As described in Section 5.1 of the main paper, we pro-
+vide a short textual description of each step. These descrip-    that we are given a set of sentences I of various lengths.
+tions are matched to the text within a sliding window over
+the subtitles, in order to ﬁnd where each step is mentioned.     Each sentence i is represented by Xi ∈ RMi×d0 , where
+More formally, let f be a function, mapping a sequence of                                                              Xi       Rd0
+words of variable length into RD. Applying this function to      Mi  is  the  number  of  words  in  a  sentence  and        ∈       is
+the text within a sliding window of size w yields a matrix                                                                m
+U ∈ RL×D, where L is the number of words in the subti-
+tles. Applying the same function to the description of each      the feature vector corresponding to m-th word in the sen-
+step gives us a matrix V ∈ RK×D, where K is a total num-
+                                                                 tence. Assume that for each sentence i we are also given a
+                                                 D
+                                                                 set of sentences Si ⊂ I with similar meaning and a set of
+ber of steps. Assuming that U 2ld = 1 for any l = 1 . . . L,
+                                                                 sentences Di ⊂ I with different meaning. f is learnt by
+                                               d=1
+                D                                                minimizing loss
+
+and that V 2kd = 1 for any k = 1 . . . K (i.e., the features                   1 max[0, sim(f (Xi), f (Xk))
+                                                                         i∈I |Si| j∈Si,k∈Di (5)
+               d=1
+                                                                                               − sim(f (Xi), f (Xj)) + h],
+are unit-norm), S = U V T ∈ RL×K is a matrix of cosine
+similarities between vector representations of subtitles and     where sim(a, b) = a b aTb is the cosine similarity func-
+descriptions of steps.                                           tion, and, h is the margin constant. This can be understood
+                                                                 as pushing representations of sentences with similar mean-
+   We ﬁnd the best matching A ∈ {0, 1}L×K between                ing closer together, as opposed to sentences with different
+the steps and the subtitles, that satisﬁes the ordering of the   meaning. We take f in the form of 1D convolution with
+                                                                 kernel length 1 and a number of ﬁlters d, followed by the
+                                                                 global max-pooling, and by a linear mapping Rd → Rd.
+                                                                 We take d = 300 and h = 0.1.
+
+                                                                    We train our model on the set of sentences from wiki-
+                                                                 How. Descriptions of the tasks on wikiHow are organized
+                                                                 into step paragraphs, as shown on ﬁgure 1. We assume that
+                                                                 sentences within the same paragraph describe similar con-
+                                                                 cepts, while sentences from different steps of the same task
+                                                                 have different meanings. For each sentence i, Si is deﬁned
+                                                                 as a set of sentences from the same paragraph, and Di is
+                                                                 deﬁned as a set of sentences from other paragraphs within
+                                                                 the same wikiHow page.
+
+                                                                    We evaluate alternative text representations by compar-
+                                                                 ing obtained constraints with the ground truth on the set of
+                                                                 primary tasks. The results are shown in Table 1. Our aggre-
+                                                                 gation function, trained on wikiHow outperforms TF-IDF
+          / How to Change a Tire                                         Sentences                                        Embedding space
+
+1 Find a flat, stable and safe place to change your tire.           Find a flat, stable and safe place ...     Sentence
+     You should have a solid, level surface that will restrict the  You should have a solid, level ...      representation
+     car from rolling. If you are near a road, park as far from     If you are near a road, park as ...
+     traffic as possible and turn on your emergency flashers        Avoid soft ground and hills
+     (hazard lights). Avoid soft ground and hills.
+
+2 Apply the parking brake and put car into "Park"                   Apply the parking brake and put ...
+     position. If you have a standard transmission, put your        If you have a standard ...
+     vehicle in first or reverse.
+
+3 Place a heavy object (e.g., rock, concrete, spare wheel,          Place a heavy object (e.g., rock, ...
+     etc.) in front of the front and back tires.
+
+Figure 1. Example of three wikiHow steps for the Change a Tire task. Our method learns a similarity function that pulls representations of
+the sentences from the same paragraphs closer together, and pushes the sentences from different paragraphs away from each other
+
+Table 1. Precision and recall of the constraints obtained with our       and (zt − 1, zt − 1) and (0, zt − 1) otherwise. We denote
+method, averaged over 18 primary tasks.                                  this set of possible previous states as P(xt). The minimum
+                                                                         cumulative cost for state xt = x at time t is
+                         Precision (%) Recall (%)
+
+Max-pooled word vectors       11.6                            10.4                                                 t
+
+TF-IDF                        13.3                            11.4                  V (x, t) =              min                      Sτ yτ .  (8)
+
+Proposed                      15.9                            13.9                                          x1,...,xt−1 | xt=x τ =1
+
+and max-pooled word vectors both in terms of precision and                  Deﬁne C(xt, xt−1) = Styt if xt−1 ∈ P(xt) and
+recall.                                                                  C(xt, xt−1) = +∞ otherwise (for simplicity we denote
+                                                                         x0 = (0, 0)). This allows to rewrite (8) in the recursive
+B.2. Constrained linear optimization                                     form:
+
+   Our optimization procedure, inference and temporal text                         V (x, t) = min(C(x, x ) + V (x , t − 1)). (9)
+localization require solving a linear problem of the form
+                                                                                                       x
+
+                                                                         We compute V (x, t) recursively for t = 1, . . . , T , us-
+
+          min StkYtk,                                               (6)  ing (9). In practice, computing V (x, t) given V (x , t − 1)
+
+          Y ∈C           t,k                                             for all x requires minimization only over x ∈ P(x) and
+
+where S ∈ RT ×K and C is the set of all assignments                      can be done in O(1). Since there are 2K possible states,
+from {0, 1}T ×K that satisfy the ordering and at-least-once
+                                                                         the complexity of computing V (x, t) for all x and t is
+constraints. At-least-once constraints mean that every step
+k should be picked at least once: Yt,k ≥ 1 for any                       O(KT ). To satisfy at-least-once constraints, the ﬁnal state
+
+                                                                 t       xT must be either (K, K), or (0, K). To get the opti-
+                                                                         mal assignment, we take x∗T = arg min V (x, T )
+k = 1 . . . K. Ordering constraints mean that the step k − 1
+should precede step k for any k ≥ 2. This problem can                                                                                x∈{(K,K ),(0,K )}
+
+be solved efﬁciently via dynamic programming. First, we                  and  ﬁnd   x∗   =                  arg min V (x, t − 1) recursively for every
+
+rewrite the problem in the form:                                                      t     x∈P (x∗t+1 )
+
+                                                                         t = T − 1, . . . , 1.
+
+                                                                         B.3. Optimization for discriminative clustering
+
+          min Styt ,                                                (7)  The discriminative clustering problem
+          y∈C˜ t
+
+where yt ∈ {0, 1, . . . , K} is the step label at time t (0                        min − Yt,k log( exp(fk(xt)) ), (10)
+stands for background, i.e. when no step is selected). The                    Y ∈C,F ∈F                            exp(fk (xt))
+ordering constraints impose that yt+1 ∈ {0, zt}, where                                                      t,k k
+zt = max(y1, . . . , yt) is the last non-background step. We
+deﬁne state xt at time t as a pair (yt, zt). Note, that for a            introduced in Section 4.2 of the main paper can’t be solved
+given state xt, the only possible xt−1 that satisﬁes the con-            efﬁciently with standard techniques, such as projected gra-
+straints are (zt, zt), (zt − 1, zt − 1) and (0, zt − 1) if yt = 0,       dient descent, because the projection over our constraint set
+                                                                         C is computationally expensive.
+               Car                                                      Woodwork
+         Maintenance
+                                                                                                         Grilling
+           Toasts                                                                                       Drinks
+
+     Pastry
+
+     Pickling
+
+                                                                                                   Stews & Salads
+
+Figure 2. A t-SNE visualization of primary (in blue) and related (in green) tasks. The distance between two tasks is based on the number
+of components they share. Two well separable clusters on top correspond to Car Maintenance and Home Repairs categories, while most
+of the tasks belong to the Cooking category.
+
+   Our optimization method can be applied to a broader                  it is possible to ﬁnd a global minimum. The minimization
+class of problems of the form                                           with respect to θ yields
+
+                 min                  Ytk Ftk (θ).     (11)                                   Ytk ∇Ftk (θl )
+
+                              m                                         θ∗(Y ) = θl − δK t,k
+                 Y ∈C,θ∈R                                                                                     .                  (15)
+                                 tk
+                                                                                                   Ytk
+
+Given solution (Y l, θl) at l-th iteration, we deﬁne a                                        t,k
+
+quadratic upper bound for F (θ) in the neighbourhood of                 Since Ytk = K, this expression can be simpliﬁed as
+θl: Ftk(θ) ≤ F˜tk(θ; θl), where
+                                                                                  t,k
+
+F˜tk(θ; θl) = Ftk(θl) + ∇Ftk(θl)(θ − θl) + 1 ||θ − θl||2.               θ∗(Y ) = θl − δ Ytk∇Ftk(θl).                             (16)
+                                                     2δK
+                                                                  (12)            t,k
+
+Note, that YtkFtk(θ) ≤ YtkF˜tk(θ; θl) for any (Y, θ)                    Substituting θ with θ∗(Y ) in (14) leads to the problem
+
+     t,k                         t,k                                    min [Ftk(θl) − δ ||∇Ftk(θl)||2]Ytk. (17)
+                                                                        Y ∈C t,k 2
+and that YtlkFtk(θl) = YtlkF˜tk(θl). This means,
+
+     t,k                         t,k
+
+that for any (Y l+1, θl+1), s.t.              Y l+1 tk F˜tk(θl+1) ≤     This is a linear problem that can be solved as described in
+                                                                        Section B.2. Denote Y ∗ a solution of (17). We obtain θ∗
+                                           t,k                          by substituting Y s with Y ∗ in (16). The pair (Y ∗, θ∗) is a
+
+     Y ltkF˜tk(θl), the same inequality holds for F :                   global minimum for (14). We take this pair as a new solu-
+                                                                        tion (Y l+1, θl+1).
+t,k
+                                                                           The described optimization procedure can be seen as al-
+          Ytkl+1Ftk(θl+1) ≤ YtlkFtk(θl).               (13)             ternating between solving a linear problem (17) for Y and a
+                                                                        gradient descent step with the learning rate δ
+     t,k                              t,k
+
+For the problem
+
+                 min                  Ytk F˜tk (θ)     (14)             θl+1 = θl − δ Ytkl+1∇Ftk(θl).                            (18)
+                 Y ∈C,θ∈Rm
+                                 t,k                                              t,k
+                   0.65                                            with 1.6 videos per channel on average. 70% of videos
+                                                                   from primary tasks do not share channels with videos from
+Average relevance  0.60                                            related tasks. We, thus, conclude, that the difference be-
+                                                                   tween videos collected for primary and related tasks is suf-
+                   0.55                                            ﬁciently large, hence transferring related task models to pri-
+                                                                   mary tasks is not trivial.
+                   0.50
+                                                                   C.2. Tasks and statistics
+                   0.45
+                                                                      Figure 2 shows all 83 primary and related tasks from our
+                   0.40  0  30  60  90 120 150 180                 dataset. In order to illustrate the sharing between tasks, we
+                                                                   deﬁne the distance between two tasks based on the number
+                                    Number of videos               of common step components and make a 2D projection via
+                                                                   t-SNE [39]. The tasks mostly share within the same domain,
+Figure 3. Average relevance of videos as a function of the number  forming different groups, such as Car Maintenance, Drinks
+of videos collected from YouTube. Taking top 30 videos per task    and Woodworks. Car Maintenance and Home Woodwork
+results in 56% relevant videos. Attempting to collect more videos  tasks mostly share components within the same category,
+results in a noisy dataset with many irrelevant videos.            with some spurious sharing with cooking tasks (e.g. Pour
+                                                                   and Oil components from Add Oil to Car task). This cate-
+C. Dataset                                                         gories form two distinct clusters on the diagram. The rest
+                                                                   of the tasks form a continuous Cooking cluster.
+C.1. Video collection
+                                                                      Table 2 provides some statistics for the primary tasks.
+   As described in Section 5.1 of the main paper, given a          The order consistency, deﬁned as in [36], shows how well
+task, we collect top N videos from YouTube, by querying            the order is respected in the videos. For example, if the or-
+a title of the task. The choice of N relies on the following       der of steps in a video is 2 → 1 → 3, the order consistency
+trade-off. Training the model on a large number of videos          for this video would be equal to 23 . The amount of back-
+for a given task may lead to better performance. On the            ground is deﬁned as an average number of frames, which
+other hand, large N results in many videos being unrelated         are not assigned to any step, divided by a total number of
+to the queried task, which may hurt the performance of the         frames. The high amount of background (72% in average)
+model. To investigate the inﬂuence of N on the purity of           motivates the use of methods, that aren’t limited to a dense
+the data, we have annotated videos from YouTube search             segmentation of a video and allow frames to remain unla-
+output as relevant or irrelevant to a task for all primary tasks.  beled. The average order consistency is high (86%), thus
+We deﬁne the average relevance as the ratio between the            justifying the use of hard ordering constraints. However,
+number of relevant videos and the total number of videos.          it varies across the tasks and has a relatively low value for
+Figure 3 shows the average relevance for different values          some of the tasks (e.g. Make Kimchi Rice and Make Taco
+of N . The relevance rapidly decreases with N , making the         Salad). Similarly, the amount of missing steps is close to
+data unusable without manual cleaning. For each related            50% for Grill Steak and Pickle Cucumber, making these
+task we take top 30 videos from YouTube, which seems a             tasks especially challenging for our method.
+reasonable compromise between the amount of data and the
+level of noise.                                                    D. Experiments
+
+   30 videos are clearly not enough to learn a task from           D.1. Comparison of evaluation metrics
+scratch, as they feature only a few positive examples for
+each step in the task. Sharing knowledge across tasks as              At test time we predict one temporal unit per step and
+proposed in our paper is an essential mechanism to over-           assume a correct detection if it falls within a ground truth
+come this problem.                                                 interval for the corresponding step. This is motivated by the
+                                                                   fact that in weakly supervised context, when no informa-
+   Since the videos are collected automatically for each           tion about exact temporal extents of steps is given during
+task, they may be shared between tasks. The primary tasks          the training, prediction of step time intervals is an ill-posed
+have little in common and do not share any videos. The             problem. Indeed, even people do not always agree on the
+related tasks, however, may be similar to each other and           action boundaries. Predicting punctual steps, deﬁned as the
+to the primary tasks (e.g. Make Sourdough Pancakes and             most consistent and distinguishable frames in the videos, al-
+Make Pancakes). We found that the primary and related              lows to avoid this problem. Although our model is trained
+tasks share about 2.6% of videos. However, we stress the           for this punctual prediction, it may still be used to pre-
+fact that such duplicate videos are provided with different        dict temporally extended steps, for example, by threshold-
+supervision (different ordered list of steps) for each task.
+Our videos come from 3007 different YouTube channels,
+                                                   Table 2. Statistics for primary tasks.
+
+Task                    Number of videos           Number of steps Average length Missing steps  Background  Order consistency
+
+Make Kimchi Rice                120                6                4:47                   21%       70%             0,69
+Pickle Cucumber                 106                                                                  75%             0,85
+Make Banana Ice Cream           170                11               5:35                   48%       80%             0,98
+Grill Steak                     228                                                                  75%             0,95
+Jack Up Car                      89                5                4:04                   38%       81%             1,00
+Make Jello Shots                182                                                                  72%             0,87
+Change Tire                      99                11               5:26                   46%       62%             0,97
+Make Lemonade                   131                                                                  69%             0,80
+Add Oil to Car                  137                3                4:13                   39%       85%             0,92
+Make Latte                      157                                                                  71%             0,89
+Build Floating Shelves          153                6                4:15                   21%       58%             0,96
+Make Taco Salad                 170                                                                  79%             0,66
+Make French Toast               252                11               4:52                   27%       68%             0,80
+Make Irish Coffee               185                                                                  74%             0,77
+Make Strawberry Cake             86                8                3:44                   28%       63%             0,82
+Make Pancakes                   182                                                                  70%             0,89
+Make Meringue                   154                8                5:39                   33%       67%             0,98
+Make Fish Curry                 149                                                                  69%             0,74
+                                                   6                3:52                   43%
+Average                         153                                                                  72%             0,86
+                                                   5                5:23                   34%
+
+                                                   8                4:44                   41%
+
+                                                   10               4:10                   23%
+
+                                                   5                3:13                   13%
+
+                                                   9                5:36                   25%
+
+                                                   8                4:34                   19%
+
+                                                   6                4:42                   23%
+
+                                                   7                5:31                   25%
+
+                                                   7                4:57                   31%
+
+Table 3. Results of cross-task learning, evaluated with mAP and     vals. Could it be better to learn our model without temporal
+                                                                    constraints? We answer this question by training and eval-
+recall metrics and averaged over primary tasks. Standard deviation  uating our solution in the same setup as before, but without
+                                                                    text constraints at the training time. The resulting recall
+does not exceed 0.3% for mAP and 1% for recall.                     is 17%, compared to 22.4%, when training with text con-
+                                                                    straints. This gain of 5.4% shows the importance of text
+Metric Random Richard’18 Alayrac’16      Ours           Ours        guidance during training even at the presence of the high
+                                     (no sharing)  (with sharing)   level of noise.
+
+Recall 8.27  6.7        13.3         18.6          22.4             D.3. Additional qualitative results
+
+mAP  4.3     5.5        6.9          8.9           11.0                In this section we show some additional qualitative ex-
+                                                                    amples to provide a better intuition into our data and the
+ing model’s conﬁdence of each step for each frame. Does             method. Figures 4-9 shows the outputs of our model for
+this yield reasonable predictions? To answer this question          videos for several tasks. We show the outputs of classiﬁers
+we evaluate our model, using mAP metric. Table 3 con-               for each step at each frame of the video, as well as the in-
+tains results, averaged over the primary tasks and compared         ferred solution and compare it with the ground truth. Figure
+to baselines. Here recall stands for the same evaluation pro-       4 illustrates two kinds of error, caused by our assumptions.
+cedure, as described in the main paper (global non-maximal          First,the step Whisk Mixture is localized in the area of low
+suppression + recall). Note that both proposed ways of eval-        conﬁdence for this step. This is caused by the next step,
+uation yield highly correlated results with recall roughly          Pouring Egg, that precedes Whisking Mixture in this par-
+equal to mAP × 2. The only exception is Richard’18 that             ticular video. Second, false detection for Topping Toast is
+under-performs in the case of recall. This may be caused by         due to the absence of this step in the video, while we as-
+the fact that, unlike other methods in Table 3, it is trained to    sume that every step is present. Note that although step Top
+predict step intervals, and not punctual steps.                     Toast doesn’t appear in the video, the classiﬁer puts high
+                                                                    and well localized scores in the end of the video. This is be-
+D.2. Importance of temporal text constraints                        cause Making French Toastdeﬁne positive as falling inside a
+                                                                    ground truth interval for that step videos usually end with a
+   Temporal constraints, obtained from narration, provide           demonstration of a ﬁnal product on a plate. The model cap-
+a very noisy supervision. In case of our primary tasks,             tures this visual consistency between the videos and takes it
+the intersection over union between the ground truth of             for the ﬁnal step.
+the steps and the corresponding temporal text constraints
+is only 7.9%. Moreover, 61% of ground truth steps lie en-
+tirely outside of the constraint intervals. This means that
+our method is unable to assign a step to a correct frame even
+with a perfect classiﬁer, if it is forced to satisfy these con-
+straints. This is likely to be a disadvantage during training
+which tries to ﬁt the step model to incorrect temporal inter-
+                                             MAKE FRENCH TOAST
+
+[s]
+
+     1. pour milk    2. whisk mixture        3. pour egg    4. dip bread in mixture   5. melt butter
+
+6. put bread in pan  7. add vanilla extract  8. flip bread  9. remove bread from pan  10. top toast
+
+Figure 4. Example of obtained solution for Make French Toast task. Outputs of the classiﬁer are shown in blue. Correctly localized steps
+are shown in green. False detections are shown in red. Ground truth intervals for the steps are shown in yellow. Failure cases include false
+localization due to the ordering constraints (Pour milk, Whisk mixture and Dip bread) and due to a missing step (Top toast).
+
+                     BUILD FLOATING SHELVES
+
+                                                                1. cut shelf
+
+                                                                2. assemble shelf
+
+[s]
+
+                                                                3. sand shelf
+
+                                                                4. paint shelf
+
+                                                                                                                                                   5. attach shelf
+
+Figure 5. Example of obtained solution for Build Floating Shelves task. Outputs of the classiﬁer are shown in blue. Correctly localized
+steps are shown in green. False detections are shown in red. Ground truth intervals for the steps are shown in yellow.
+                                      MAKE STRAWBERRY CAKE
+
+[s]1. pour egg          2. add sugar     3. add flour         4. add butter        5. whisk mixture
+  [s]
+6. put dough into form  7. spread creme  8. cut strawberries  9. add strawberries
+
+Figure 6. Example of obtained solution for Make Strawberry Cake task. Outputs of the classiﬁer are shown in blue. Correctly localized
+steps are shown in green. False detections are shown in red. Ground truth intervals for the steps are shown in yellow.
+
+                                         MAKE IRISH COFFEE
+
+                                                                                   1. pour alcohol
+
+                                                                                                                                                  2. pour espresso
+
+                                                                                                                                                  3. add sugar
+
+                                                                                                                                                  4. stir mixture
+
+                                                                                                                                                  5. add whipped creme
+
+Figure 7. Example of obtained solution for Make Irish Coffee task. Outputs of the classiﬁer are shown in blue. Correctly localized steps
+are shown in green. False detections are shown in red. Ground truth intervals for the steps are shown in yellow.
+                                             CHANGE A TIRE
+
+[s]1. brake on   2. get things out           3. loosen nuts       4. raise jack     5. unscrew wheel     6. withdraw wheel
+                                        [s]
+7. attach wheel  8. screw wheel              9. lower jack        10. tighten nuts  11. put things back
+
+Figure 8. Example of obtained solution for Change a Tire task. Outputs of the classiﬁer are shown in blue. Correctly localized steps are
+shown in green. False detections are shown in red. Ground truth intervals for the steps are shown in yellow.
+
+                                             MAKE FISH CURRY
+
+1. add onion
+
+2. add chili powder
+
+3. pour water
+
+4. add mustard seeds                         5. add curry leaves  6. add fish       7. stir mixture
+
+Figure 9. Example of obtained solution for Make Fish Curry task. Outputs of the classiﬁer are shown in blue. Correctly localized steps are
+shown in green. False detections are shown in red. Ground truth intervals for the steps are shown in yellow.
+                                Wrong object
+
+Pour water   Pour espresso      Add cheese     Add sugar     Cut strawberries
+ (gelatin)       (milk)            (meat)      (whisky)            (cake)
+
+                                Wrong action
+
+Pour lemon juice Unscrew wheel  Whisk mixture  Spread creme  Add onion
+                                     (pour)      upon cake      (cut)
+(no action)  (withdraw)                             (cut)
+
+Figure 10. Erroneous predictions, involving wrong objects and actions. Correct object/action is in green. Our method is not capable of
+distinguishing particular kinds of objects, especially liquids and powders, due to the nature of the features. Examples for the wrong action
+components show that in many cases the method captures a static context in which object occurs, rather than performed action.
+
+Supplementary References
+
+[36] J.-B. Alayrac, P. Bojanowski, N. Agrawal, J. Sivic, I. Laptev,
+      and S. Lacoste-Julien. Learning from narrated instruction
+      videos. IEEE Transactions on Pattern Analysis and Machine
+      Intelligence, XX, Sept. 2017.
+
+[37] T. Mikolov, I. Sutskever, K. Chen, G. S. Corrado, and
+      J. Dean. Distributed representations of words and phrases
+      and their compositionality. In C. J. C. Burges, L. Bottou,
+      M. Welling, Z. Ghahramani, and K. Q. Weinberger, edi-
+      tors, Advances in Neural Information Processing Systems 26,
+      pages 3111–3119. Curran Associates, Inc., 2013.
+
+[38] A. J. Piotr Bojanowski, Edouard Grave and T. Mikolov.
+      Enriching word vectors with subword information. arXiv,
+      2017.
+
+[39] L. van der Maaten and G. Hinton. Visualizing data using
+      t-sne. Journal of machine learning research, 2008.
+

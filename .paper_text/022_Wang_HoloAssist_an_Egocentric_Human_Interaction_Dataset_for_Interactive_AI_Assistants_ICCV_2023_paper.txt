@@ -1,0 +1,1084 @@
+This ICCV paper is the Open Access version, provided by the Computer Vision Foundation.
+                Except for this watermark, it is identical to the accepted version;
+
+          the final published version of the proceedings is available on IEEE Xplore.
+
+              HoloAssist: an Egocentric Human Interaction Dataset
+                   for Interactive AI Assistants in the Real World
+
+  Xin Wang1∗ Taein Kwon1,2∗ Mahdi Rad1 Bowen Pan1† Ishani Chakraborty1 Sean Andrist1
+Dan Bohus1 Ashley Feniello1 Bugra Tekin1† Felipe Vieira Frujeri1 Neel Joshi1 Marc Pollefeys1,2
+
+                                            1Microsoft 2 ETH Zurich
+
+                        Abstract                                         Two-Person Interactive Assistive Task Completion
+
+   Building an interactive AI assistant that can perceive,               Task performer Instructor
+reason, and collaborate with humans in the real world has
+been a long-standing pursuit in the AI community. This                                Multimodal Data                                            Instructor:  ... The student
+work is part of a broader research effort to develop intel-                                                                                         Yes!      unlocked the
+ligent agents that can interactively guide humans through                                                                              Student:               Joy Con straps
+performing tasks in the physical world. As a first step in this                                                                          Here?                from the Joy
+direction, we introduce HoloAssist, a large-scale egocentric                                                                                                  Con controllers,
+human interaction dataset, where two people collaboratively                                           Instructor: Now let's make the controller,              removed the
+complete physical manipulation tasks. The task performer                                                     put the controller on the pad.                   straps, and then
+executes the task while wearing a mixed-reality headset that                                                                                                  attached the Joy
+captures seven synchronized data streams. The task instruc-        (1) RGB, (2) eye   (4) head pose,  (6) IMU, (7) audio                                      Con controllers
+tor watches the performer’s egocentric video in real time and    gaze, (3) hand pose     (5) depth                                                            to the Nintendo
+guides them verbally. By augmenting the data with action                                                                                                      Switch tablet. …
+and conversational annotations and observing the rich be-
+haviors of various participants, we present key insights into                                                                                                  (8) text
+how human assistants correct mistakes, intervene in the task
+completion procedure, and ground their instructions to the       Figure 1: HoloAssist features a two-person interactive assis-
+environment. HoloAssist spans 166 hours of data captured         tive task completion setting. The task performer wears an
+by 350 unique instructor-performer pairs. Furthermore, we        AR device and completes the tasks while the captured data is
+construct and present benchmarks on mistake detection, in-       streamed over the network to a remote instructor watching it
+tervention type prediction, and hand forecasting, along with     on the laptop. The instructor provides verbal guidance to the
+detailed analysis. We expect HoloAssist will provide an im-      student. HoloAssist includes seven modalities captured live
+portant resource for building AI assistants that can fluidly     and human annotated text descriptions as the 8th modality.
+collaborate with humans in the real world. Data can be
+downloaded at https://holoassist.github.io/.                     in the task completion procedure.
+
+1. Introduction                                                     Building an AI assistant that can perceive, reason and
+                                                                 interact in the physical world has attracted attention from
+   Recent years have witnessed incredible progress in            researchers across different fields in computer vision [7,
+general-purpose AI agents that assist humans with various        23, 37, 38], human-computer interaction [6, 8, 15, 29],
+open-world tasks, especially in the digital world. AI sys-       robotics [5, 32], and industrial practitioners. For example,
+tems powered by large language models (LLMs) like Chat-          AR Guides [1], which aims to guide users to complete com-
+GPT [27] can answer users’ questions and assist them with        plex tasks, has become popular with the development of
+various text-based tasks. However, these AI assistants do not    augmented reality (AR) devices. However, existing systems
+have sufficient first-hand experience in the physical world      often rely on pre-defined instructions or formulate the virtual
+and thus cannot perceive world states and actively intervene     assistant as a question answering [37, 38] or video under-
+
+      *Co-first authors; †Work done at Microsoft
+
+                                                                 210270
+standing problem [7, 23] without real-world interaction.         Correct
+   In another line of work, researchers have developed simu-     label: fine grained action
+                                                                 (noun,verb): (place, lever)
+lation environments like Habitat [21, 36], VirtualHome [26],
+and AI2-Thor [17] to build AI agents that can interact           action correctness: correct
+with the physical world and collaboratively achieve new          action
+tasks [42]. Still, a large gap remains in transferring these
+agents to the real world, and the interaction between agents is  Instruction                       “Okay. Now slide the shift arm onto the mounting
+largely simplified compared to real-world human interaction.     label: conversation               peg. So attached to the shift lever is an arm.”
+                                                                 Conv. purpose: describing high-
+   In this work, we focus on the challenges of developing        level instruction
+intelligent agents that share perspectives with humans and
+interactively guide human users through performing tasks in      Mistake
+the physical world. As a first step, we introduce HoloAssist,    label: fine grained action
+a large-scale egocentric human interaction dataset to explore    (noun,verb): (approach, lever)
+and identify the open problems in this direction. As shown in    action correctness: corrected
+Figure 1, the task performer wears an AR headset* to capture     by instructor incorrect action
+data while completing the tasks. An instructor watches the       explanation: The student is
+real-time egocentric video feed remotely and verbally guides     looking for the shift arm in the
+the performer. We have developed and open-sourced a data         wrong place.
+capture tool [3] using a distributed server-client setup to
+enable data streaming and multimodal data capture.               Intervention                      “It's right below your hand. Is that long piece of
+                                                                 label: conversation                 metal.”
+   HoloAssist contains 166 hours of data captured by 222         Conv. purpose: correct the
+diverse participants forming 350 unique instructor-performer
+pairs and carrying out 20 object-centric manipulation tasks.     wrong action
+The objects range from common electronic devices to rare
+objects in factories and specialized labs. The tasks are gen-      Correct
+erally challenging for first-time participants, requiring in-       label: fine grained action
+structor assistance for successful completion. Seven raw            (noun,verb): (arm , lift)
+sensor modalities are captured, including RGB, depth, head          action correctness: correct
+pose, 3D hand pose, eye gaze, audio, and IMU, to aid in the         action
+understanding of human intentions, estimating world states,
+predicting future actions, and so on. Finally, the dataset is                            Time
+augmented with third-person manual annotations consisting
+of a text summary, intervention types, mistake annotation,       Figure 2: HoloAssist includes action and conversational
+and action segments of the videos as illustrated in Figure 2.
+                                                                 annotations, in addition to text summaries of the videos, to
+   We have observed several characteristics demonstrated
+by human instructors from HoloAssist. First, instructors are     indicate the mistakes and interventions in task completion.
+often proactive with precisely timed interventions. Instead
+of waiting until mistakes happen, instructors provide follow-    mistake or correct attributes are associated with each fine-
+up instructions when the task performer appears confused.
+Second, the verbal guidance from the instructors tends to be     grained action. A purpose label is associated with every
+concise and grounded in the task performer’s environment.
+The instructions are often framed as spatial deictics to aid     utterance to indicate the type of verbal intervention.
+the task performer in spatial directions and distances in the
+3D world. Moreover, instructors often have a good world          different modalities in various tasks. We hope our dataset,
+model estimation and can detect whether mistakes disrupt         findings, and tooling can inspire and provide rich resources
+task completion and then adjust the guidance.                    for future work on designing interactive AI assistants and
+                                                                 situated AI assistance applications in the real world.
+   We take a step further and introduce new tasks and bench-
+marks on mistake detection, intervention type prediction, and    2. Related Work
+3D hand pose forecasting, which we conjecture are essential
+modules for an intelligent assistant. Additionally, we bench-       Our work closely connects with several lines of work in
+mark the dataset on action classification and anticipation       computer vision, especially egocentric vision, embodied AI,
+tasks and provide empirical results to understand the role of    and human-computer interaction.
+
+     *We use HoloLens 2 [2] for data capture in this work.       Interactive AI assistants. Building interactive agents that
+                                                                 can assist humans to carry out tasks in the world—real or
+                                                                 virtual—has been a long-standing problem in different areas
+                                                                 of AI and HCI [6, 11, 15, 22, 25, 29, 30]. As far back as
+                                                                 1997, Johnson and Rickel introduced “Steve” [15], an early
+                                                                 pedagogical agent that aims to help students learn procedu-
+                                                                 ral tasks in VR. Recent efforts have focused on new model-
+                                                                 ing approaches and data collection techniques for training
+                                                                 conversational task guidance assistants, such as model-in-
+                                                                 the-loop wizard-of-oz [22] and human-human interaction to
+                                                                 mimic robot actions in simulated environments [25]. In this
+                                                                 work, we revisit this problem and provide a systematic study
+                                                                 of real-world human interaction, and we also provide rich
+                                                                 sensor information to push the frontiers of the research.
+
+                                                                 Egocentric video datasets. Egocentric perspectives often
+                                                                 convey rich information about the users’ intentions. A shared
+                                                                 perspective between the users and the human or AI assis-
+                                                                 tants is useful for the assistants to provide more timely and
+                                                                 grounded guidance. In computer vision, several egocentric
+                                                                 video datasets [12, 14, 18, 20, 28, 31, 39] have emerged in
+
+                                                                 20271
+        black-kenyan asian- vietnamese  american indian          white latino asian indian
+
+Age     asian mena halfalaska native    mixed                    filipino syriac                              OBJECT SCALES OBJECT CATEGORIES
+                      nigeriansrilankan                               ukrainian
+        mixed heritage
+        blanche européenne
+        navajo
+        cherokee                        native-iroquois          latino hispanic      caucasian french
+
+                                        multiracial- half white     somalian                                  Small   GoPro, Nintendo Switch, DSLR
+
+                                                                 haida indian european
+
+                                                                                                              Medium  Portable printer, Computer, Nespresso machine
+
+                                                                 software engineer entreprenneur              Big Standalone printer, big coffee machine, IKEA fur-
+                                                                                                                                      niture (stool, utility cart, tray Table, nightstand)
+                                                                 hr consultant data analyst local government
+
+                                                                       project coordinator
+
+                                                                               warehousing designer lawyer
+                                        student moderator architect                                           Rare NavVis laser scanner, ATV motor cycle, wheel belt,
+                                        teacher musician                                                                              circuit breaker
+
+                                        commercial employee                       physical therapist
+
+                                                                business development  freelancer              Table 1: HoloAssist includes 16 objects with diverse scales.
+                                                                                             security worker  Apart from common objects used in daily life, HoloAssist
+                                        study coordinator artist researcher                                   includes rare equipment from mechanical labs. 20 tasks are
+                                                                                                              object-centric manipulation tasks for each object and the 4
+                                        software developer housewife consultant                               IKEA furniture has both assembly and disassembly tasks.
+
+Counts
+
+Figure 3: HoloAssist was collected by participants diverse                                                    give practitioners more potential for designing multimodal
+in ages, occupations, genders, and geography. This helps us                                                   agents and models even beyond the scope of this work.
+to study a diverse set of users with different backgrounds.
+                                                                                                              Embodied simulation platforms. There is an emerging
+the community. EPIC-KICHENS [12] is a widely adopted                                                          interest in embodied agents that can perceive, reason, and
+egocentric video dataset capturing kitchen activities. The                                                    act in the 3D world. Researchers [17, 21, 26, 34, 36, 42]
+recent Ego4D dataset [14] is the largest egocentric video                                                     build various simulation environments to learn such embod-
+dataset in the wild that provides a comprehensive database                                                    ied agents. IGLU [42] aims to build interactive agents that
+for egocentric perception in the 3D world. In contrast to ear-                                                learn to solve a task while being provided with grounded
+lier egocentric video datasets, HoloAssist features a multi-                                                  natural language instructions in a collaborative environment
+person interactive task completion setting, where human                                                       based on Minecraft, a popular video game. HoloAssist com-
+interaction during the procedure provides a rich source for                                                   plements this line of work by providing more realistic human
+designing AI assistants to be more proactive and grounded                                                     interaction and real-world sensor perception.
+in the environment. Yet our work can benefit from the rich
+knowledge and representation learned from existing datasets                                                   3. HoloAssist: Human Assistance Dataset
+like Ego4D and is complementary in nature.
+                                                                                                                 In this work, we introduce HoloAssist which features a
+Mistake detection. One of the key observations in human                                                       two-person collaboration scenario and can be used to sit-
+interaction is that human assistants tend to correct mistakes                                                 uate AI assistance in the physical world. We will start by
+and proactively intervene in the task completion procedure.                                                   describing the data collection and statistics in Section 3.1
+While there has been a large body of work for video-based                                                     and annotations in Section 3.2, before diving into the obser-
+anomaly detection [24, 40, 43, 44], mistake detection in pro-                                                 vations and benchmarks in the following sections.
+cedural settings has been under-explored. The Assembly101
+dataset [31] proposes a mistake detection task to predict if a                                                3.1. Data Collection and Statistics
+coarse-grained action segment is a mistake or correction. By
+contrast, HoloAssist emphasizes fine-grained actions since                                                    Tasks and objects. We consider multi-step goal-oriented
+instructors may intervene when they spot a student’s mis-                                                     tasks involving 16 objects ranging from familiar objects of-
+take in an active intervention setting rather than wait until                                                 ten used in daily life to rare objects sometimes used in labs
+the whole step (i.e., coarse-grained action) is completed. In                                                 and factories as summarized in Table 1. We consider small
+addition, we propose a new intervention prediction task and,                                                  electronics like a GoPro, DSLR camera, and Nintendo, of-
+in combination, enable a more comprehensive understanding                                                     fice appliances like a Nespresso machine and printer, IKEA
+of interactions in an assistive task completion setting.                                                      furniture, and objects in labs such as a laser scanner, motor
+                                                                                                              cycle, and circuit breaker. We have designed 20 tasks involv-
+Multimodality and interaction. Human interaction with                                                         ing physical manipulation of these objects, e.g., changing
+the world is multimodal as we see, speak, and touch ob-                                                       batteries, changing belts, furniture assembly, machine setup,
+jects in the environment. In HoloAssist, we collect seven                                                     etc. There is one task per object except for the IKEA furni-
+raw sensor modalities that might help understand humans’                                                      ture, which has assembly and disassembly tasks. Detailed
+intentions, estimate the world states, predict future actions,                                                task instructions are in supplementary materials.
+etc. Previous datasets [12, 14, 18, 39] often provide a lim-
+ited subset of modalities. Although not every sensor may                                                      Participants and collection procedure. We recruited 222
+currently be relevant for the downstream tasks, the seven                                                     participants to form 350 unique pairs of instructors and per-
+synchronized sensor modalities provided in HoloAssist will                                                    formers for data collection. Figure 3 shows the demograph-
+
+                                                                                                              20272
+6NLOO/HYHO                           6NLOO/HYHOVRI3DUWLFLSDQWV                                         6HVVLRQ&RXQWV3HU$FWLYLW\                         7RWDO6HVVLRQ/HQJWK3HU$FWLYLW\LQ0LQXWHV
+             
+                                                                                                                                                                                                                     
+                                                                                                                                                                                                                       
+                                                                                                        
+                                                                                                                                                              
+                                                                                                                                                                
+               $YHUDJH6HVVLRQ/HQJWKLQ0LQXWHV                                                                                                                
+0LQXWHV
+        %HOW                                                                                                                                                          
+            &LUFXLW%                                                                                                                                                  
+                $79                                                                                                                                                        
+                   &RIIHH                                                                                                                                                        
+                       3ULQWHU%                                                                                                                                                
+                           1DY9LV                                                                                                                                                    
+                               7UD\7DEOH'                                                                                                                                              
+                                   6WRRO'                                                                                     
+                                       1HVSUHVVR                                                                                                                                          
+                                          &RPSXWHU                                                                                                                                              
+                                              '6/5                                                                                                                                              
+                                                  3ULQWHU6                                                                                                                                       
+                                                      7UD\7DEOH$
+                                                          6WRRO$                                                                                                                                    
+                                                             1LJKWVWDQG'                                                                                                                               
+                                                                 6ZLWFK                                                                                                                                        
+                                                                     8WLOLW\&DUW'                                                                                                                           
+                                                                         *RSUR                                                                       
+                                                                             1LJKWVWDQG$
+                                                                                 8WLOLW\&DUW$                                                        
+                                                                                                                                                           
+
+             
+             
+                                                                                                %HOW
+                                                                                                   &LUFXLW%
+             
+                                                                                                       $79
+                                                                                                          &RIIHH
+                                                                                                             3ULQWHU%
+                                                                                                               1DY9LV
+                                                                                                                  7UD\7DEOH'
+                                                                                                                     6WRRO'
+                                                                                                                        1HVSUHVVR
+                                                                                                                          &RPSXWHU
+                                                                                                                             '6/5
+                                                                                                                                3ULQWHU6
+                                                                                                                                   7UD\7DEOH$
+                                                                                                                                      6WRRO$
+                                                                                                                                        1LJKWVWDQG'
+                                                                                                                                           6ZLWFK
+                                                                                                                                              8WLOLW\&DUW'
+                                                                                                                                                 *RSUR
+                                                                                                                                                   1LJKWVWDQG$
+                                                                                                                                                      8WLOLW\&DUW$
+
+                                                                                                                                                            %HOW
+                                                                                                                                                              &LUFXLW%
+
+                                                                                                                                                                 $79
+                                                                                                                                                                    &RIIHH
+                                                                                                                                                                       3ULQWHU%
+                                                                                                                                                                          1DY9LV
+                                                                                                                                                                            7UD\7DEOH'
+                                                                                                                                                                               6WRRO'
+                                                                                                                                                                                  1HVSUHVVR
+                                                                                                                                                                                     &RPSXWHU
+                                                                                                                                                                                       '6/5
+                                                                                                                                                                                          3ULQWHU6
+                                                                                                                                                                                             7UD\7DEOH$
+                                                                                                                                                                                                6WRRO$
+                                                                                                                                                                                                  1LJKWVWDQG'
+                                                                                                                                                                                                     6ZLWFK
+                                                                                                                                                                                                        8WLOLW\&DUW'
+                                                                                                                                                                                                           *RSUR
+                                                                                                                                                                                                              1LJKWVWDQG$
+                                                                                                                                                                                                                8WLOLW\&DUW$
+
+Figure 4: The skill level of participants (0-10) for the tasks                                    Figure 5: Data distribution of 166 hours captured by HoloAs-
+is self-reported by the participants. The skill levels roughly                                    sist. (left) number of sessions per activity, and (right) total
+reflect the length of the sessions though they might be noisy.                                    length of sessions in minutes.
+
+ics of the participants. Before data collection, the partici-                                     Dataset            Settings                                  Collaborative Instructional # real
+pants review the IRB forms to acknowledge the privacy and                                                                                                      &Interactive &Procedural video hours
+ethics standards (more details in supplementary materials).
+The instructors are informed about the task in detail. The                                        Epic-Kitchen-100 [12] Cooking                                ✗  ✗  100
+participants playing the role of performers are only given
+a rough description of the tasks and scenarios beforehand                                         Assembly101 [31]   Toy assembly                              ✗  ✓  167
+and interacted with the objects based on their understanding.
+The instructors provide verbal guidance as the performers                                         Ego4D [14]         Daily-life task                           +  +  3,670
+set out to complete the tasks.
+                                                                                                  VirtualHome [26]   Household task                            ✗  ✓  §
+   In Figure 4 (top), we show the distribution of the perform-
+ers’ familiarity with the tasks measured by a self-reported                                       ALFRED [33]        Household task                            ✗  ✓  §
+score (0-10) by the participants. We show the average length
+and the outliers of the recorded sessions in Figure 4 (bot-                                       Habitat [36]       Home assistance                           ✗  ✓  §
+tom) to give a rough idea of how the participant’s skill levels
+may lead to increased session variance. The participants’ di-                                     BEHAVIOR [34]      Daily-life task                           ✓  ✓  §
+verse skill levels and backgrounds provide rich information
+about the user behaviors and diverse interaction between the                                      IGLU [16]          Collaborative ✓                              ✓  §
+instructors and performers.                                                                                            building*
+
+Data capture tool. We leveraged the Platform for Situated                                         TEACh [25]         Household task                            ✓  ✓  §
+Intelligence framework [10] to develop and open-source a
+distributed application for data capture using HoloLens 2 [3].                                    HoloAssist (ours)  Assistive task                            ✓  ✓  166
+A client process running on the device captured the sensor
+data while displaying a rectangular hologram frame around                                         Table 2: Comparison to related datasets and simulation
+the user’s visual field of view to guide their attention down-                                    platforms. HoloAssist features a multi-person collabora-
+ward and keep the task actions in view of the sensors. Sensor                                     tive setting which is a unique addition to existing egocentric
+data was streamed live over the network to a server appli-                                        datasets in the real world. HoloAssist provides a set of in-
+cation that ran on a PC and persisted the data to disk. This                                      structional and procedure videos with multi-turn dialogues.
+distributed setup allows for collecting longer uninterrupted                                      Procedure tasks are defined as following a set of defined
+sessions without reaching the device storage capacity limits.                                     steps or procedures to achieve a specific goal, deviation from
+                                                                                                  the procedure can be construed to be a mistake. HoloAs-
+Comparison with other datasets. While there is no direct                                          sist spans 166 hours and 2,221 sessions. §: simulation, *:
+comparison of datasets with the same setup with HoloAssist,                                       Minecraft-like, +: partially included.
+we list out different aspects of our dataset and compare it
+with related datasets in Table 2. HoloAssist is among the                                         orative simulation environments with a distinct characteristic
+largest egocentric video datasets and features a multi-person                                     of real-world sensor data and real-world human interaction.
+collaboration setting, which is a unique addition to the field.
+In addition, HoloAssist relates to work on multi-agent collab-                                    3.2. Annotations
+
+                                                                                                     To better understand the actions and interactions in the
+                                                                                                  dataset, we provide several sets of third-person manual an-
+                                                                                                  notations for text summaries, action segments, mistake at-
+                                                                                                  tributes, and intervention attributes.
+
+                                                                                                  Language annotations. We asked the annotators to watch
+                                                                                                  the video and write a paragraph to describe the activities
+                                                                                                  in the videos. The description focuses on describing the
+                                                                                                  hand actions in the procedure. The third-person post hoc
+                                                                                                  summary provides insights into the key moments during the
+                                                                                                  interactive task completion. These could be used to build a
+                                                                                                  comprehensive set of instructions for task completion. We
+
+                                                                                                  20273
+                                                                         
+                                                                           
+
+     
+       
+          
+            
+               
+                 
+                    
+                      
+                         
+                           
+                              
+                                 
+                                   
+                                      
+                                        
+                                           
+                                             
+                                                
+                                                  
+                                                     
+                                                       
+                                                          
+                                                             
+                                                               
+                                                                  
+                                                                    
+                                                                       
+                                                                         
+'LVWULEXWLRQRI'XUDWLRQRI&RDUVH$FWLRQV                                           'LVWULEXWLRQRI9HUEV([WUDFWHGIURP&RDUVH$FWLRQV                      'LVWULEXWLRQRI1RXQV([WUDFWHGIURP&RDUVH$FWLRQV
+
+                                                                                                                                                  
+                                                                                                                                                     
+                                                                                  
+                                                                                                                                                   
+                                                                                                                                                     
+                                                                                                                                                        
+                                                                                                                                                          
+                                                                                                                                                             
+                                                                                                                                                               
+                                                                                                                                                                  
+                                                                                                                                                                    
+                                                                                                                                                                       
+                                                                                                                                                                         
+                                                                                                                                                                            
+                                                                                                                                                                              
+                                                                                                                                                                                 
+                                                                                                                                                                                    
+                                                                                                                                                                                       
+                                                                                                                                                                                          
+                                                                                                                                                                                            
+                                                                                                                                                                                               
+                                                                                                                                                                                                 
+                                                                                                                                                                                                    
+                                                                                                                                                                                                      
+                                                                                                                                                                                                         
+                                                                                                                                                                                                           
+                                                                                                                                                                                                              
+                                                                                                                                                                                                                 
+                                                                                                                                                                                                                     
+                                                                                                                                                                                                                        
+                                                                                                                                                                                                                          
+
+         !                                        DVVHPEOH                                                                 /HJ
+                       VHFRQGV                                                 GLVDVVHPEOH                                                              6FUHZ
+                                                                                                                                                          -R\FRQFRQWUROOHU
+                                                                                 H[FKDQJH                                                                   *RSUR
+                                                                                   XQVFUHZ
+                                                                                      WXUQRQ                                                                  7UD\
+                                                                                        WXUQRII                                                                 *ULGWUD\
+                                                                                          ZLWKGUDZ                                                                 6'FDUG
+                                                                                                                                                                      1LQWHQGRVZLWFK
+                                                                                             VFUHZ
+                                                                                               LQVHUW                                                                   :KHHO
+                                                                                                 ORDG                                                                     /HQV
+                                                                                                    SODFH                                                                    %DWWHU\
+                                                                                                      PDNH                                                                     3ULQWHU
+                                                                                                        RSHQ                                                                     '6/5
+                                                                                                           HPSW\                                                                    3DSHUVWDFN
+                                                                                                             FORVH                                                                    ,QNFDUWULGJH
+                                                                                                               LQVSHFW                                                                  /HQVFRYHU
+                                                                                                                 VWDQG                                                                     &LUFOH
+                                                                                                                                                                                             &LUFXLWEUHDNHU
+                                                                                                                    SXOO                                                                       %UDFNHW
+                                                                                                                      JUDE                                                                       &RPSXWHUWRZHU
+                                                                                                                        VKLIW                                                                       +DQGKHOGJULS
+                                                                                                                           ORFN                                                                       +DOIIUDPH
+                                                                                                                             PRXQW                                                                      )URQWSDQHOGRRU
+                                                                                                                               DOLJQ                                                                       &RIIHH
+                                                                                                                                  URWDWH                                                                     6WUDS
+                                                                                                                                    SXVK                                                                       'ULSWUD\
+                                                                                                                                      SUHVV                                                                       *DPHFDUG
+                                                                                                                                         UHVHW                                                                      /HYHU
+                                                                                                                                                                                                                      6HDW
+                                                                                                                                           OLIW                                                                          3DSHUWUD\
+                                                                                                                                             XVH
+                                                                                                                                                SRXU
+
+Figure 6: Data distribution of the coarse-grained actions. (left) duration of the actions in seconds, (middle) 30 most frequently
+occurring verbs, and (right) 30 most frequently occurring nouns.
+
+
+  
+    
+       
+         
+
+           
+              
+                
+                   
+                     
+                       
+                          
+                            
+                              
+                                 
+                                   
+                                      
+                                        
+                                          
+                                             
+                                               
+                                                 
+                                                    
+                                                      
+                                                         
+                                                           
+                                                             
+                                                                
+                                                                  
+                                                                    
+
+                                                                          
+                                                                             
+                                                                               
+                                                                                 
+                                                                                    
+                                                                                      
+                                                                                        
+                                                                                           
+                                                                                             
+                                                                                                
+                                                                                                  
+                                                                                                    
+                                                                                                       
+                                                                                                         
+                                                                                                            
+                                                                                                              
+                                                                                                                
+                                                                                                                   
+                                                                                                                     
+                                                                                                                       
+                                                                                                                          
+                                                                                                                            
+                                                                                                                               
+                                                                                                                                 
+                                                                                                                                   
+                                                                                                                                      
+                                                                                                                                        
+                                                                                                                                          
+                                                                                                                                             
+                                                                                                                                               
+
+                                                                                                                                                     
+                                                                                                                                                       
+                                                                                                                                                          
+                                                                                                                                                            
+                                                                                                                                                              
+                                                                                                                                                                 
+                                                                                                                                                                   
+                                                                                                                                                                      
+                                                                                                                                                                        
+                                                                                                                                                                          
+                                                                                                                                                                             
+                                                                                                                                                                               
+                                                                                                                                                                                 
+                                                                                                                                                                                    
+                                                                                                                                                                                      
+                                                                                                                                                                                         
+                                                                                                                                                                                           
+                                                                                                                                                                                             
+                                                                                                                                                                                                
+                                                                                                                                                                                                  
+                                                                                                                                                                                                     
+                                                                                                                                                                                                       
+                                                                                                                                                                                                         
+                                                                                                                                                                                                            
+                                                                                                                                                                                                              
+                                                                                                                                                                                                                
+                                                                                                                                                                                                                   
+                                                                                                                                                                                                                     
+                                                                                                                                                                                                                        
+                                                                                                                                                                                                                          
+'XUDWLRQRI)LQHJUDLQHG$FWLRQV                                                     9HUEV([WUDFWHGIURP)LQHJUDLQHG$FWLRQV                                1RXQV([WUDFWHGIURP)LQHJUDLQHG$FWLRQV
+
+                                                                  JUDE
+                     VHFRQGV                                                   SODFH
+                                                                                 LQVHUW
+                                                                                   ZLWKGUDZ
+                                                                                     XQVFUHZ
+                                                                                       VFUHZ
+                                                                                         URWDWH
+
+                                                                                            OLIW
+                                                                                              GLVDVVHPEOH
+
+                                                                                                DSSURDFK
+                                                                                                  DOLJQ
+
+                                                                                                    LQVSHFW
+                                                                                                      KROG
+                                                                                                         SUHVV
+                                                                                                           RSHQ
+                                                                                                             VOLGH
+
+                                                                                                               DVVHPEOH
+                                                                                                                 GURS
+                                                                                                                   FORVH
+                                                                                                                      SXOO
+                                                                                                                        SXVK
+                                                                                                                          IOLS
+                                                                                                                            WRXFK
+
+                                                                                                                              XQORFN
+                                                                                                                                WXUQ
+                                                                                                                                   ORFN
+                                                                                                                                     ORDG
+
+                                                                                                                                       WXUQRII
+                                                                                                                                         HPSW\
+                                                                                                                                           WXUQRQ
+                                                                                                                                                +H[VRFNHWKHDG
+                                                                                                                                                   $OOHQZUHQFK
+
+                                                                                                                                                     /HJ
+                                                                                                                                                       6FUHZ
+                                                                                                                                                         6FUHZGULYHU
+                                                                                                                                                           +H[DJRQDOZUHQFK
+
+                                                                                                                                                             7UD\
+                                                                                                                                                                +H[DJRQFDSQXW
+                                                                                                                                                                  -R\FRQFRQWUROOHU
+
+                                                                                                                                                                    1LJKWVWDQG
+                                                                                                                                                                      *RSUR
+                                                                                                                                                                        :KHHO
+                                                                                                                                                                          %UDFNHW
+
+                                                                                                                                                                             1LQWHQGRVZLWFK
+                                                                                                                                                                               *ULGWUD\
+                                                                                                                                                                                 6GFDUG
+                                                                                                                                                                                   %XWWRQ
+                                                                                                                                                                                     %ROW
+
+                                                                                                                                                                                       ,QNFDUWULGJH
+                                                                                                                                                                                          '6/5
+
+                                                                                                                                                                                            :DVKHU
+                                                                                                                                                                                              %DWWHU\
+                                                                                                                                                                                                +H[QXW
+                                                                                                                                                                                                  %DWWHU\GRRU
+                                                                                                                                                                                                    3DSHUVWDFN
+                                                                                                                                                                                                      'ULSWUD\
+                                                                                                                                                                                                         3DSHUWUD\
+
+                                                                                                                                                                                                           /HQV
+                                                                                                                                                                                                             8WLOLW\FDUW
+                                                                                                                                                                                                               +DOIIUDPH
+
+Figure 7: Data distribution of the fine-grained actions. (left) duration of the actions in seconds, (middle) 30 most frequently
+occurring verbs, and (right) 30 most frequently occurring nouns. We can see that most fine-grained actions last less than 2
+seconds, and there is a long tail distribution in actions, verbs, and nouns.
+
+also provide the transcriptions of the conversations in the                          seconds. The fine-grained actions are presented in a verb-
+video. With this set of annotations, we can understand the                           (adj.)-noun pair format. There are 1887 fine-grained actions
+difference between third-person post hoc summaries and                               with 165 nouns and 49 verbs. For a more comprehensive
+real-time conversations during the activities. More examples                         evaluation, we create a split of head actions with 1082 top
+are in supplementary materials.                                                      actions and 805 tail actions. Distributions of fine-grained
+                                                                                     actions are shown in Figure 7.
+Coarse-grained action annotations. The coarse actions
+usually describe a high-level step in the task (e.g., change                             As mentioned earlier, noun and verb vocabularies are
+battery of a GoPro in the GoPro set up task) and can be                              not pre-defined but gradually built through annotation. We
+divided into multiple fine-grained actions. To deal with the                         ask the annotators to enter a new verb and noun if they
+open-world setting, we ask the annotators to write a sequence                        cannot find it in the vocabulary. After the data is annotated,
+(e.g., man changes the battery of GoPro) to describe the                             we ask the annotators to revisit and check the tail classes
+coarse actions and also identify the active verb-noun pair                           and see if they are repetitive to head classes. Due to the
+and optionally an adjective for the noun for benchmarking                            open-world nature, some verb and noun combinations might
+purposes (e.g., change battery). The dataset includes 414                            be interchangeable with others in the list. We show some
+coarse-grained actions with 90 nouns and 39 verbs. The                               examples in the supplementary materials.
+distribution of the actions follows a long-tail distribution
+shown in Figure 6, where 185 actions are considered head                             Mistake annotation. Each fine-grained action is labeled
+classes while the rest are considered tail classes according to                      as either correct or mistake, as indicated in Figure 2. Mis-
+the action frequency for evaluation purposes.                                        takes include the ones that are “self-corrected by the task
+                                                                                     performers”, are “verbally corrected by the instructors”, and
+Fine-grained action annotations. Fine-grained actions are                            “are not corrected labeled”. Our human annotators anno-
+the low-level atomic actions (e.g., press button, grab screw,                        tate all three mistake types separately, but for benchmark
+etc.) for completing a step in the task, usually lasting for 1-2                     evaluation, we will consolidate them into one mistake class.
+
+                                                                                     20274
+IMMEDIATE INTERVENTION        LAZY INTERVENTION                   Spatial deixis from the intervention transcripts
+
+   insert screw               drop allen wrench                   “You should press the button that’s on the body of the camera
+   approach button            drop hex socket head                just at the right of the lens.”
+   insert joy con controller  drop screw
+   place tray                 screw hex socket head               “You should leave the bolt, like it was before.”
+   pull battery door          screw screw
+                                                                  “The button is on the other side of the Switch.”
+Table 3: Top mistakes that are corrected immediately (left)
+or later and sometimes through self-correction (right).           “The SD card comes from the right slot, on the right hand side
+                                                                  and it opens by using a knob next to the screen
+                                  .                               on the right bottom side of the screen.”
+
+We defer the detailed study of differentiating whether and        “Currently the tray is facing you, please rotate so the back is
+how the mistakes are corrected to future work. To ensure          facing you.”
+the annotation quality, we additionally ask the third-person
+annotators to explain why the action is a mistake and also        “You should put it the other way around. It’s upside down.”
+assign a mapping to every mistake that is corrected by an
+instructor verbally to the conversation sentence whose type       “Please start by removing the screw of the top shelf first.”
+is “instructor correcting mistakes”.
+                                                                  “And now, ehm, it is, it should be the other one that should be
+Intervention annotation. Since instructors assist the task        on top of the other.”
+performers verbally, we annotate the conversation between
+the instructors and performers to reflect the interventions in    “To the right of that, there is a tiny little square.”
+task completion. We annotate each conversation sentence
+with two attributes to indicate the conversation types and      Table 4: Examples of deictic phrases that help in grounded
+the conversation initiator. The conversation initiators can     guidance by specifying contextual spatial locations.
+either be the “task performer” or the “instructor”. And the
+sentence purpose types can be the instructor “correcting        4. Observations and Tasks from HoloAssist
+mistakes”, “answering questions”, “following up with more
+instructions”, “confirming previous actions”. “describing          Here we present observations from HoloAssist in Sec-
+the high-level task”, “opening/closing remarks”, or the task    tion 4.1 and identify a few open problems that are necessary
+performer starting the conversation to ask questions. We        components for an interactive AI assistant. In Section 4.2,
+asked human annotators to watch the videos and use their        we define new tasks and benchmarks with HoloAssist.
+best judgment to annotate the roles of different conversations
+in the videos.                                                  4.1. Observations from HoloAssist
+
+   In our benchmarks, we consider 3 intervention types:         Correlation between mistakes and intervention. We find
+correcting mistakes, following up with more instructions,       that the response time for the human assistant to intervene in
+and confirming the previous action as they are more related     the procedure and correct mistakes depends on the severity
+to physical actions in the task procedure. Figure 2 shows       level of the mistakes. If mistakes are critical, the instructors
+examples of conversational interventions. More examples         proactively interrupt the student immediately (within less
+can be found in the supplementary materials.                    than 5 seconds duration) while other mistakes are either self-
+                                                                corrected by the task performer or corrected later by the
+Audit process. Annotations are done by professional annota-     instructor.
+tors based on the following process. The annotators first take
+a pass on the video to add the fine-grained actions, coarse-       In Table 3, we present the top actions that need immediate
+grained actions, conversation, and text summary, along with     intervention and the top actions that are self-corrected by
+the associated annotation elements for each event. After        the task performers or corrected later by the instructors. We
+self-review, the annotated data is passed to an independent     notice that actions related to linear tasks, where the task pro-
+reviewer for auditing, and the mistakes are fixed directly      gression is stalled if steps are not followed in order, are often
+or sent back to the original annotator for updates. The an-     intervened immediately by the instructors. For example, “in-
+notations finally go through a targeted review to check the     sert joy con controller”, and “place tray” etc. In contrast,
+open-ended text fields like narration, action sentences, and    the lazily edited corrections are related to furniture assembly
+conversation transcriptions to ensure consistency. Before the   such as the actions “drop allen wrench”, “drop hex socket
+annotations were delivered, we applied a list of constraints    head”, etc. These are tasks where mistakes are unclear in
+to systematically check the annotations to further dig out the  every stage, and the user often intuitively adjusts their steps.
+wrong annotations.                                              Grounded guidance. We also notice that the instructions
+                                                                from human instructors are often grounded in the 3D envi-
+                                                                ronment. An important aspect of grounded guidance is the
+
+                                                                20275
+ability to communicate about the physical world by pointing      5. Experiments
+to things in context. Spatial deixis refers to phrases that are
+used to locate things in space and to express direction and         In this section, we provide the evaluation results of the
+distance. The deictic analysis of the transcripts in HoloAssist  proposed benchmarks. We will start with the standard action
+reveals a wide set of words that indicate specific and rela-     recognition benchmarks, and then we will present the results
+tive locations and directions, especially during interventions   of the newly proposed benchmarks. We also provide abla-
+to correct mistakes. A list of some prominent examples is        tions of different sensor modalities to understand the roles
+shown in Table 4.                                                of different sensors in various tasks. We hope the baseline
+                                                                 results can guide future research in this space.
+4.2. Benchmark Tasks
+                                                                 Implementation details. We adopt TimeSformer [9], a
+   Inspired by the observations above, we think it is im-        state-of-the-art vision transformer (ViT) [13] based video
+portant for an interactive AI assistant to have a good world     model, as the backbone and change the head with a different
+state estimation model that can detect mistakes and predict      number of classes for different benchmarks. We modify the
+whether to intervene in the task procedure. Besides, aug-        original TimeSformers to perform multimodal learning by
+menting instructions with spatial guidance can be useful for     introducing additional tokens for different modalities and
+AI agents. To this end, we introduce new mistake detection,      embedding layers to encode the additional sensor modali-
+intervention prediction and 3D hand pose forecasting tasks       ties. Specifically, we use 26×2 tokens for both left and right
+for interactive and grounded guidance. Additionally, we          hands (one token for one hand joint), one token for eye gaze,
+benchmark models on action recognition tasks following the       one token for head poses, and 196 tokens for depth. We can
+convention in [12].                                              enable and/or disable different modalities during training
+                                                                 and evaluation. Detailed configurations are available in sup-
+Mistake detection is defined following the convention [31]       plementary materials. Note that we consider the resulting
+but applied to fine-grained actions in our benchmark. We         model a vanilla multimodal model and serve as a baseline
+take the features from the fine-grained action clips from        for future studies.
+the beginning of the coarse-grained action until the end of
+the current action clip, and the model predicts a label from        We randomly split the 2221 sessions into train, validation,
+{correct, mistake}. The task is challenging given that the       and test sets following a ratio of 70%, 10%, and 20% on
+class distribution is highly skewed, with around 6% mistakes     a per-task basis, which includes 1545 sessions for training,
+among the fine-grained actions.                                  213 sessions for validation, and 463 sessions for testing. We
+                                                                 also synchronize all the modalities according to the video
+Intervention type prediction is to predict the intervention      stream and keep the frame rate at 30 fps by sub-sampling
+types given an input of a window of 1, 3, or 5 seconds before    other modalities in our experiments.
+the intervention. This newly proposed benchmark is to test
+if the model can correctly figure out the correct intervention      During training, the model is trained for 15 epochs with
+types during task completion. Currently, HoloAssist includes     an initial learning rate of 0.01 and a batch size of 64 using
+3 intervention types, and we report the precision and recall     stochastic gradient descent. We divide the learning rate by
+of each intervention type.                                       10 at the epoch 11 and 14. For each input segment, we
+                                                                 randomly sample 8 frames/data points within the segment.
+3D hand pose forecasting is another new benchmark intro-         We train our models with 4xA6000 GPU machines, and the
+duced by HoloAssist. Existing action forecasting work [12]       fine-grained action recognition runs usually take about one
+mostly focuses on providing semantic labels of future ac-        day. We also train the model with random initialization and
+tions and does not provide explicit 3D guidance on hand          an ImageNet pre-trained ViT backbone.
+poses. Predicting 3D hand poses can be useful for various
+applications [4], and it can augment instructions and spa-          For our hand pose forecasting benchmark, which is a re-
+tially guide users in different tasks. In this benchmark, we     gression task, we adopt Seq2Seq model [35] following [19].
+take 3 seconds inputs similar to other 3D body location fore-
+casting literature [41] and forecast the continuous 3D hand      Action recognition. We show the fine-grained action recog-
+poses for the next 0.5, 1.0, and 1.5 seconds. The evaluation     nition results in Table 5 and the coarse-grained action recog-
+metric is the average of mean per joint position error over      nition results in Table 6. We can see that initialized with a
+time in centimeters compared to ground truth. To have a          pre-trained ViT model on ImageNet; all models can achieve
+proper evaluation metric that can help 3D action guidance,       around 35% top-1 accuracy on fine-grained action recogni-
+we remove the mistakes from the action sequences and only        tion and 50% top-1 accuracy on coarse-grained action recog-
+forecast 3D hand pose for the correct labels.                    nition. This is comparable to baselines of other fine-grained
+                                                                 action benchmarks [31] (23% top-1 accuracy),
+
+                                                                    We notice that the pre-trained model on ImageNet may
+                                                                 reduce the influence of other modalities that are not pre-
+                                                                 trained. If trained from scratch, we can see from Table 5
+
+                                                                 20276
+            Mods.                    All Classes Accuracy                Head Classes Accuracy                      Tail Classes Accuracy
+
+                        Top1 / 5 Act Top1 / 5 Verb Top1 / 5 Noun Top1 / 5 Act Top1 / 5 Verb Top1 / 5 Noun Top1 / 5 Act Top1 / 5 Verb Top1 / 5 Noun
+
+Pretrained    RGB       34.83/68.60  42.14/78.96    66.81/90.04   35.26/69.34  42.56/79.53  67.19/90.36  0.03/0.17  10.86/36.33  38.01/66.48
+              Hands     20.86/43.92  35.38/65.76    37.10/63.42   21.13/44.50  35.72/66.30  37.50/64.06  0.00/0.01  10.11/25.47  7.30/15.54
+               R+H      35.06/68.95  42.45/79.42    67.05/90.01   35.49/69.71  42.87/80.03  67.43/90.32  0.03/0.16  11.05/33.71  38.39/66.85
+             R+H+E      35.27/68.69  42.92/79.11    67.03/89.96   35.72/69.42  43.33/79.67  67.45/90.29  0.03/0.18  11.99/37.64  35.96/65.17
+            R+H+E+I     34.80/68.26  42.24/78.88    66.65/89.76   35.23/69.00  42.63/79.46  67.03/90.08  0.03/0.17  12.92/35.96  38.20/65.17
+
+Scratch         RGB     18.78/48.09  28.45/65.43    43.72/73.69   19.03/48.72  28.74/66.00  44.09/74.21  0.00/0.01  6.55/22.66   15.73/34.27
+               Hands    23.94/47.58  39.79/68.76    39.34/65.76   24.26/48.21  40.18/69.30  39.79/66.43  0.00/0.00  10.67/28.65  5.62/16.29
+            RGB + Eyes  20.86/50.27  30.92/67.59    45.28/75.29   21.13/50.93  31.22/68.20  45.65/75.80  0.00/0.01  8.05/21.72   17.60/37.08
+
+Table 5: Fine-grained action recognition benchmark results. We report baseline results of (multimodal) TimeSformer [9]
+models on HoloAssist. Here R, H, I denote RGB, hands, and head pose (whose sensor source is similar as IMUs). When
+starting from a pre-trained ViT model on ImageNet, all the models have higher performance than training from scratch.
+However, with a pre-trained image model, the influence of other modalities is reduced. If the models are trained from scratch,
+we can see that adding hands can improve the prediction of verbs and lead to better results than the baseline RGB only model.
+Simply concatenating more sensors as inputs may not necessarily lead to improved performance.
+
+            Mods.             All Classes Accuracy                       Head Classes Accuracy           Tail Classes Accuracy
+
+                     Top1 / 5 Act Top1 / 5 Verb Top1 / 5 Noun Top1 / 5 Act Top1 / 5 Verb Top1 / 5 Noun Top1 / 5 Act Top1 / 5 Verb Top1 / 5 Noun
+
+Pretrained    RGB       50.91/86.89  60.51/93.45   73.35/95.90    53.40/89.53  62.78/95.39  75.00/96.70  0.37/2.24  20.00/58.89  43.89/81.67
+              Hands     22.20/54.16  35.12/72.34   37.43/68.33    23.44/57.08  36.75/75.25  38.84/70.45  0.00/0.12  6.11/20.56   12.22/30.56
+               R+H      50.80/86.54  59.71/93.36   73.20/95.78    53.27/89.12  61.94/95.20  75.09/96.57  0.37/2.28  20.00/60.56  39.44/81.67
+             R+H+E      50.35/85.51  58.85/93.21   73.67/95.63    52.65/88.03  60.85/94.89  75.28/96.32  0.53/2.28  23.33/63.33  45.00/83.33
+            R+H+E+I     50.18/86.07  59.00/93.21   73.64/96.25    52.49/88.78  61.22/95.07  75.41/96.91  0.50/2.12  19.44/60.00  42.22/84.44
+
+            Table 6: Coarse-grained action recognition results. The overall trend is similar to fine-grained action recognition.
+
+            Mods.    F-score        Correct              Mistake               Mods.           Overall Confirm Action Correct Mistake Follow-up
+                              Precision Recall      Precision Recall                        Prec. Recall Prec. Recall Prec. Recall Prec. Recall
+            Random    27.71
+            RGB       35.11          60.87 10.22           15.00 46.15         RGB 13.93 33.33 0.00 0.00 0.00 0.00 41.79 100
+            Hands     40.19
+            R+H       36.18          82.56  51.82          12.96  26.92        R+H 24.89 33.64 32.14 4.50 0.00 0.00 42.52 96.43
+            R+H+E     32.08          92.68  52.41          12.5   31.25        R+E 25.55 33.73 33.90 10.36 0.00 0.00 42.76 90.83
+                                                                               R+H+E 48.31 37.59 39.11 40.93 61.11 9.91 44.7 61.93
+                                     85.51  43.07          9.68   11.54
+                                     88.57  42.76          11.43  50.00        RGB(Pt) 37.54 37.74 42.31 27.50 27.33 36.61 42.97 49.11
+
+Table 7: Mistake detection results. Similar to action recog-                   Table 8: Intervention type prediction results. The
+nition, adding hand poses to RGB (R+H) improves an RGB-                        classes in benchmark are highly skewed. Here E
+only model from 35.11 to 36.18 points. What’s different                        refers to eye gaze. We can see the predictions of
+is that we find the hands only model outperforms other                         the baseline models (i.e., RGB,R+H, R+E) favor pre-
+modalities in mistake detection, achieving 40.19 points.                       dicting follow-up instructions while ignoring
+                                                                               correcting mistakes (recall is 0). Training more
+(bottom) that adding hands can improve the prediction of                       modalities (R+H+E) alleviates this issue and even outper-
+verbs and lead to better results than the RGB-only model.                      forms the RGB model (RGB(Pt)) in overall precision.
+Mistake detection. In Table 7†, we present the results of
+mistake detection where the features are extracted from the                    we show the results in Table 8†. We can see adding hands
+pre-trained action recognition models shown in Table 5. Here                   and eye gaze (R+H+E) can significantly boost the overall
+we find the hand poses information benefits the task and                       precision and recall to 48.31% and 37.59%, improving about
+outperforms the other modalities.                                              35 and 4 percentage points over RGB. This may be because
+                                                                               eye gaze is a forecasting signal, as people often look at the
+Intervention type prediction. For intervention prediction,                     regions before the action starts, which can assist the models
+                                                                               to attend to important regions for better anticipation.
+     †Evaluated on 10% of the entire data
+
+                                                                               20277
+Printer Task
+GoPro Task
+
+Figure 8: Qualitative visualization for 3D hand pose forecasting. We visualize the ground-truth hand joint positions (i.e.,
+hand pose, visualized in Green) and the prediction of the hand pose for the next 1.5 seconds (visualized in Red). The input to
+the model is a 3-second long clip ahead of the prediction. The task is challenging as hands often move quickly. As we can see
+from the figure, the predicted hand pose is more off from the grounded truth in the longer future.
+
+Mods.           Mean Error Distance (cm, ↓)                     6. Conclusion and Future Work
+              0.5 sec 1.0 sec 1.5 sec
+Static-H                                                           In this work, we identified and explored several important
+Hands         9.34  13.91  16.70                                problems with building an interactive AI assistant in the phys-
+H+E                                                             ical world. We introduced a large-scale multimodal egocen-
+H+E+I         9.80  10.68  11.25                                tric video dataset, HoloAssist, containing rich information
+R+H+E                                                           about human interaction in an assistive task completion set-
+R+H+E+I       9.80  10.70  11.25                                ting. The task performer wears a HoloLens 2 headset while
+                                                                completing various object-centric manipulation tasks. The
+              9.80  10.69  11.25                                real-time video feed from the headset is sent to a remote in-
+                                                                structor who provides verbal guidance to the task performer.
+              9.73  10.65  11.22                                HoloAssist captures seven raw sensor modalities during the
+                                                                interaction, and among them, we found hand pose and eye
+              9.72  10.62  11.19                                gaze are useful information sources for an interactive AI
+                                                                agent. By augmenting the data with additional third-person
+Table 9: 3D hand pose forecasting benchmark results.            manual annotations on action segments, mistakes, and inter-
+We report the mean per joint position error for 0.5 1.0,        vention types, we constructed new benchmarks on mistake
+1.5 seconds (lower the better). The static hand baseline        detection, intervention type prediction, and 3D hand pose
+(Static-H) refers to using the last frame of the input. The     forecasting, which we believe is a necessary component for
+Seq2Seq [35] model trained using hands only H, and using        an interactive and grounded AI assistant. As a first step in
+only hand H achieves better results than Static-H.              this direction, this work also leaves room for future work
+                                                                to improve upon (e.g., annotating object poses in the data,
+3D hand pose forecasting. Table 9 shows that given only the     investigating object-centric models of affordance and ma-
+3D poses of hands as input, the model can perform with the      nipulations in AI assistance, etc.). We believe HoloAssist,
+accuracy of 9.80, 10.68, and 11.25 centimeters, the average     coupled with the associated benchmarks and tooling will
+of mean per joint position error, for 0.5, 1, and 1.5 seconds,  benefit future research into building competent AI assistants
+respectively. We should note that this task is challenging as   for everyday tasks in the real world.
+hands can move quickly within a window of 0.5 seconds.
+Compared to static-H, which uses the last 3D hand pose,         Acknowledgement
+our baseline (H) already outperforms it. In Figure 8, we show
+the visualization of the hand pose forecasting.                     We thank all the 222 data collectors who participated in the
+                                                                study and acknowledge the hard work of the annotation team led
+Importance of hand poses and eye gaze. As we can already        by Megan Yuan and Dan Luo from DataTang Technology Inc. We
+see from the Tables 5, 7, 8, 9, the 3D hand poses and eye       thank Nick Saw for the help in the data collection software and
+gaze can help the model prediction to recognize actions,        Yale Song and Vibhav Vineet from the Computer Vision Group
+detect mistakes, and understand users’ intentions. These        at Microsoft Research for the early discussion. We also thank the
+modalities can augment the commonly used RGB images for         feedback from colleagues at MSR.
+better performance. Simply concatenating more modalities
+(e.g., depth, head poses) as inputs may not necessarily lead
+to a more capable model, as those modalities may need
+specialized encoders or model architectures to process them
+simultaneously. We believe HoloAssist will enable and foster
+further research in multi-modal learning in this direction.
+
+                                                                20278
+References                                                            santi, Jonathan Munro, Toby Perrett, Will Price, and Michael
+                                                                      Wray. Rescaling egocentric vision: Collection, pipeline and
+[1] Microsoft dynamics 365 guides. https://dynamics.                  challenges for epic-kitchens-100. International Journal of
+                                                                      Computer Vision (IJCV), 130:33–55, 2022. 2, 3, 4, 7
+microsoft.com/en-us/mixed-reality/                              [13] Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov,
+                                                                      Dirk Weissenborn, Xiaohua Zhai, Thomas Unterthiner,
+guides/. 1                                                            Mostafa Dehghani, Matthias Minderer, Georg Heigold, Syl-
+                                                                      vain Gelly, et al. An image is worth 16x16 words: Trans-
+[2] Microsoft hololens. https://www.microsoft.com/                    formers for image recognition at scale. arXiv preprint
+                                                                      arXiv:2010.11929, 2020. 7
+en-us/hololens. 2                                               [14] Kristen Grauman, Andrew Westbury, Eugene Byrne, Zachary
+                                                                      Chavis, Antonino Furnari, Rohit Girdhar, Jackson Hamburger,
+[3] Platform for situated intelligence hololens capture               Hao Jiang, Miao Liu, Xingyu Liu, Miguel Martin, Tushar
+                                                                      Nagarajan, Ilija Radosavovic, Santhosh Kumar Ramakrish-
+tools.        https://github.com/microsoft/                           nan, Fiona Ryan, Jayant Sharma, Michael Wray, Meng-
+                                                                      meng Xu, Eric Zhongcong Xu, Chen Zhao, Siddhant Bansal,
+psi/tree/master/Sources/MixedReality/                                 Dhruv Batra, Vincent Cartillier, Sean Crane, Tien Do, Morrie
+                                                                      Doulaty, Akshay Erapalli, Christoph Feichtenhofer, Adriano
+HoloLensCapture. 2, 4                                                 Fragomeni, Qichen Fu, Christian Fuegen, Abrham Gebrese-
+                                                                      lasie, Cristina Gonzalez, James Hillis, Xuhua Huang, Yifei
+[4] Michael Ahn, Anthony Brohan, Noah Brown, Yevgen Chebo-            Huang, Wenqi Jia, Weslie Khoo, Jachym Kolar, Satwik Kot-
+                                                                      tur, Anurag Kumar, Federico Landini, Chao Li, Yanghao
+tar, Omar Cortes, Byron David, Chelsea Finn, Chuyuan Fu,              Li, Zhenqiang Li, Karttikeya Mangalam, Raghava Modhugu,
+                                                                      Jonathan Munro, Tullie Murrell, Takumi Nishiyasu, Will
+Keerthana Gopalakrishnan, Karol Hausman, Alex Herzog,                 Price, Paola Ruiz Puentes, Merey Ramazanova, Leda Sari,
+                                                                      Kiran Somasundaram, Audrey Southerland, Yusuke Sugano,
+Daniel Ho, Jasmine Hsu, Julian Ibarz, Brian Ichter, Alex Ir-          Ruijie Tao, Minh Vo, Yuchen Wang, Xindi Wu, Takuma Yagi,
+                                                                      Yunyi Zhu, Pablo Arbelaez, David Crandall, Dima Damen,
+pan, Eric Jang, Rosario Jauregui Ruano, Kyle Jeffrey, Sally           Giovanni Maria Farinella, Bernard Ghanem, Vamsi Krishna
+                                                                      Ithapu, C. V. Jawahar, Hanbyul Joo, Kris Kitani, Haizhou Li,
+Jesmonth, Nikhil Joshi, Ryan Julian, Dmitry Kalashnikov,              Richard Newcombe, Aude Oliva, Hyun Soo Park, James M.
+                                                                      Rehg, Yoichi Sato, Jianbo Shi, Mike Zheng Shou, Antonio
+Yuheng Kuang, Kuang-Huei Lee, Sergey Levine, Yao Lu,                  Torralba, Lorenzo Torresani, Mingfei Yan, and Jitendra Ma-
+                                                                      lik. Ego4d: Around the World in 3,000 Hours of Egocentric
+Linda Luu, Carolina Parada, Peter Pastor, Jornell Quiambao,           Video. In IEEE/CVF Computer Vision and Pattern Recogni-
+                                                                      tion (CVPR), 2022. 2, 3, 4
+Kanishka Rao, Jarek Rettinghouse, Diego Reyes, Pierre Ser-      [15] W Lewis Johnson and Jeff Rickel. Steve: An animated peda-
+                                                                      gogical agent for procedural training in virtual environments.
+manet, Nicolas Sievers, Clayton Tan, Alexander Toshev, Vin-           ACM SIGART Bulletin, 8(1-4):16–21, 1997. 1, 2
+                                                                [16] Julia Kiseleva, Ziming Li, Mohammad Aliannejadi, Shrestha
+cent Vanhoucke, Fei Xia, Ted Xiao, Peng Xu, Sichun Xu,                Mohanty, Maartje ter Hoeve, Mikhail Burtsev, Alexey Skryn-
+                                                                      nik, Artem Zholus, Aleksandr Panov, Kavya Srinet, et al.
+Mengyuan Yan, and Andy Zeng. Do as i can and not as i say:            Interactive grounded language understanding in a collabora-
+                                                                      tive environment: Iglu 2021. In NeurIPS 2021 Competitions
+Grounding language in robotic affordances. In arXiv preprint          and Demonstrations Track, pages 146–161. PMLR, 2022. 4
+                                                                [17] Eric Kolve, Roozbeh Mottaghi, Winson Han, Eli VanderBilt,
+arXiv:2204.01691, 2022. 7                                             Luca Weihs, Alvaro Herrasti, Daniel Gordon, Yuke Zhu, Ab-
+                                                                      hinav Gupta, and Ali Farhadi. Ai2-thor: An interactive 3d
+[5] Michael Ahn, Anthony Brohan, Noah Brown, Yevgen Cheb-             environment for visual ai. arXiv preprint arXiv:1712.05474,
+                                                                      2017. 2, 3
+otar, Omar Cortes, Byron David, Chelsea Finn, Keerthana         [18] Taein Kwon, Bugra Tekin, Jan Stu¨hmer, Federica Bogo, and
+                                                                      Marc Pollefeys. H2o: Two hands manipulating objects for
+Gopalakrishnan, Karol Hausman, Alex Herzog, et al. Do as i            first person interaction recognition. In Proceedings of the
+                                                                      IEEE/CVF International Conference on Computer Vision,
+can, not as i say: Grounding language in robotic affordances.         pages 10138–10148, 2021. 2, 3
+                                                                [19] Shaowei Liu, Subarna Tripathi, Somdeb Majumdar, and Xiao-
+arXiv preprint arXiv:2204.01691, 2022. 1                              long Wang. Joint hand motion and interaction hotspots predic-
+                                                                      tion from egocentric videos. In Proceedings of the IEEE/CVF
+[6] Gregory Aist, John Dowding, Beth Ann Hockey, Manny
+
+Rayner, James Hieronymus, D Bohus, B Boven, Nate Blay-
+
+lock, Ellen Campana, S Early, et al. Talking through proce-
+
+dures: An intelligent space station procedure assistant. In
+
+Proceedings of the tenth conference on European chapter
+
+of the Association for Computational Linguistics-Volume 2,
+
+pages 187–190, 2003. 1, 2
+
+[7] Jean-Baptiste Alayrac, Piotr Bojanowski, Nishant Agrawal,
+
+Ivan Laptev, Josef Sivic, and Simon Lacoste-Julien. Unsuper-
+
+vised learning from narrated instruction videos. In Computer
+
+Vision and Pattern Recognition (CVPR), 2016. 1, 2
+
+[8] Sean Andrist, Michael Gleicher, and Bilge Mutlu. Looking
+
+coordinated: Bidirectional gaze mechanisms for collaborative
+
+interaction with virtual characters. In Proceedings of the
+
+2017 CHI conference on human factors in computing systems,
+
+pages 2571–2582, 2017. 1
+
+[9] Gedas Bertasius, Heng Wang, and Lorenzo Torresani. Is
+
+space-time attention all you need for video understanding? In
+
+ICML, volume 2, page 4, 2021. 7, 8
+
+[10] Dan Bohus, Sean Andrist, Ashley Feniello, Nick Saw, Mihai
+
+Jalobeanu, Patrick Sweeney, Anne Loomis Thompson, and
+
+Eric Horvitz. Platform for situated intelligence, 2021. 4
+
+[11] Dan Bohus and Alexander I Rudnicky. Larri: A language-
+
+based maintenance and repair assistant. Spoken multimodal
+
+human-computer dialogue in mobile environments, pages 203–
+
+218, 2005. 2
+
+[12] Dima Damen, Hazel Doughty, Giovanni Maria Farinella, An-
+
+tonino Furnari, Jian Ma, Evangelos Kazakos, Davide Molti-
+
+                                                                20279
+      Conference on Computer Vision and Pattern Recognition,        [31] F. Sener, D. Chatterjee, D. Shelepov, K. He, D. Singhania, R.
+      pages 3282–3292, 2022. 7                                            Wang, and A. Yao. Assembly101: A large-scale multi-view
+                                                                          video dataset for understanding procedural activities. CVPR
+[20] Yunze Liu, Yun Liu, Che Jiang, Kangbo Lyu, Weikang Wan,              2022. 2, 3, 4, 7
+      Hao Shen, Boqiang Liang, Zhoujie Fu, He Wang, and Li Yi.
+      Hoi4d: A 4d egocentric dataset for category-level human-      [32] Mohit Shridhar, Lucas Manuelli, and Dieter Fox. Perceiver-
+      object interaction. In Proceedings of the IEEE/CVF Con-             actor: A multi-task transformer for robotic manipulation.
+      ference on Computer Vision and Pattern Recognition, pages           arXiv preprint arXiv:2209.05451, 2022. 1
+      21013–21022, 2022. 2
+                                                                    [33] Mohit Shridhar, Jesse Thomason, Daniel Gordon, Yonatan
+[21] Manolis Savva*, Abhishek Kadian*, Oleksandr Maksymets*,              Bisk, Winson Han, Roozbeh Mottaghi, Luke Zettlemoyer,
+      Yili Zhao, Erik Wijmans, Bhavana Jain, Julian Straub, Jia           and Dieter Fox. ALFRED: A Benchmark for Interpreting
+      Liu, Vladlen Koltun, Jitendra Malik, Devi Parikh, and Dhruv         Grounded Instructions for Everyday Tasks. In The IEEE Con-
+      Batra. Habitat: A Platform for Embodied AI Research. In             ference on Computer Vision and Pattern Recognition (CVPR),
+      Proceedings of the IEEE/CVF International Conference on             2020. 4
+      Computer Vision (ICCV), 2019. 2, 3
+                                                                    [34] Sanjana Srivastava, Chengshu Li, Michael Lingelbach,
+[22] Ramesh Manuvinakurike, Sovan Biswas, Giuseppe                        Roberto Mart´ın-Mart´ın, Fei Xia, Kent Elliott Vainio, Zheng
+      Raffa, Richard Beckwith, Anthony Rhodes, Meng Shi,                  Lian, Cem Gokmen, Shyamal Buch, Karen Liu, et al. Behav-
+      Gesem Gudino Mejia, Saurav Sahay, and Lama Nachman.                 ior: Benchmark for everyday household activities in virtual,
+      Human in the loop approaches in multi-modal conversa-               interactive, and ecological environments. In Conference on
+      tional task guidance system development. arXiv preprint             Robot Learning, pages 477–490. PMLR, 2022. 3, 4
+      arXiv:2211.01824, 2022. 2
+                                                                    [35] Ilya Sutskever, Oriol Vinyals, and Quoc V Le. Sequence to
+[23] Medhini Narasimhan, Arsha Nagrani, Chen Sun, Michael                 sequence learning with neural networks. Advances in neural
+      Rubinstein, Trevor Darrell, Anna Rohrbach, and Cordelia             information processing systems, 27, 2014. 7, 9
+      Schmid. Tl;dw? summarizing instructional videos with task
+      relevance and cross-modal saliency. In Shai Avidan, Gabriel   [36] Andrew Szot, Alexander Clegg, Eric Undersander, Erik
+      Brostow, Moustapha Cisse´, Giovanni Maria Farinella, and            Wijmans, Yili Zhao, John Turner, Noah Maestre, Mustafa
+      Tal Hassner, editors, Computer Vision – ECCV 2022, pages            Mukadam, Devendra Singh Chaplot, Oleksandr Maksymets,
+      540–557, 2022. 1, 2                                                 et al. Habitat 2.0: Training home assistants to rearrange their
+                                                                          habitat. Advances in Neural Information Processing Systems,
+[24] Rashmiranjan Nayak, Umesh Chandra Pati, and Santos Ku-               34:251–266, 2021. 2, 3, 4
+      mar Das. A comprehensive review on deep learning-based
+      methods for video anomaly detection. Image and Vision         [37] Jesse Thomason, Michael Murray, Maya Cakmak, and Luke
+      Computing, 106:104078, 2021. 3                                      Zettlemoyer. Vision-and-dialog navigation. In Conference on
+                                                                          Robot Learning (CoRL), 2019. 1
+[25] Aishwarya Padmakumar, Jesse Thomason, Ayush Shrivastava,
+      Patrick Lange, Anjali Narayan-Chen, Spandana Gella, Robin-    [38] Benita Wong, Joya Chen, You Wu, Stan Weixian Lei, Dongx-
+      son Piramuthu, Gokhan Tur, and Dilek Hakkani-Tur. Teach:            ing Mao, Difei Gao, and Mike Zheng Shou. Assistq:
+      Task-driven embodied agents that chat. In Proceedings of the        Affordance-centric question-driven task completion for ego-
+      AAAI Conference on Artificial Intelligence, volume 36, pages        centric assistant. In European Conference on Computer Vi-
+      2017–2025, 2022. 2, 4                                               sion, pages 485–501. Springer, 2022. 1
+
+[26] Xavier Puig, Kevin Ra, Marko Boben, Jiaman Li, Tingwu          [39] Siwei Zhang, Qianli Ma, Yan Zhang, Zhiyin Qian, Taein
+      Wang, Sanja Fidler, and Antonio Torralba. Virtualhome:              Kwon, Marc Pollefeys, Federica Bogo, and Siyu Tang. Ego-
+      Simulating household activities via programs. In Proceedings        body: Human body shape and motion of interacting people
+      of the IEEE Conference on Computer Vision and Pattern               from head-mounted devices. In European conference on
+      Recognition, pages 8494–8502, 2018. 2, 3, 4                         computer vision (ECCV), Oct. 2022. 2, 3
+
+[27] Alec Radford, Jeff Wu, Rewon Child, David Luan, Dario          [40] Bin Zhao, Li Fei-Fei, and Eric P. Xing. Online detection of
+      Amodei, and Ilya Sutskever. Language models are unsuper-            unusual events in videos via dynamic sparse coding. In CVPR
+      vised multitask learners. OpenAI Blog, June 2019. 1                 2011, pages 3313–3320, 2011. 3
+
+[28] Francesco Ragusa, Antonino Furnari, Salvatore Livatino, and    [41] Yang Zheng, Yanchao Yang, Kaichun Mo, Jiaman Li, Tao
+      Giovanni Maria Farinella. The meccano dataset: Understand-          Yu, Yebin Liu, Karen Liu, and Leonidas J Guibas. Gimo:
+      ing human-object interactions from egocentric videos in an          Gaze-informed human motion prediction in context. arXiv
+      industrial-like domain. In Proceedings of the IEEE/CVF Win-         preprint arXiv:2204.09443, 2022. 7
+      ter Conference on Applications of Computer Vision, pages
+      1569–1578, 2021. 2                                            [42] Artem Zholus, Alexey Skrynnik, Shrestha Mohanty, Zoya
+                                                                          Volovikova, Julia Kiseleva, Artur Szlam, Marc-Alexandre
+[29] Charles Rich and Candace L Sidner. Diamondhelp: A generic            Cote´, and Aleksandr I Panov. Iglu gridworld: Simple and
+      collaborative task guidance system. AI Magazine, 28(2):33–          fast environment for embodied dialog agents. arXiv preprint
+      33, 2007. 1, 2                                                      arXiv:2206.00142, 2022. 2, 3
+
+[30] Charles Rich, Candace L Sidner, and Neal Lesh. Collagen:       [43] Joey Tianyi Zhou, Jiawei Du, Hongyuan Zhu, Xi Peng, Yong
+      Applying collaborative discourse theory to human-computer           Liu, and Rick Siow Mong Goh. Anomalynet: An anomaly
+      interaction. AI magazine, 22(4):15–15, 2001. 2                      detection network for video surveillance. IEEE Transactions
+                                                                          on Information Forensics and Security, 14(10):2537–2550,
+                                                                          2019. 3
+
+                                                                    20280
+[44] Yuansheng Zhu, Wentao Bao, and Qi Yu. Towards open set                editors, Computer Vision – ECCV 2022, pages 395–412, 2022.
+      video anomaly detection. In Shai Avidan, Gabriel Brostow,            3
+      Moustapha Cisse´, Giovanni Maria Farinella, and Tal Hassner,
+
+                                                                    20281
+

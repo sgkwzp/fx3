@@ -1,0 +1,798 @@
+                                        Mistake Attribution: Fine-Grained Mistake Understanding in Egocentric Videos
+
+                                        Yayuan Li1  Aadit Jain1 Filippos Bellos1 Jason J. Corso1,2
+                                                    1University of Michigan 2Voxel51
+
+                                                     https://yayuanli.github.io/MATT
+
+arXiv:2511.20525v2 [cs.CV] 25 Mar 2026                          Abstract                                   Attempt Video                                Instruction Text: “Pick up hammer”
+                                                                                                                            ...
+                                        We introduce Mistake Attribution (MATT), a new task for                             ...  PNR Frame Probability
+                                        fine-grained understanding of human mistakes in egocentric
+                                        videos. While prior work detects whether a mistake occurs,                                                      What
+                                        MATT attributes the mistake to what part of the instruction
+                                        is violated (semantic role), when in the video the deviation                                                    Semantic Attribution:
+
+                                        becomes irreversible (the Point-of-No-Return, PNR), and                                                         Predicate: “Pick up”
+                                        where the mistake appears in the PNR frame. We develop                                                          Object: “hammer”
+                                        MisEngine, a data engine that automatically constructs mis-
+                                        take samples from existing datasets with attribution-rich an-                            When                   Temporal Attribution
+                                        notations. Applied to large egocentric corpora, MisEngine                                                       Point-of-No-Return (PNR):
+                                        yields EPIC-KITCHENS-M and Ego4D-M—two datasets                                                                 Frame 17
+                                        up to two orders of magnitude larger than prior mistake
+                                        datasets. We then present MisFormer, a unified attention-                                                       Where
+                                        based model for mistake attribution across semantic, tempo-
+                                        ral, and spatial dimensions, trained with MisEngine supervi-                                                                                                                        Spatial Attribution
+                                        sion. A human study demonstrates the ecological validity of                                                                                                                         Mistake Region Bounding Box:
+
+                                        our MisEngine-constructed mistake samples, confirming that                                                                                                                          <x, y, dx, dy> = 0.47, 0.35, 0.38, 0.47
+                                        EPIC-KITCHENS-M and Ego4D-M can serve as reliable
+                                        benchmarks for mistake understanding. Experiments on both          Figure 1. Mistake Attribution (MATT) task aims to understand the
+                                        our datasets and prior benchmarks show that MisFormer,             deviation between a human attempt (video) and the instruction (text)
+                                        as a single unified model, outperforms task-specific SOTA          along three axes. Semantic attribution identifies what semantic
+                                        methods by at least 6.66%, 21.81%, 18.7%, and 3.00% in             role in the instruction is violated (e.g., a wrong Object “bolt” is
+                                        video-language understanding, temporal localization, hand-         mistakenly picked up instead of “hammer”); temporal attribution
+                                        object interaction, and mistake detection, respectively.           identifies when the attempt reaches the point of no return (PNR)
+                                                                                                           (e.g., Frame 17); and spatial attribution identifies where, in the
+                                        1. Introduction                                                    PNR frame, the mistake is manifested (e.g., the red bounding box).
+
+                                        Physically-grounded instructional AI assistants that provide       wrong type of bandage onto a wound. Human mistakes re-
+                                        guidance and feedback given egocentric video has drawn             sult from distractions, misunderstanding, or ambiguities in
+                                        significant attention in the vision community [2, 5, 47, 53].      task formulation [45], even when given detailed instructions.
+                                        Leveraging clear hand and object interaction [23, 46] along        Given their importance, handling mistakes in egocentric
+                                        with rich task models [35], these assistants show significant      video has seen increasing attention in recent years. Most
+                                        promise in the way humans acquire skills [9, 47] across            works focus on detecting step-level mistakes like missing
+                                        various physical activities, spanning everyday activities like     or erroneous actions [12, 48, 53] often modeled via anoma-
+                                        cooking, cleaning, and maintenance [5, 15, 37, 45, 53, 60]         lies [26, 36] or classifying observed mistakes, e.g., step mod-
+                                        to professional tasks [6, 14, 16, 40, 62].                         ification and slip errors [25]. More recently, MistScene [41]
+                                                                                                           generates natural language explanations for an action video
+                                           A critical aspect of good physically-grounded AI assis-         that is detected as a mistake.
+                                        tance is the ability to steer fallible (all) humans away from
+                                        mistakes, like using salt instead of sugar or applying the            Modeling mistakes more finely is integral to realizing
+                                                                                                           the potential of AI assistants. For example, the coarse cat-
+                                                                                                           egorization in [12, 42, 48, 53] does not infer what specific
+                                                                                                           component of the activity is a mistake. Similarly, the natural
+                                                                                                           language explanation of MistScene [41], while impressive,
+                                                                                                           focus only on inherent activity mistakes with no alignment
+                                                                                                           to the actual task instructions. Specifically, current works
+                                                                                                           cannot answer key questions such as what part of the instruc-
+
+                                                                                                        1
+tion is not followed, when during the user’s action is the                             Second, we introduce a transformer-based model, Mis-
+mistake’s impact irreversible (i.e., the Point-of-No-Return),                       Former, that is able to address MATT’s breadth in a single,
+and where in the PNR frame does the mistake manifest. For                           unified model. MisFormer comprises a dual-branch fea-
+example, in Fig. 1, the instruction is “pick up hammer,” but                        ture extractor (video and text) with cross-attention and three
+the executed action in the video is “pick up bolt.” Mistake                         modules that consume role-encoded instruction tokens to
+Detection can reveal that a mistake has occurred, but does                          produce semantic, temporal, and spatial attributions. For se-
+not show that the expected object “hammer” is not followed                          mantic attribution, a decoder treats the instruction represen-
+(what), when the mistake happens during execution, or the                           tation as queries and video features as keys/values—yielding
+region in the red box where the mistake manifested.                                 {Correct, Mistake} for each semantic role. For temporal
+                                                                                    attribution, the model downsamples video features and uses
+   To fill this gap, we introduce Mistake Attribution (MATT),                       another encoder, cross-attending to the instruction, to lo-
+which focuses on fine-grained understanding of deviations                           calize the PNR frame. For spatial attribution, it derives a
+between the instruction and the observed egocentric user’s                          bounding box from attention between the PNR frame and
+action. Specifically, mistake attribution consists of three                         the instruction representation; at inference, the temporal and
+components: (1) semantic attribution, which seeks to as-                            spatial modules are gated—invoked only when any role is
+sess what—i.e., which semantic role1 from the instruction—                          predicted as Mistake.
+is mistaken in the attempt video; (2) temporal attribution,
+which identifies when the mistake is consolidated by pin-                              We evaluate our work on two popular egocentric ac-
+pointing the point-of-no-return (PNR) frame in the attempt                          tion datasets—Ego4D [15] and EPIC-KITCHENS [5]—
+video [15]; and (3) spatial attribution, which determines                           covering diverse real-world activities. Applying MisEn-
+where the mistake occurs within a precise region of the                             gine yields Ego4D-M and EPIC-KITCHENS-M, the first
+PNR frame. MATT provides a triplet of semantic-temporal-                            datasets for training and benchmarking MATT and mistake
+spatial information about the mistake, which provides rich                          understanding at real-world scale. We evaluate MisFormer
+information for AI Assistants along with other performance                          against strong baselines, including Video–Language Mod-
+applications like self-learning.                                                    els [34, 39, 56], Temporal Localization Models [27, 55],
+                                                                                    Hand–Object Interaction detectors [28, 33], and mistake de-
+   We introduce two vectors of contributions for this new                           tection methods [19, 26], on both our and prior benchmarks.
+mistake attribution problem. First, we propose a novel data                         Although each baseline focuses on a single attribution task,
+engine, MisEngine, that automatically constructs large-scale                        they underperform on EPIC-KITCHENS-M and Ego4D-M,
+mistake samples from existing action-recognition sources.                           highlighting the difficulty of MATT. MisFormer, as a unified
+Existing mistake datasets lack triplet-attribution annotations                      model, achieves superior performance or efficiency across
+(for training and evaluation) and are limited in quantity and                       tasks.
+diversity—making them insufficient to benchmark MATT
+at real-world scale. Importantly, collecting such a dataset                         2. Related Work
+is non-trivial: as collectors gain experience, mistakes be-
+come rarer and manual collection grows inefficient, while,                          Modeling Mistakes in Egocentric Videos. Recent efforts
+at the same time, injecting staged mistakes into datasets                           toward Instructional AI have demonstrated early progress [1,
+introduces visual bias that pushes the dataset away from                            2, 4, 30, 31, 49, 52]. In terms of Misatake Understand-
+what one expects in the real world. Consequently, existing                          ing, although there is existing work in video anomaly de-
+datasets [7, 21, 26, 42, 45, 53] are often orders of magnitude                      tection [17, 38, 57, 59, 61], most of this work does not
+smaller and less diverse than general action-understanding                          emphasize anomalies as mistakes in the context of a proce-
+corpora (Tab. 1).                                                                   dure. Most past mistake-specific work focuses on detection
+                                                                                    or small-set categorization. Soran et al. [48] identify omitted
+   To overcome these bottlenecks, MisEngine systemati-                              actions using a hidden Markov models. HoloAssist [53]
+cally cross-matches an instruction text with descriptions of                        uses the TimeSFormer ViT model [3, 8] to detect mistakes.
+other action videos to create misaligned pairs of instruction                       Assembly101 [7, 45] uses a graph-based method to detect
+text and action video. It leverages Semantic Role Labeling                          two categories of mistakes specifically in the assembly task:
+(SRL) to control cross-matching by semantic groups (e.g.,                           the ordering and placement of installing a component. Cer-
+Predicate, Object)—inherently yielding semantic-attribution                         tain recent works also adopt the anomaly detection mindset
+labels—while videos naturally inherit temporal and spatial                          for mistakes, such as EgoPED [26], which compares an ob-
+annotations that we process into the corresponding attribu-                         served action feature to its prototypical one, PREGO [12],
+tion targets.                                                                       which compares the inferred action class to the expected one
+                                                                                    in a streaming manner, AMNAR [19], which combines these
+    1Semantic roles refer to the underlying relationships that components in        two ideas, and Missteps [36], which compares observed gaze
+a sentence have with the main activity, such as predicate (the main verb of         behavior against an expected one. None of these works mod-
+the activity), object (the noun the predicate is acting on), or instrument (the
+tool the predicate is using), as discussed in Fillmore (1968) [11].
+
+                                                                                 2
+els mistakes at a level of richness beyond binary detection.        (i.e., semantic roles [10]) in the instruction text T that
+   The most relevant recent works are twofold. Lee et               are not correctly followed in the attempt video V . For-
+                                                                    mally, we define the semantic attribution output as
+al. [25] categorize detected mistakes into a set of prede-          {yr ∈ {0, 1} | r ∈ R}, denoting whether the semantic role
+fined categories (e.g., modification, slip errors, etc.). Mist-     r was correctly followed (yr = 0) or no (yr = 1) in the
+Sense [41, 49] generates natural language explanations for          attempt video. R denotes the set of semantic roles in the
+an action video that is detected as mistaken. Neither of these      instruction text.
+works captures a sufficiently rich task-based analysis of the       Temporal Attribution specifies the Point-of-No-
+mistake. The categories in Lee et al. [25] do not describe          Return (PNR) [15] in the attempt video V after which where
+the specific attributes of the mistake. MistSense’s [41] expla-     the impact of the mistake is irreversible. We denote this
+nation capture generic action failures (e.g., knocking over         PNR timestamp as tPNR ∈ T where T is the total number
+the bottle) rather than how the action deviates from the task       of frames in the attempt video.
+instructions.                                                       Spatial Attribution highlights the spatial region in the PNR
+                                                                    frame to indicate the visual details of the mistake. Specif-
+Datasets for Egocentric Mistake Understanding. Exist-               ically, it produces the mistake grounding box BtPNR =
+ing mistake understanding datasets (EgoPER [26], Assem-             (xmin, ymin, δx, δy), localizing the region that suggests the
+bly101 [7, 45], HoloAssist [53], CaptainCook4D [42], Epic-          mistake within the PNR timestamp tPNR. To address MATT,
+Tent [21]) are small and exhibit limited semantic and visual        a function F needs to map the input pair of instruction text
+variance, hindering real-world benchmarking (Tab. 1 quan-           and attempt video to the triplet of semantic-temporal-spatial
+tifies these). Most provide mistake detection and recogni-          mistake attribution:
+tion labels but insufficient supervision for MATT attribution.
+Where mistake explanations exist, they are free-form rather         ⟨(yr)r∈SR, tPNR, BtPNR ⟩ = F (T, V ).  (1)
+than structurally aligned to instruction semantic roles, imped-
+ing automation. Precise error timing and grounded regions           In the two sections that follow, we describe the data engine
+are typically missing; point-of-no-return timestamps and            for creating a large scale mistake dataset for MATT and a
+mistake-grounding boxes are absent or only indirectly in-           unified model capable of addressing MATT.
+ferable. Conversely, large egocentric video datasets such
+as EPIC-KITCHENS [5] and Ego4D [15] offer scale and                 3.1. MisEngine: Automated large-scale mistake
+diversity for action understanding. Yet, they lack native mis-            dataset construction
+take instances and structured attribution, and are hence not
+directly suitable for mistake benchmarking. In this paper,          Mistake Samples Construction. A source action recog-
+our MisEngine combines the benefits of the two types of             nition dataset Λ contains pairs of action descriptions and
+datasets, constructing benchmarks with annotations of se-
+mantic, temporal and spatial attribution at scale at least two      action videos. MisEngine follows three steps to construct
+orders of magnitude larger than existing mistake datasets.          the mistake dataset Ω from Λ.
+
+3. Mistake Attribution                                                  Step 1: We apply Semantic Role Labeling (SRL) [10,
+                                                                    13] to parse each action description (instruction) text in Λ.
+Consider a sequence of activities comprising a goal oriented        For the ith action description, SRL produces a set Gi =
+task, such as cooking a dish or assembling a toy. At any            {gir | r ∈ R} containing all semantic groups for this action
+moment when carrying out the task, it is necessary to perform       description where R is the set of all semantic roles defined
+a particular action in a particular way. We assume these            by the SRL method. As illustrated in Fig. 2 with R =
+actions are adequately described in the instruction text. Work      {predicate, object} as an example, the action description
+in mistake understanding generally seeks to capture when,           text “Pick up the sieve” is parsed into Gi = {gP redicate i =
+for one of these task-based actions, the way in which the           “Pick up”, giObject = “the sieve”}.
+user performs the action deviates from the instruction text.
+These deviations can include performing the wrong action                Step 2: For each Gi, we compare with all other parsed
+entirely, using the wrong tool, or working with the wrong           actions descriptions Gj (j̸ = i) by checking with a func-
+object.                                                             tion J if the semantic group gri and grj are the same (i.e.,
+                                                                    J (gir, grj ) = 1) for each semantic role r. J can be sim-
+   Mistake Attribution (MATT) seeks to model these vari-            ple character-level matching or semantic-level matching,
+ous fine-grained types of deviations. Concretely, given an
+instruction text T (e.g., “cut the apple”) and an egocentric        depending on granularity of the mistake one wants to cap-
+video V of the user attempting to perform T , which we call         ture. This results in C = |R|2 misalignment categories
+an attempt video, MATT is composed of the following:                for each and all parsed action descriptions Gi. Taking
+Semantic Attribution identifies the specific components             R = {predicate, object} as an example, the total num-
+                                                                    ber of misalignment categories is C = 4: Predicate Mistake,
+
+                                                                    Object Mistake, Both Mistakes, and No Mistake.
+
+                                                                 3
+                                                        MisEngine Constructed Large Scale Mistake Detection Dataset
+
+Instruction Text         C cuts the pieces of meat C cuts the pieces of meat C cuts the pieces of meat C cuts the pieces of meat C picks up the sieve  C picks up the sieve  C picks up the sieve  C picks up the sieve
+
+Execution Video                                                                                                                                                                                                          É
+
+Fine-Grained Annotation             Correct                 Mistake             Mistake                Mistake on               Correct                    Mistake              Mistake                 Mistake on
+    Video Description                                       on Obj.               on V.                Obj. and V.                                          on Obj.               on V.                 Obj. and V.
+                             C cuts the pieces of meat                                                                     C picks up the sieve
+                                                        C cuts the spinach  C picks up the meat     C stirs the spaghetti                              C picks up the meat   C shake the sieve     C shakes the bottle of soy
+
+                                                        Retrieve Attempt Videos for Each Mistake Type with Action Description as Indices                                                            Mistake_Obj._V
+
+                             Text Instruction: C cuts the pieces of meat                                                                         Text Instruction: C picks up the sieve             - C stirs the spaghetti
+                                                                                                                                                                                                                 É
+         Correct              Mistake_Obj.                Mistake_V             Mistake_Obj._V                    Correct                              Mistake_Obj.             Mistake_V
+
+- C cuts the pieces of meat  - C cuts the spinach       - C picks up meat   - C wipes the knife with hand   - C picks up the sieve                     - C picks up meat     - C shakes the sieve
+                É                        É                        É                           É                          É                                       É                       É
+
+                                                        Cross-match for Each Mistake Type in Text Space with Semantic Role as Indices
+
+  V.: cut                    V.: pick up                 V.: shake                  V.: cut                     V.: pick up                             V.: shake             V.: wipe                  V: stir
+Obj.: meat                   Obj.: sieve                Obj.: bottle           Obj.: spinach                    Obj.: meat                             Obj.: sieve           Obj.: knife           Obj: spaghetti
+
+    SRL                          SRL                        SRL                      SRL                            SRL                                    SRL                   SRL                     SRL
+
+C cuts the pieces of meat C picks up the sieve C shakes the bottle          C cuts the spinach              C picks up meat                      C shakes the sieve C wipes the knife with hand C stirs the spaghetti
+
+É                            É                          É                                        É                         É                           É                     É                     É
+
+                                                        An Existing Large Scale Egocentric Action Video Dataset
+
+Figure 2. A significant challenge in mistake video analysis is the paucity of available data in the face is massive diversity of possible mistakes.
+This figure explains our new data engine, MisEngine, that overcomes this challenge by automatically creating new mistake understanding
+datasets from source corpora by a careful series of sampling and cross-matching methods. MisEngine uses semantic role labeling on the text
+instruction and then matches across the available roles; here, we show an example with two roles (object as “Obj” and predicate as “V”). Our
+resulting datasets are orders of magnitude larger than existing ones and fully annotated (for free) across mistake detection and attribution.
+
+   Step 3: We sample N CT action descriptions from each                                                     rectly followed or not. For temporal attribution, the PNR
+of C misalignment categories. For each of these action                                                      timestamp in the attempt video V is cloned from the PNR
+description, N cV of the videos are sampled as attempt videos                                               annotation in the original action recognition dataset Λ. For
+for Gi. For example, if Gi = {gP redicate i = “Pick up”,                                                    spatial attribution, the mistake grounding box BtPNR is the
+giObject = “the sieve”} and Gj = {gP redicate j = “Pick up”,                                                unified bounding box from the hand bounding boxes in the
+gjObject = “the pan”}, then videos originally associated with                                               PNR frame, annotated in Λ. Hence, MisEngine fully labels
+the action description “Pick up the pan” in Λ are randomly                                                  the dataset automatically.
+
+sampled (without replacement) as a subset of attempt videos                                                    There are various action recognition datasets, e.g., Re-
+                                                                                                            casens et al. [43], that contains rich information associated
+for Gi. This process results in the number of attempt videos                                                with the action videos like eye gaze, head pose, audio, etc.
+for each Gi as Γ = C × N CT × N cV . Denote the number of                                                   MisEngine enables the possibility of inheriting this informa-
+instruction texts in the constructed dataset Ω as NT . The                                                  tion to further study large scale mistake understanding.
+
+number of samples (pairs of instruction text and attempt                                                    MATT Datasets: Ego4D-M and EPIC-KITCHENS-M.
+                                                                                                            We demonstrate MisEngine on two popular action recog-
+video) in the target dataset is:                                                                            nition datasets: Ego4D [15] and EPIC-KITCHENS [5], re-
+                                                                                                            sulting in the Ego4D-M and EPIC-KITCHENS-M datasets.
+   |Ω| = NT × Γ = NT × C × NTC × NVc                                                                (2)     These are the first MATT datasets that inherit their quantity
+                                                                                                            and diversity from existing large scale action recognition
+Mistake Attribution Annotation. The MisEngine work-                                                         datasets while labeling the specific attributes necessary for
+flow induces the semantic attribution annotation (yr)r∈R                                                    fine-grained mistake modeling and benchmarking.
+and inherits the temporal attribution annotation tPNR and
+spatial attribution annotation BtPNR from the original action                                                  For step 1, we use AllenNLP’s SRL method [13], which
+recognition dataset Λ. For semantic attribution, at step 2,
+
+the misalignment categories tell if each semantic role is cor-
+
+                                                                                                         4
+is based on a deep BiLSTM encoder [18] with attention                                     # Samples            Semantic Var. Visual Var.        Annotation
+and a Conditional Random Field [24] output layer to pro-
+duce the semantic groups for each semantic role in each              Dataset              Total By activity Activ. Dm. Env. Part. Det. Sem. Temp. Spa.
+action description. Since most of the action descriptions
+in the source datasets contain only the predicate and ob-            EgoPER [26]           599           9.7   62    1     2       11 ✓ ▲            ✗      ▲
+ject, we filter out the shorter descriptions and cut the longer      Assembly101 [7, 45]   707
+descriptions to keep only the predicate and object, i.e.,            HoloAssist [53]      7,562          2.0   358   1     1       53 ✓ ▲            ✗      ✗
+R = {predicate, object}. In step 2, we implement the                 CaptionCook4D [42]   1,964
+comparing function J by looking up the original taxonomy             Epic-Tent [21]        626           0.91  8,285 2     - 222 ✓ ▲                 ▲      ✗
+annotation in Ego4D or do character-level matching in EPIC-
+KITCHENS. In step 3, we set N CT to 4 and 3 and N cV to 2                                                5.6   352   1   10        8      ✓     ▲    ✗      ✗
+and 3 for Ego4D and EPIC-KITCHENS, respectively. We
+filter out the action descriptions (Gi) that have less than                                              52.2  12    1     -       24 ✓ ▲            ✗      ▲
+N CT misaligned action descriptions for each C or less than
+N cV candidate videos. This results in NTEgo = 16099 and             EPIC-KITCHENS        89,975         5.0   18,003 1  45 37            ✗     ✗    ✗      ▲
+N EK T = 12283 instruction texts in the Ego4D-M and EPIC-
+KITCHENS-M datasets, respectively. Following Eq. (2), the            Ego4D                155,367        2.1   75,423 14+ 100+ 931 ✗            ✗    ▲      ▲
+total number of samples are |ΩEgo| = 16099 × 2 × 4 × 2 =
+257, 584 and |ΩEK | = 12283 × 2 × 3 × 3 = 221, 094                   EPIC-KITCHENS-M 221,094             18.0  12,283 1  45 37 ✓ ✓                   ✗      ▲
+where each has semantic, temporal, and spatial attribution
+annotations.                                                         Ego4D-M              257,584        16.0  16,099 14+ 100+ 248 ✓ ✓               ✓      ✓
+
+   Ego4D-M has annotations for semantic, spatial, and tem-           Table 1. Statistics of egocentric video normal and mistake datasets.
+poral attribution where the PNR frame numbers and the mis-           Our # Samples are the small video segments that contain the mis-
+take grounding box are inherited from the original Ego4D             take instead of the video of the whole procedure. # Activ. are
+dataset. For samples with only predicate mistakes, we use the        the number of unique short actions in the dataset. Dm. is the
+union of the hand regions as the spatial attribution annotation.     number of domains in the dataset (e.g., cooking, cleaning, etc.).
+For samples with only object mistakes, we use the original           Env. is the number of unique environments when collecting in the
+annotated object bounding boxes as the spatial attribution           whole dataset. # Part. are the number of unique individuals that
+annotation. For samples with both predicate and object mis-          perform the activities in the dataset. Annotation presence columns:
+takes, we take the union of the hand and object regions as the       (Det)ection, (Sem)antic, (Temp)oral PNR, (Spa)tial bounding box.
+spatial attribution annotation. EPIC-KITCHENS-M only has             The ▲ denotes the annotation is partially available (e.g., natural
+semantic annotation due to the lack of PNR frame number              language as semantic explanation for mistakes).
+annotation in the original dataset.
+                                                                     tion text T using AllenNLP’s Semantic Role Labeling [13]
+   Tab. 1 contains a comparison of existing mistake datasets,
+both used egocentric action datasets, and the new MisEngine-         to decompose it into semantic role substrings Sr for each
+produced variants, Ego4D-M and EPIC-KITCHENS-M. The
+produced MATT datasets are at least two orders of magni-             role r   ∈ R.        For      each        Sr ,  we  extract          text  features    FT
+tude larger than any of the existing mistake datasets in the
+literature.                                                                                                                                                   r
+
+3.2. MisFormer: A unified model for fine-grained                     using the text encoder from InternVideo2 [54], yielding
+      mistake understanding                                          F TR = {FrT }r∈R ∈ R|R|×d where each semantic role is
+                                                                     represented as a d-dimensional embedding. In parallel, we
+We propose a unified model structure, MisFormer (F), to              extract video features F V ∈ RL×K×d from the attempt
+jointly address all three mistake attribution tasks: semantic,
+temporal, and spatial localization. As illustrated in Fig-           video using InternVideo2’s video encoder, where K is the
+ure 3, given an instruction text T and an attempt video
+V ∈ RL×H×W ×3, MisFormer first extracts multimodal                   number of spatial patches per frame.
+features through a shared feature extraction module, then
+processes them through three specialized attribution heads           Due        to  InternVideo2’s             video-language             pre-training,     FT
+to produce the outputs for each subtask: semantic attribu-
+tion labels (yr)r∈R, Point-of-No-Return frame tPNR, and                                                                                                       r
+mistake bounding box BtPNR .                                         and F V naturally reside in a shared embedding space where
+
+Feature Extraction. We begin by processing the instruc-              text features are semantically aligned with corresponding
+
+                                                                     visual patches. To further adapt these features for mistake
+
+                                                                     understanding, we employ a projection block P consisting
+
+                                                                     of 2 Transformer decoder layers without causal masking
+
+                                                                     for self-attention. Within P, self-attention operates over
+
+                                                                     the  text  features           F TR  (treating   each     FT      as  a  single  token),
+
+                                                                                                                                r
+
+                                                                     enabling information exchange across semantic roles. Cross-
+
+                                                                     attention then attends from F TR (as queries) to F V (as keys
+
+                                                                     and values), connecting visual context to each semantic role.
+                                                                     The output is projected text features FRT ′ ∈ R|R|×d, which
+
+                                                                     encodes both inter-role relationships and video-grounded
+
+                                                                     semantics.
+
+                                                                     Semantic Attribution. The semantic attribution head de-
+
+                                                                     termines which semantic roles in the instruction are exe-
+                                                                     cuted incorrectly in the attempt. For each role r ∈ R, we
+
+                                                                     apply a feed-forward network (FFN) [51] followed by a
+
+                                                                                                                                                              T′
+
+                                                                     sigmoid activation to the projected text features Fr , pro-
+                                                                     ducing a binary prediction yˆr ∈ {0, 1} indicating whether
+                                                                     the role is misaligned. We train this module with a binary
+                                                                     cross-entropy loss LS aggregated across all semantic roles:
+                                                                     LS = − r∈R [yr log(yˆr) + (1 − yr) log(1 − yˆr)] , where
+                                                                     yr is the ground-truth label for role r.
+
+                                                                     Temporal Attribution. The temporal attribution head local-
+
+                                                                  5
+Figure 3. MisFormer’s unified architecture for mistake attribution. MisFormer jointly processes the instruction text and an attempt video,
+extracting shared multimodal features. Three specialized transformer heads perform semantic attribution (detecting misaligned roles),
+temporal localization (pinpointing the Point-of-No-Return frame), and spatial localization (predicting mistake regions via attention-driven
+bounding boxes), enabling comprehensive and interpretable mistake analysis across semantic, temporal, and spatial dimensions.
+
+izes the Point-of-No-Return (PNR) frame where the mistake           supervise the spatial attribution head with Huber loss [20]
+becomes irreversible. We first apply a downsampling block           between the predicted and ground-truth bounding boxes.
+consisting of 2 self-attention layers to aggregate spatial to-
+kens within each frame of F V , producing frame-level fea-          4. Experiments
+tures F V ′ ∈ RL×d. These frame features are then processed
+by a temporal localization block with 2 Transformer decoder         4.1. Setup
+layers (without causal masking), where cross-attention op-
+erates with F V ′ as queries and FRT ′ as keys and values. An       Baselines. To the best of our knowledge, no prior work
+FFN with output dimension 1 followed by a softmax over              covers all of MATT’s specifics. We therefore adapt baselines
+the temporal dimension produces a probability distribution          separately for semantic, temporal, and spatial attribution, as
+pt ∈ [0, 1] for each frame t ∈ [L]. The PNR frame is identi-        well as for mistake detection. For semantic attribution, we
+fied as tPNR = arg maxt pt.                                         evaluate ChatGPT-4o [39], fine-tuned Video-ChatGPT [34],
+                                                                    and LLaVA-NeXT Video [56] by prompting them to de-
+   We supervise this module with a cross-entropy loss:              cide “mistake” or “correct” for each semantic role. For
+LT = − t=1 L yt log(pt), where yt ∈ {0, 1} is the ground-           ChatGPT-4o, we evaluate on 1000 random samples from the
+truth label indicating the PNR frame. During training, LT           test sets. For temporal attribution, we compare with fine-
+is computed only for samples annotated as mistakes. Dur-            tuned SOTA Point-of-No-Return (PNR) temporal localiza-
+ing inference, temporal localization is performed only for          tion methods, EgoMotion-COMPASS [27] and EgoT2 [55]
+samples where semantic attribution identifies at least one          (with PNR as target task). For spatial attribution, we com-
+misaligned role.                                                    pare with MediaPipe [33] and fine-tuned SSDA [28], SOTA
+                                                                    hand/hand–object interaction detectors, to segment the hands
+Spatial Attribution. The spatial attribution head identifies        and object in the PNR frame. We also compare against SOTA
+the mistake region within the PNR frame by predicting a             mistake detection methods, AMNAR [19] and EgoPED [26].
+bounding box BtPNR . To localize the relevant spatial regions,      Our mistake detection prediction is derived by aggregating
+we extract the cross-attention weights Ar,tPNR ∈ RK×d               semantic attribution: a clip is labeled as a mistake if any
+from the final cross-attention layer of the projection block P,     semantic role is flagged as such.
+where K is the number of spatial patches. We apply refine-
+                                                                    Evaluation Metrics. For semantic attribution, we treat each
+                                                            T′      semantic role as a binary classification problem. Following
+                                                                    prior work [26], we report F1@0.5 and Accuracy as the
+ment block to, first concatenate Fr to Ar,tPNR in feature           main metrics, both per semantic role and averaged across
+dimension of all tokens, then apply two self-attention blocks       roles. Following the PNR localization task [15], we evalu-
+to produce spatial attention scores, which are reshaped to          ate temporal attribution by Mean Absolute Error, both per
+a 2D spatial map and upsampled via bilinear interpolation           frame and per second. For spatial attribution, we report
+to match the frame resolution, forming a visual saliency            mean Intersection-over-Union (mIoU) between the predicted
+heatmap.                                                            and ground-truth boxes, and additionally report Center Dis-
+                                                                    tance (CD) and Box Size Error (BSE). For mistake detection,
+   This heatmap is then concatenated with the RGB PNR               we follow common practice [55] and report F1@0.5 and
+frame as a 4-channel input to a lightweight CNN-based re-
+gression module that predicts the bounding box coordinates.
+When multiple semantic roles are identified as misaligned,
+we merge their attention maps and produce a unified bound-
+ing box encompassing all relevant mistake regions. We
+
+                                                                 6
+accuracy.                                                                               Method      MAE (frames) ↓     MAE (seconds) ↓
+
+Dataset. We benchmark attribution subtasks on Ego4D-                        EgoMotion-COMPASS [27]         48.96              1.632
+M and EPIC-KITCHENS-M. We split each dataset into                                     EgoT2 [55]           24.48              0.816
+training/validation/test sets in an 8:1:1 ratio. This yields                                               19.14              0.638
+206K/25K/25K for Ego4D-M and 176K/22K/22K samples                                 MisFormer (Ours)
+for EPIC-KITCHENS-M. We additionally use EgoPER [26],
+an existing mistake dataset, for mistake detection evaluation.              Table 3. Temporal attribution on Ego4D-M. MisFormer reduces
+                                                                            mean absolute error (MAE) by at least 21.81% compared to the
+4.2. Results                                                                SOTA PNR localization methods, which corresponds to a 2.23%
+                                                                            reduction relative to the attempt video duration.
+Mistake Semantic Attribution. For both datasets, on aver-
+age (see the “Average” column in Tab. 2), fine-tuned open-                  Instruction Text: Empty the kettle         Instruction Text: Dump the basin
+source video-language models (LLaVA-Vid [56] and Vid-
+Chat [34]) perform poorly, staying below 75% F1 on EPIC-                                                        =0.24                                     =0.18
+KITCHENS-M and below 45% F1 on Ego4D-M. ChatGPT, a
+commercial closed-source model likely trained on larger cor-                ... ... =0.53 ... ... =0.41
+pora, reaches 77.23% and 50.95% F1 on EPIC-KITCHENS-
+M and Ego4D-M, respectively. MisFormer attains 83.89%                       ... ... =0.59 ... ... =0.61
+and 56.24% F1 on EPIC-KITCHENS-M and Ego4D-M, sur-
+passing the best baseline by 6.66% and 5.30%, respectively.                 ... ... =0.55 ... ... =0.69
+
+   Role-wise, MisFormer improves Predicate by 10.60%                        Figure 4. Qualitative results of MisFormer. Red text highlights mis-
+and 5.02% F1 on EPIC-KITCHENS-M and Ego4D-M, re-                            taken semantic roles, the red frame marks the Point-of-No-Return
+spectively. For Object, the gains are 1.99% and 5.55% F1                    (PNR), and the red bounding box localizes the mistake region in the
+on the two datasets. Across methods, Object consistently                    PNR frame. The column in each sample visualizes the per-frame
+outperforms Predicate (verbs), highlighting the challenge of                heatmap from the spatial attribution module for reference.
+modeling fine-grained motions in egocentric videos, consis-
+tent with prior findings [32]. Accuracy mirrors the F1 score                Mistake Spatial Attribution. Hand-detection methods
+trends, as our datasets are approximately class-balanced.                   fail to address the spatial attribution task because they do
+                                                                            not localize the manipulated object, which is important for
+Dataset        Method       Average        Predicate      Object            precise mistake grounding and downstream recovery [29].
+  EK                                                                        MisFormer substantially outperforms hand-detection base-
+          LLaVA-Vid [56]    Acc. ↑  F1 ↑   Acc. ↑  F1 ↑   Acc. ↑  F1 ↑      lines (MediaPipe-U) for spatial attribution on the PNR
+  Ego      Vid-Chat [34]    71.71   70.34  64.10   64.55  79.32   76.13     frame, improving mIoU by +9.33 and reducing Center Dis-
+           ChatGPT [39]     64.17   63.27  54.45   52.11  73.89   74.43     tance (CD) and Box Size Error (BSE) by 3.11 and 4.71,
+                            77.66   77.23  66.23   65.11  89.09   89.35     respectively. Compared to a SOTA hand-object interaction
+         MisFormer (Ours)†   84.91  84.78   76.35  75.31   93.47  94.25     detector (SSDA), MisFormer is less accurate on localization
+         MisFormer (Ours)    84.13  83.89   76.83  76.43   91.43  91.34     (mIoU 59.21 vs. 68.54; CD 10.36 vs. 4.52; BSE 16.27
+                                                                            vs. 8.56). Nevertheless, MisFormer offers a unified frame-
+          LLaVA-Vid [56]    42.83   40.12  48.10   47.95  37.56   32.29     work which performs semantic and temporal attribution in
+           Vid-Chat [34]    36.47   34.36  36.73   36.84  36.21   31.88     conjunction with localization. MisFormer is also efficient.
+           ChatGPT [39]     52.45   50.95  53.42   50.20  51.48   51.70     Spatial attribution module runs at 68.9 FPS versus 28.44
+                            59.37   55.41  55.44   53.03  63.33   57.79     FPS (SSDA) on the same NVIDIA H100 GPU.
+         MisFormer (Ours)†  62.03   56.24  58.40   55.22  65.66   57.25
+         MisFormer (Ours)                                                   Mistake Detection. Semantic attribution implies mistake de-
+                                                                            tection, so we also compare MisFormer with state-of-the-art
+Table 2. Semantic attribution results. MisFormer consistently               mistake detection methods on our MATT benchmarks (EPIC-
+outperforms the SOTA Video-Language model baselines across all              KITCHENS-M, Ego4D-M) and on the existing popular Mis-
+datasets on all semantic roles. † denotes the model is evaluated on         take Detection benchmark EgoPER [26]. In Tab. 5-(a), prior
+the subset of test set used by ChatGPT baseline for fair comparison.        methods perform poorly on our benchmarks because they
+                                                                            are designed for a small set of activities with no mistake
+Mistake Temporal Attribution. Quantitative results on                       supervision, casting detection as out-of-distribution (OOD)
+Ego4D-M are shown in Tab. 3. Compared to the best exist-                    detection problem. When there are too many activities tode-
+ing method, MisFormer reduces mean absolute error (MAE)
+by 21.81%—a decrease of 5.34 frames and 0.178 seconds.
+For reference, the average clip length is about 8 seconds (240
+frames at 30 fps), so this corresponds to a 2.23% reduction
+relative to video duration. Whereas prior PNR localization
+methods rely solely on video signals, MisFormer addition-
+ally conditions on instruction text. Even when text-video
+alignment is imperfect, this supervision provides comple-
+mentary cues that improve temporal localization.
+
+                                                                         7
+      Method                 mIoU (%) ↑             CD (%) ↓  BSE (%) ↓                    and the attempt video, degrading performance. In (d), we
+                                                                                           remove supervision for temporal attribution. At inference,
+MediaPipe-U [33]                 49.88                13.47      20.98                     we run spatial attribution on all frames and select the frame
+    SSDA [28]                    64.54                 7.21      12.34                     with the highest average activation in the score map as the
+                                 59.21                10.36      16.27                     PNR prediction. This has little effect on semantic attribution
+MisFormer (Ours)                                                                           and mistake detection, but clearly degrades temporal attri-
+                                                                                           bution quality, demonstrating the benefit of using temporal
+Table 4. Spatial attribution results. We report mIoU, Center Dis-                          attribution as a training objective. In (e), we generate tem-
+tance (CD), and Box Size Error (BSE). MisFormer, our unified                               poral heatmaps with GradCAM [44] and otherwise follow
+framework, performs better than the hand-detection baselines (by                           the same spatial decoding procedure. The inferior spatial
+18.70% mIoU) and comparable to hand-object interaction detector.                           results confirm the benefit of using a refined attention-based
+Bold and underline indicate the best and second best results.                              heatmap for retrieving the most relevant mistake regions.
+
+tect mistakes on, a single OOD model struggles to separate                                 No.  Method            Sema. F1@0.5 ↑ Temp. MAE (s) ↓ Spat. mIoU (%) ↑ Det. F1@0.5 ↑
+actual mistakes from benign variability (i.e., correct sam-
+ples in many activities). In contrast, MisFormer scales with                               (a) MisFormer (Ours)   56.24  0.438  59.21  57.55
+data via supervised learning, consistent with findings on                                                         49.16  0.561  51.37  46.05
+data-driven approaches in other domains [22, 50].                                          (b) Ours-LaViLa [58]   51.34  0.457  55.43  52.75
+                                                                                                                  51.29  0.623  57.78  57.46
+   However, such models struggle when there is lack of                                     (c)  Ours-w/o P        55.52  0.482  55.03  57.51
+training data and supervision signal. In Tab. 5-(b), training
+MisFormer from scratch on an augmented EgoPER training                                     (d) Ours-w/o Temp.
+set using only semantic attribution supervision underper-
+forms specialized detectors. Notably, such struggles can be                                (e) Ours-GradCAM [44]
+alleviated by pretraining. Row MisFormer (Ours)† retrains
+MisFormer on EPIC-KITCHENS-M and then fine-tunes on                                        Table 6. Ablations on Ego4D-M for Semantic Attribution (Sema.),
+EgoPER, yielding competitive results with SOTA detectors                                   Temporal Attribution (Temp.), Spatial Attribution (Spat.), and Mis-
+while preserving our unified attribution capabilities. These                               take Detection (Det.). Our default model is MisFormer (Ours).
+results suggest that MisFormer can handle mistake under-                                   Results show the importance of the design choices in each module.
+standing ranging from coarse detection to fine-grained attri-
+bution when fueled by the large data prepared by MisEngine.                                5. Discussion
+
+      Method             EK         Ego             Method             F1@.5 ↑  Acc. ↑     Conclusion. We introduced Mistake Attribution (MATT), fo-
+                                                                                           cusing on what, when, and where mistakes arise in egocentric
+  AMNAR [19]      F1@.5 ↑ Acc. ↑    F1@.5 ↑ Acc. ↑     AMNAR [19]      28.54    29.65      videos. We created large-scale, attribution-rich datasets with
+  EgoPED [26]                                          EgoPED [26]     32.18    33.23      MisEngine (Ego4D-M, EPIC-KITCHENS-M) by leveraging
+MisFormer (Ours)  16.34      17.45  12.57  14.24    MisFormer (Ours)   26.78    27.89      existing egocentric action corpora. Fueled by these datasets,
+                  21.18      22.23  15.62  17.34    MisFormer (Ours)†  35.18    36.23      we developed MisFormer, a unified model that attributes mis-
+                  78.05      80.90  57.55  59.89                                           takes along the semantic, temporal, and spatial axes. Experi-
+                                                                                           ments show that existing methods—even when specialized
+                  (a)                                         (b)                          for individual subtasks—struggle to address MATT, under-
+                                                                                           scoring its challenge. MisFormer consistently outperforms
+Table 5. Mistake Detection results on: (a) EPIC-KITCHENS-M                                 strong video-language, temporal localization, hand-object
+(EK) and Ego4D-M (Ego); (b) EgoPER dataset. When fueled by                                 interaction and mistake detection baselines on our and prior
+large data prepared by MisEngine, MisFormer can handle mistake                             benchmarks, demonstrating the effectiveness of our data-
+understanding ranging from coarse detection to fine-grained attri-                         driven solution for MATT.
+bution. † denotes the model is pretrained on EPIC-KITCHENS-M.
+                                                                                           Limitations and Future Work. Real applications will in-
+Ablation Study. In Tab. 6, we ablate key design choices                                    volve longer, compositional instructions with richer role
+of MisFormer across the feature extractor (b), semantic at-                                inventories. As our experiments indicate, different roles
+tribution (c), temporal attribution (d), and spatial attribu-                              pose distinct challenges; study the challenges and solutions
+tion (e) modules. In (b), we replace the backbone with                                     for MATT with longer instructions is an important next step.
+another video-language pre-trained model, LaViLa [58], as                                  Second, MisFormer currently relies on features from existing
+the feature extractor. Performance drops across all tasks                                  video–language representation learning, which is pre-trained
+when using LaViLa. In contrast, InternVideo2 [54] (our de-                                 with video-language alignment objective. While our down-
+fault) is pre-trained with more modalities, broader objectives,                            stream adaptation blocks make these features effective for
+and more data, highlighting the importance of high-capacity                                MATT, developing a task-driven representation that jointly
+video-language pre-training for MATT. In (c), we remove                                    embeds video and instruction specifically for mistake un-
+the projection block P and feed the pre-trained text encoder                               derstanding could further improve attribution accuracy and
+features F TR directly into the attribution heads. Without                                 efficiency, potentially serve as a foundation for mistake un-
+this projection step, raw text embeddings are insufficient                                 derstanding in general.
+to capture the nuanced divergence between the instruction
+
+                                                                                        8
+Acknowledgement                                                                 Linguistic Theory, pages 1–88. Holt, Rinehart, and Winston,
+                                                                                1968. 2
+This research was funded, in part, by the U.S. Government
+under ARPA-H contract 1AY2AX000062. The views and                         [12] Alessandro Flaborea, Guido Maria D’Amely di Melendugno,
+conclusions contained in this document are those of the                         Leonardo Plini, Luca Scofano, Edoardo De Matteis, Antonino
+authors and should not be interpreted as representing the                       Furnari, Giovanni Maria Farinella, and Fabio Galasso. Prego:
+official policies, either expressed or implied, of the U.S.                     online mistake detection in procedural egocentric videos. In
+Government.                                                                     Proceedings of the IEEE/CVF Conference on Computer Vi-
+                                                                                sion and Pattern Recognition, pages 18483–18492, 2024. 1,
+References                                                                      2
+
+ [1] Filippos Bellos, Yayuan Li, Wuao Liu, and Jason Corso. Can           [13] Matt Gardner, Joel Grus, Mark Neumann, Oyvind Tafjord,
+      large language models reason about goal-oriented tasks? In                Pradeep Dasigi, Nelson F. Liu, Matthew Peters, Michael
+      Proceedings of the First edition of the Workshop on the Scal-             Schmitz, and Luke Zettlemoyer. Allennlp: A deep semantic
+      ing Behavior of Large Language Models (SCALE-LLM 2024).                   natural language processing platform. In NLP OSS Workshop
+      Association for Computational Linguistics, 2024. 2                        at ACL, 2018. 3, 4, 5
+
+ [2] Filippos Bellos, Yayuan Li, Cary Shu, Ruey Day, Jeffrey              [14] Carly R Garrow, Karl-Friedrich Kowalewski, Linhong Li,
+      Siskind, and Jason Corso. Towards effective human-in-the-                 Martin Wagner, Mona W Schmidt, Sandy Engelhardt,
+      loop assistive ai agents. In Proceedings of the IEEE/CVF                  Daniel A Hashimoto, Hannes G Kenngott, Sebastian Boden-
+      International Conference on Computer Vision (ICCV), pages                 stedt, Stefanie Speidel, et al. Machine learning for surgical
+      2513–2522, 2025. 1, 2                                                     phase recognition: a systematic review. Annals of surgery,
+                                                                                273(4):684–693, 2021. 1
+ [3] Gedas Bertasius, Heng Wang, and Lorenzo Torresani. Is
+      space-time attention all you need for video understanding? In       [15] Kristen Grauman, Andrew Westbury, Eugene Byrne, Zachary
+      ICML, 2021. 2                                                             Chavis, Antonino Furnari, Rohit Girdhar, Jackson Hamburger,
+                                                                                Hao Jiang, Miao Liu, Xingyu Liu, et al. Ego4d: Around the
+ [4] Jing Bi, Filippos Bellos, Junjia Guo, Yayuan Li, Chao Huang,               world in 3,000 hours of egocentric video. In Proceedings of
+      Yolo Y Tang, Luchuan Song, Susan Liang, Zhongfei Mark                     the IEEE/CVF Conference on Computer Vision and Pattern
+      Zhang, Jason J Corso, et al. When to think and when                       Recognition, pages 18995–19012, 2022. 1, 2, 3, 4, 6
+      to look: Uncertainty-guided lookback. In Proceedings of
+      the IEEE/CVF Conference on Computer Vision and Pattern              [16] Albert Haque, Arnold Milstein, and Li Fei-Fei. Illuminat-
+      Recognition (CVPR), 2026. 2                                               ing the dark spaces of healthcare with ambient intelligence.
+                                                                                Nature, 585(7824):193–202, 2020. 1
+ [5] Dima Damen, Hazel Doughty, Giovanni Maria Farinella, An-
+      tonino Furnari, Jian Ma, Evangelos Kazakos, Davide Molti-           [17] Mahmudul Hasan, Jonghyun Choi, Janet Neumann, Amit K.
+      santi, Jonathan Munro, Toby Perrett, Will Price, and Michael              Roy-Chowdhury, and Larry S. Davis. Learning temporal reg-
+      Wray. Rescaling egocentric vision: Collection, pipeline and               ularity in video sequences. In Proceedings of the IEEE Con-
+      challenges for epic-kitchens-100. International Journal of                ference on Computer Vision and Pattern Recognition (CVPR),
+      Computer Vision (IJCV), 130:33–55, 2022. 1, 2, 3, 4                       pages 733–742, 2016. 2
+
+ [6] Jeevan S. Devagiri, Sidike Paheding, Quamar Niyaz, Xiaoli            [18] Luheng He, Kenton Lee, Mike Lewis, and Luke Zettlemoyer.
+      Yang, and Samantha Smith. Augmented reality and artificial                Deep semantic role labeling: What works and what’s next.
+      intelligence in industry: Trends, tools, and future challenges.           In Proceedings of the 55th Annual Meeting of the Associa-
+      Expert Systems with Applications, 207:118002, 2022. 1                     tion for Computational Linguistics (Volume 1: Long Papers),
+                                                                                pages 473–483, Vancouver, Canada, 2017. Association for
+ [7] Guodong Ding, Fadime Sener, Shugao Ma, and Angela                          Computational Linguistics. 5
+      Yao. Every mistake counts in assembly. arXiv preprint
+      arXiv:2307.16453, 2023. 2, 3, 5                                     [19] Wei-Jin Huang, Yuan-Ming Li, Zhi-Wei Xia, Yu-Ming Tang,
+                                                                                Kun-Yu Lin, Jian-Fang Hu, and Wei-Shi Zheng. Modeling
+ [8] Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov,                     multiple normal action representations for error detection in
+      Dirk Weissenborn, Xiaohua Zhai, Thomas Unterthiner,                       procedural tasks. In CVPR, 2025. 2, 6, 8
+      Mostafa Dehghani, Matthias Minderer, Georg Heigold, Syl-
+      vain Gelly, Jakob Uszkoreit, and Neil Houlsby. An image is          [20] Peter J. Huber. Robust estimation of a location parameter.
+      worth 16x16 words: Transformers for image recognition at                  Annals of Mathematical Statistics, 35(1):73–101, 1964. 6
+      scale. In International Conference on Learning Representa-
+      tions (ICLR), 2021. 2                                               [21] Youngkyoon Jang, Brian Sullivan, Casimir Ludwig, Iain
+                                                                                Gilchrist, Dima Damen, and Walterio Mayol-Cuevas. Epic-
+ [9] Marion A. Eppler. Development of manipulatory skills and                   tent: An egocentric video dataset for camping tent assembly.
+      the deployment of attention. Infant Behavior and Develop-                 In Proceedings of the IEEE/CVF International Conference
+      ment, 18(4):391–405, 1995. 1                                              on Computer Vision Workshops, pages 0–0, 2019. 2, 3, 5
+
+[10] Charles J. Fillmore. The case for case. In Universals in             [22] Jared Kaplan, Sam McCandlish, Tom Henighan, Tom B.
+      Linguistic Theory, pages 1–88. Holt, Rinehart, and Winston,               Brown, Benjamin Chess, Rewon Child, Scott Gray, Alec
+      New York, NY, USA, 1968. 3                                                Radford, Jeffrey Wu, and Dario Amodei. Scaling laws for
+                                                                                neural language models, 2020. 8
+[11] Charles J. Fillmore. The case for case. In Universals in
+                                                                          [23] Taein Kwon, Bugra Tekin, Jan Stu¨hmer, Federica Bogo, and
+                                                                                Marc Pollefeys. H2o: Two hands manipulating objects for
+
+                                                                       9
+      first person interaction recognition. In Proceedings of the             Torralba. Recipe1m+: A dataset for learning cross-modal
+      IEEE/CVF International Conference on Computer Vision                    embeddings for cooking recipes and food images. IEEE
+      (ICCV), pages 10138–10148, 2021. 1                                      Trans. Pattern Anal. Mach. Intell., 43(1):187–203, 2021. 1
+
+[24] John Lafferty, Andrew McCallum, and Fernando Pereira. Con-         [36] Michele Mazzamuto, Antonino Furnari, Yoichi Sato, and
+      ditional random fields: Probabilistic models for segmenting             Giovanni Maria Farinella. Gazing into missteps: Leverag-
+      and labeling sequence data. In Proceedings of the 18th In-              ing eye-gaze for unsupervised mistake detection in egoentric
+      ternational Conference on Machine Learning (ICML), pages                videos of skilled human activities. In Proceedings of the
+      282–289. Morgan Kaufmann, 2001. 5                                       Computer Vision and Pattern Recognition Conference, pages
+                                                                              8310–8320, 2025. 1, 2
+[25] Shih-Po Lee and Ehsan Elhamifar. Error recognition in proce-
+      dural videos using generalized task graph. In Proceedings of      [37] Antoine Miech, Dimitri Zhukov, Jean-Baptiste Alayrac,
+      the IEEE/CVF International Conference on Computer Vision,               Makarand Tapaswi, Ivan Laptev, and Josef Sivic. Howto100m:
+      pages 10009–10021, 2025. 1, 3                                           Learning a text-video embedding by watching hundred mil-
+                                                                              lion narrated video clips. In Proceedings of the IEEE/CVF
+[26] Shih-Po Lee, Zijia Lu, Zekun Zhang, Minh Hoai, and Ehsan                 international conference on computer vision, pages 2630–
+      Elhamifar. Error detection in egocentric procedural task                2640, 2019. 1
+      videos. In Proceedings of the IEEE/CVF Conference on Com-
+      puter Vision and Pattern Recognition, pages 18655–18666,          [38] Rashmiranjan Nayak, Umesh Chandra Pati, and Santos Ku-
+      2024. 1, 2, 3, 5, 6, 7, 8                                               mar Das. A comprehensive review on deep learning-based
+                                                                              methods for video anomaly detection. Image and Vision
+[27] Jiachen Lei, Shuang Ma, Zhongjie Ba, Sai Vemprala, Ashish                Computing, 2021. 2
+      Kapoor, and Kui Ren. Masked autoencoders for egocentric
+      video understanding@ ego4d challenge 2022. arXiv preprint         [39] OpenAI. Gpt-4o technical report. OpenAI Blog, 2024. 2, 6, 7
+      arXiv:2211.15286, 2022. 2, 6, 7                                   [40] Ege O¨ zsoy, Arda Mamur, Felix Tristram, Chantal Pellegrini,
+
+[28] Rosario Leonardi, Antonino Furnari, Francesco Ragusa, and                Magdalena Wysocki, Benjamin Busam, and Nassir Navab.
+      Giovanni Maria Farinella. Are synthetic data useful for ego-            Egoexor: An ego-exo-centric operating room dataset for surgi-
+      centric hand-object interaction detection? In European Con-             cal activity understanding. arXiv preprint arXiv:2505.24287,
+      ference on Computer Vision, 2024. 2, 6, 8                               2025. 1
+
+[29] Sergey Levine, Peter Pastor, Alex Krizhevsky, and Deirdre          [41] Constantin Patsch, Yuankai Wu, Marsil Zakour, Driton Salihu,
+      Quillen. Learning hand-eye coordination for robotic grasp-              and Eckehard Steinbach. Mistsense: Versatile online detec-
+      ing with deep learning and large-scale data collection. The             tion of procedural and execution mistakes. In Proceedings of
+      International Journal of Robotics Research, 37(4-5):421–436,            the IEEE/CVF International Conference on Computer Vision,
+      2018. 7                                                                 pages 14528–14537, 2025. 1, 3
+
+[30] Yayuan Li, Zhi Cao, and Jason J Corso. Handi: Hand-centric         [42] Rohith Peddi, Shivvrat Arya, Bharath Challa, Likhitha Pal-
+      text-and-image conditioned video generation. arXiv preprint             lapothula, Akshay Vyas, Bhavya Gouripeddi, Qifan Zhang,
+      arXiv:2412.04189, 2024. 2                                               Jikai Wang, Vasundhara Komaragiri, Eric Ragan, et al. Cap-
+                                                                              taincook4d: A dataset for understanding errors in procedural
+[31] Yayuan Li, Filippos Bellos, and Jason Corso. Towards                     activities. Advances in Neural Information Processing Sys-
+      consistent long-term pose generation. arXiv preprint                    tems, 37:135626–135679, 2024. 1, 2, 3, 5
+      arXiv:2507.18382, 2025. 2
+                                                                        [43] Adria Recasens, Aditya Khosla, Carl Vondrick, and Antonio
+[32] Kevin Qinghong Lin, Jinpeng Wang, Mattia Soldan, Michael                 Torralba. Where are they looking? In Advances in Neural
+      Wray, Rui Yan, Eric Z. XU, Difei Gao, Rong-Cheng Tu,                    Information Processing Systems, 2015. 4
+      Wenzhe Zhao, Weijie Kong, Chengfei Cai, WANG HongFa,
+      Dima Damen, Bernard Ghanem, Wei Liu, and Mike Zheng               [44] Ramprasaath R. Selvaraju, Michael Cogswell, Abhishek Das,
+      Shou. Egocentric video-language pretraining. In Advances in             Ramakrishna Vedantam, Devi Parikh, and Dhruv Batra. Grad-
+      Neural Information Processing Systems, 2022. 7                          cam: Visual explanations from deep networks via gradient-
+                                                                              based localization. In 2017 IEEE International Conference
+[33] Camillo Lugaresi, Jiuqiang Tang, Hadon Nash, Chris Mc-                   on Computer Vision (ICCV), 2017. 8
+      Clanahan, Esha Uboweja, Michael Hays, Fan Zhang, Chuo-
+      Ling Chang, Ming Yong, Juhyun Lee, Wan-Teh Chang, Wei             [45] Fadime Sener, Dibyadip Chatterjee, Daniel Shelepov, Kun
+      Hua, Manfred Georg, and Matthias Grundmann. Mediapipe:                  He, Dipika Singhania, Robert Wang, and Angela Yao. As-
+      A framework for perceiving and processing reality. In Third             sembly101: A large-scale multi-view video dataset for un-
+      Workshop on Computer Vision for AR/VR at IEEE Computer                  derstanding procedural activities. In Proceedings of the
+      Vision and Pattern Recognition (CVPR) 2019, 2019. 2, 6, 8               IEEE/CVF Conference on Computer Vision and Pattern
+                                                                              Recognition, pages 21096–21106, 2022. 1, 2, 3, 5
+[34] Muhammad Maaz, Hanoona Rasheed, Salman Khan, and
+      Fahad Khan. Video-ChatGPT: Towards detailed video un-             [46] Himanshu Gaurav Singh, Antonio Loquercio, Carmelo Sfer-
+      derstanding via large vision and language models. In Pro-               razza, Jane Wu, Haozhi Qi, Pieter Abbeel, and Jitendra Malik.
+      ceedings of the 62nd Annual Meeting of the Association for              Hand-object interaction pretraining from videos, 2024. 1
+      Computational Linguistics (Volume 1: Long Papers), 2024. 2,
+      6, 7                                                              [47] Dean Slawson. The case for vr-immersive and ai-adaptive
+                                                                              soft skills training. Training Industry Magazine, 2018. 1
+[35] Javier Mar´ın, Aritro Biswas, Ferda Ofli, Nicholas Hynes,
+      Amaia Salvador, Yusuf Aytar, Ingmar Weber, and Antonio            [48] Bilge Soran, Ali Farhadi, and Linda Shapiro. Generating no-
+                                                                              tifications for missing actions: Don’t forget to turn the lights
+
+                                                                    10
+      off! In Proceedings of the IEEE International Conference on            Stoyanov. Deepphase: surgical phase recognition in cataracts
+      Computer Vision, pages 4669–4677, 2015. 1, 2                           videos. In Medical Image Computing and Computer Assisted
+[49] Shane Storks, Itamar Bar-Yossef, Yayuan Li, Zheyuan Zhang,              Intervention–MICCAI 2018: 21st International Conference,
+      Jason J Corso, and Joyce Chai. Transparent and coherent                Granada, Spain, September 16-20, 2018, Proceedings, Part
+      procedural mistake detection. In Proceedings of the 2025               IV 11, pages 265–272. Springer, 2018. 1
+      Conference on Empirical Methods in Natural Language Pro-
+      cessing (EMNLP), pages 13979–14013, 2025. 2, 3
+[50] Chen Sun, Abhinav Shrivastava, Saurabh Singh, and Abhi-
+      nav Gupta. Revisiting unreasonable effectiveness of data in
+      deep learning era. In Proceedings of the IEEE International
+      Conference on Computer Vision (ICCV), 2017. 8
+[51] Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkor-
+      eit, Llion Jones, Aidan N. Gomez, Lukasz Kaiser, and Illia
+      Polosukhin. Attention is all you need. CoRR, abs/1706.03762,
+      2017. 5
+[52] Miaowei Wang, Qingxuan Yan, Zhi Cao, Yayuan Li, Oisin
+      Mac Aodha, Jason J. Corso, and Amir Vaxman. Bimotion:
+      B-spline motion for text-guided dynamic 3d character gen-
+      eration. In Proceedings of the IEEE/CVF Conference on
+      Computer Vision and Pattern Recognition (CVPR), 2026. 2
+[53] Xin Wang, Taein Kwon, Mahdi Rad, Bowen Pan, Ishani
+      Chakraborty, Sean Andrist, Dan Bohus, Ashley Feniello, Bu-
+      gra Tekin, Felipe Vieira Frujeri, Neel Joshi, and Marc Polle-
+      feys. Holoassist: an egocentric human interaction dataset for
+      interactive ai assistants in the real world, 2023. 1, 2, 3, 5
+[54] Yi Wang, Kunchang Li, Xinhao Li, Jiashuo Yu, Yinan He,
+      Guo Chen, Baoqi Pei, Rongkun Zheng, Zun Wang, Yansong
+      Shi, Tianxiang Jiang, Songze Li, Jilan Xu, Hongjie Zhang,
+      Yifei Huang, Yu Qiao, Yali Wang, and Limin Wang. In-
+      ternvideo2: Scaling foundation models for multimodal video
+      understanding. In ECCV, 2024. 5, 8
+[55] Zihui Xue, Yale Song, Kristen Grauman, and Lorenzo Tor-
+      resani. Egocentric video task translation. In Proceedings of
+      the IEEE/CVF Conference on Computer Vision and Pattern
+      Recognition, pages 2310–2320, 2023. 2, 6, 7
+[56] Yuanhan Zhang, Bo Li, haotian Liu, Yong jae Lee, Liangke
+      Gui, Di Fu, Jiashi Feng, Ziwei Liu, and Chunyuan Li. Llava-
+      next: A strong zero-shot video understanding model, 2024. 2,
+      6, 7
+[57] Bin Zhao, Li Fei-Fei, and Eric P. Xing. Online detection of
+      unusual events in videos via dynamic sparse coding. In CVPR,
+      2011. 2
+[58] Yue Zhao, Ishan Misra, Philipp Kra¨henbu¨hl, and Rohit Gird-
+      har. Learning video representations from large language
+      models. In Proceedings of the IEEE/CVF Conference on
+      Computer Vision and Pattern Recognition (CVPR), 2023. 8
+[59] Joey Tianyi Zhou, Jiawei Du, Hongyuan Zhu, Xi Peng, Yong
+      Liu, and Rick Siow Mong Goh. Anomalynet: An anomaly
+      detection network for video surveillance. IEEE Transactions
+      on Information Forensics and Security, 2019. 2
+[60] Luowei Zhou, Chenliang Xu, and Jason J. Corso. Towards au-
+      tomatic learning of procedures from web instructional videos.
+      In AAAI, 2018. 1
+[61] Yuansheng Zhu, Wentao Bao, and Qi Yu. Towards open set
+      video anomaly detection. In ECCV, 2022. 2
+[62] Odysseas Zisimopoulos, Evangello Flouty, Imanol Luengo,
+      Petros Giataganas, Jean Nehme, Andre Chow, and Danail
+
+                                                                         11
+Mistake Attribution: Fine-Grained Mistake Understanding in Egocentric Videos
+
+                                               Supplementary Material
+
+A. MisEngine Details                                                                    collected datasets provide insufficient training signal for Mis-
+                                                                                        Former (Tab. 1), underscoring the necessity of MisEngine.
+Role-matching function J . J (gir, gjr) determines whether                              Spatial attribution mIoU by mistake type. Tab. (c) re-
+role r matches between two action descriptions, and thus                                ports spatial attribution mIoU broken down by mistake type.
+whether a cross-matched video contains a mistake on that                                MisBoth (which uses a union bounding box over hand and
+role. The matching rule is granularity-dependent: e.g., “cut”                           object) performs comparably to single-role types. Union
+vs. “dice” are distinct in a professional kitchen but inter-                            boxes remain compact because, at the PNR frame, hand and
+changeable in casual cooking. We implement two vari-                                    object regions substantially overlap during active interaction.
+ants(Sec. 3.1): (1) taxonomy-based J for Ego4D, grouping                                Ablation: semantic head and projection block. Tab. 6
+synonymous verbs and nouns from the original dataset; and                               in the main paper ablates the projection block P and task-
+(2) literal string matching for EPIC-KITCHENS. SRL on                                   specific heads. Removing P degrades all tasks (row c).
+1K Ego4D descriptions yields 97.97% predicate and 94.13%                                Removing temporal or spatial supervision each hurts the
+object F1, reflecting the short imperative phrasing of the                              complementary task (rows d, e), confirming their mutual
+source annotations.                                                                     benefit. We additionally ablate the semantic head: without
+                                                                                        it, semantic attribution and mistake detection are disabled,
+B. Dataset Ecological Validation                                                        while temporal and spatial attribution improve to 0.358 s
+                                                                                        MAE and 65.33% mIoU. This suggests the current P faces
+We conduct a user study (16 participants, 200 ⟨text, video⟩                             tension between representing semantic-level and grounded-
+pairs per dataset, no prior exposure) on 4 datasets to evaluate                         level features simultaneously, which we identify as a direc-
+how realistic our constructed mistake samples and inherited                             tion for future work. The unified structure nonetheless avoids
+annotations are. We report Real-%: the % of participants                                training separate models, runs 2.42× faster (Sec. 4.2), and
+who judge the sample pair or inherited annotation as realistic,                         outperforms 6 of 7 baselines (Tabs. 2 to 4).
+averaged over videos.
+                                                                                        D. Qualitative Results and Failure Analysis
+ EK-M (ours) Ego4D-M (ours) EgoPER [23] CC4D [37]
+                                                                                        Qualitative examples. Fig. 5 shows representative out-
+ 92.32±6.04 92.42±7.01 94.17±4.02 95.75±4.03                                            puts. Row 1 correctly produces semantic attribution, lo-
+                                                                                        calizes the PNR frame, and generates a reasonable spatial
+ (a) % of samples human-rated as realistic (Real-% ↑) on mistake videos.                box (IoU=0.56). Row 2 illustrates a failure case: seman-
+                                                                                        tic attribution is correct, but temporal attribution selects an
+   Tmp. (%) Spa. (%) MisV MisObj MisBoth                                                earlier frame before the bag is set down. Judging the spa-
+                                                                                        tial completion state of an object from 2D video alone is
+ 96.29 ± 3.99 95.81 ± 2.16 60.73 57.99 58.91                                            inherently difficult, suggesting that depth or 3D cues are a
+                                                                                        promising direction for future work. Notably, the spatial
+(b) Real-% on inherited annotations. (c) Spatial-Attribution mIoU by mistake type.      bounding box still correctly highlights the hand performing
+                                                                                        the unintended action, which is consistent with the correct
+Tab. (a): All four datasets receive comparably high realism                             semantic prediction.
+ratings (within std). This is expected since cross-matched
+samples are drawn from the same domain, grounded in origi-                                                                             Ours and GT PNR
+nal metadata. Participants occasionally flag samples in prior
+datasets as “staged,” consistent with the manual collection                                      Instruction Text:  Clip      cables
+challenges discussed in Sec. 1.
+Tab. (b): Participants judge whether the inherited PNR frame                            Success  Attempt Video:     Insert    cables
+marks the consolidation of a mistake (Tmp.) and whether the
+bounding box captures mistake-relevant detail (Spa.). Both                                       Prediction:        Mistake   Correct
+achieve >95% Real-%, validating the quality of inherited an-
+notations. The temporal attribution frame occurs at 79.48%                                                                             Ours PNR         GT PNR
+of video duration on average. Samples are constructed in
+equal numbers across mistake types for balanced training;                                        Instruction Text:  Open      bag
+this count is configurable (Sec. 3.1).
+                                                                                        Failure  Attempt Video:     Put down  bag
+C. Additional Experiments
+                                                                                                 Prediction:        Mistake   Correct
+Zero-shot transfer to EgoPER. MisFormer generalizes
+zero-shot to EgoPER, achieving 34.46 F1 / 35.52 Acc and                                 Figure 5. Top: correct predictions (IoU=0.56). Bottom: failure
+surpassing both baselines. Tab. 5 results show that manually                            case with correct semantic but incorrect temporal attribution.
+
+                                                                                        E. Implementation Details
+
+                                                                                        Training configuration. We train with AdamW (lr 10−4)
+
+                                                                                        for 20 epochs on 4×H100 GPUs with batch size 64.
+
+                                                                                    12
+

@@ -1,0 +1,943 @@
+This ICCV paper is the Open Access version, provided by the Computer Vision Foundation.
+                Except for this watermark, it is identical to the accepted version;
+
+          the final published version of the proceedings is available on IEEE Xplore.
+
+Error Recognition in Procedural Videos using Generalized Task Graph
+
+         Shih-Po Lee                                                    Ehsan Elhamifar
+  Northeastern University                                          Northeastern University
+
+lee.shih@northeastern.edu                                      e.elhamifar@northeastern.edu
+
+                        Abstract                                  Frame of step 1                       Frame of step 3             Frame of BG                 Frame of error
+
+Understanding user actions and their possible mistakes is         2                  BG                 2        BG                         BG                         BG
+essential for successful operation of task assistants. In
+this paper, we develop a unified framework for joint tem-                                               Drop
+poral action segmentation and error recognition (recogniz-
+ing when and which type of error happens) in procedural        1     3                   41                   3          41             3        41             3                 4
+task videos. We propose a Generalized Task Graph (GTG)
+whose nodes encode correct steps and background (task-                                   Current node:               Current node:               Current node:
+irrelevant actions). We then develop a GTG-Video Align-
+ment algorithm (GTG2Vid) to jointly segment videos into              1                   1                    3          3              BG           BG         No match,
+actions and detect frames containing errors. Given that it
+is infeasible to gather many videos and their annotations                                                                                                       Drop frame
+for different types of errors, we study a framework that only
+requires normal (error-free) videos during training. More                                    Generalized Task Graph (GTG) – Video Alignment
+specifically, we leverage large language models (LLMs)
+to obtain error descriptions and subsequently use video-       Action Segmentation Results
+language models (VLMs) to generate visually-aligned tex-
+tual features, which we use for error recognition. We then           Step1                                 Step3                    BG                   Error
+propose an Error Recognition Module (ERM) to recognize
+the error frames predicted by GTG2Vid using the generated         Prompt:                   VLM/LLM                  Error Recognition Module (ERM)               Error type 1:
+error features. By extensive experiments on two egocentric        Step                                                                                          using wrong tool
+datasets of EgoPER and CaptainCook4D, we show that our            Error Description
+framework outperforms other baselines on action segmen-
+tation, error detection and recognition.                          Error Recognition Results             Normal type         Normal type                  Error type 1
+                                                                     Normal type
+1. Introduction
+                                                               Figure 1. The illustration of our framework for joint temporal action seg-
+The integration of computer vision with augmented and          mentation and error recognition. It consists of 1) Generalized Task Graph
+virtual reality (AR & VR) is expected to significantly im-     (GTG)-Video Alignment for action segmentation and 2) an Error Recog-
+prove the way we learn and develop skills in our daily         nition Module using features from LLM/VLM for error recognition.
+lives [83]. Imagine wearing a pair of AR glasses and try-
+ing to assemble a new piece of furniture. A visual task        from instructional videos [12, 33, 62, 64, 65, 85, 102] and
+assistant should recognize your actions and provide guid-      very recently on error understanding [14, 27, 29, 41, 60, 90],
+ance on what to do and how to perform them through-            as well as progress [17] and state [100] prediction.
+out the process. It should also recognize your possible er-
+rors and provide feedback to correct them, when needed.           Successful operation of a visual task assistant, in partic-
+This has motivated exciting new research on action recog-      ular, requires temporal action segmentation (assigning step
+nition [8, 10, 25, 26, 47, 50, 61, 89] and segmentation        labels to frames) and error recognition (recognizing the type
+[23, 38, 45, 46, 54, 57, 58, 73, 77, 78, 84, 95, 96, 103],     of error, if any, in each frame) to seamlessly work together.
+video grounding [5, 18, 20, 49, 59, 63, 86, 109], learning     Additionally, a task graph, which encodes plausible ways to
+                                                               perform a task, has been shown to be critical for temporal
+                                                               action segmentation to effectively mitigate oversegmenta-
+                                                               tion [5, 19, 77, 106]. However, existing methods have three
+                                                               major limitations when it comes to understanding actions
+                                                               and errors.
+
+                                                               SOTA Limitations. First, existing works on error under-
+                                                               standing can only detect the presence of an error in a video
+                                                               frame without recognizing the type of the error. As recently
+                                                               studied in [41], different types of errors, such as omission,
+                                                               addition, modification, and slip errors, can occur during task
+                                                               execution. However, [41] cannot distinguish between the
+                                                               error types. A task assistant requires understanding the er-
+                                                               ror type to provide appropriate feedback. For example, an
+                                                               actor knocking over a dripper while making coffee requires
+
+                           10009
+immediate feedback for correction or spreading jelly onto      supervised [4, 21, 22, 28, 36, 37, 74, 79, 88, 91, 94, 109],
+tortilla using spoon instead of knife needs a feedback after   weakly-supervised [11, 16, 24, 42–44, 48, 55, 55, 56, 69–
+task completion for the actor to better execute the step.      71, 76, 84], and fully-supervised [3, 7, 9, 15, 23, 31, 32, 35,
+                                                               38, 45, 46, 51, 57, 73, 80–82, 84, 95, 96, 103, 104] setting.
+   Second, given the large number of possible errors, it is    Since procedural step videos follow certain task graphs to
+infeasible to gather real training videos and annotations for  complete the task, some prior works [5, 19, 77, 106] addi-
+all possible errors. Also, recent datasets [41, 66] that con-  tionally adopt task graph information to guide segmentation
+tain videos with errors have imbalance annotations on dif-     process. Specifically, G2Vid [19] aims to assign steps/nodes
+ferent error types, making error recognition a challenging     in a task graph to video frames and drop the frames not
+task, especially under the setting when we do not have error   corresponding to any node. However, G2Vid cannot drop
+videos during training.                                        unnecessary nodes in a task graph nor map background
+                                                               frames to nodes to distinguish between background and er-
+   Third, recent action segmentation methods [19, 77] that     ror frames. In contrast, our framework adds extra nodes to
+use task graphs assume that there are no errors in videos      a task graph and allows droppable nodes to properly assign
+and assign step labels to the frames according to the task     nodes to frames.
+graph. In addition, two recent works that handle both ac-
+tion segmentation and error detection [29, 41] cannot use      Error Detection and Recognition for Procedural Tasks.
+the task graph for action segmentation. This is because a      Detecting errors for procedural tasks has recently drawn at-
+task graph only contains the correct actions/steps and does    tention from the video understanding community. Recent
+not consider possible errors that may occur during the task    works [14, 29, 68, 90] have released relevant datasets to
+execution. Thus, following the task graph leads to assigning   facilitate error understanding. Meanwhile, several works
+every frame (including frames that have errors and ones that   [27, 41, 60, 75] have developed frameworks to detect if er-
+do not belong to any step) to correct actions/steps, which is  rors are present in videos and localize their temporal lo-
+undesired.                                                     cations. Recent work [27] focuses on online error detec-
+                                                               tion using action recognition and anticipation models based
+Paper Contributions. We develop a unified error recogni-       on videos and action sequences. Another work [41] uses
+tion and temporal action segmentation framework (see Fig-      only error-free (normal) videos during training to generate
+ure 1) to address the aforementioned limitations.              multiple prototypes for action segmentation and error de-
+                                                               tection. However, none of them has the ability to recognize
+– We propose a Generalized Task Graph (GTG) whose              error types. Our work is able to segment videos and recog-
+nodes encode normal actions/steps and background (task-        nize different errors simultaneously without error training
+irrelevant actions).                                           videos.
+
+– We develop a dynamic programming-based method,               VLMs/LLMs for Anomaly Detection. Anomaly detec-
+GTG-Video Alignment (GTG2Vid), with a dynamic frame            tion in videos [2, 6, 13, 39, 40, 53, 67, 72, 87, 92, 97–
+and node dropping term to assign frames to GTG nodes for       99, 105, 107, 108] has been widely explored, and recent
+action segmentation and drop frames for error detection.       studies [34, 101] leverage VLMs and LLMs for further
+                                                               improvement due to their outstanding reasoning capabili-
+– Given the lack of error training videos, we leverage the     ties. Recent work in [101] proposes a training-free video
+rich knowledge of large language models (LLMs) in con-         anomaly detection framework using VLMs to generate cap-
+junction with the rich representation power of video lan-      tions over frames followed by LLMs to predict anomaly
+guage models (VLMs) to obtain error descriptions for dif-      scores for those captions. Another work in [34] adopts
+ferent types of errors and their corresponding features for    LLMs to generate normal and abnormal descriptions under
+error recognition.                                             various scenes and classify frames into normal or abnor-
+                                                               mal according to the similarities between features of frames
+– We propose an Error Recognition Module (ERM) to rec-         and descriptions. In our paper, we leverage LLMs to gener-
+ognize the error types, if any, in the frames predicted by     ate error descriptions for each error type of every step with
+GTG2Vid using joint similarities of video frame, normal        crafted prompts, followed by VLMs to generate textual fea-
+type, and error type features.                                 tures aligned with visual features for error recognition.
+
+– By extensive experiments on two egocentric datasets,         3. Graph to Video Alignment Review
+EgoPER and CaptainCook4D, we show that without us-
+ing error videos during training, our method 1) improves       Our proposed GTG-Video Alignment method builds upon
+the performance of temporal action segmentation on error       and generalizes the Graph-to-Video Alignment (G2Vid)
+videos, 2) improves error detection, and 3) recognizes dif-    [19], which we review here. A task graph (also called flow
+ferent errors.
+
+2. Related Works
+
+Temporal Action Segmentation. Learning to segment
+videos into several actions/steps has been studied under un-
+
+10010
+graph) is a directed acyclic graph G “ pV, Eq, where each                                                       (a) Generating tSort graph from task graph
+node v P V represents a procedure step and each edge
+pvk, viq P E from vk to vi implies that vk must be com-                                              tSort graph generation 𝑆 Extra node 1 3 2 4 Node/Step
+pleted before proceeding to vi, see Figure 2(a). Thus, all
+predecessors of a node must be completed before starting                                                           Task graph                         tSort graph
+that step. Thus, the task graph encodes all possible ways to
+perform a task (this can be obtained by topological sorting).                                                         2                               2        3
+
+   To efficiently align a video with the task graph and there-                                                  1              4                1                          4
+fore segment the video into task steps, G2Vid [19] first
+builds a tSort graph (see Figure 2(a)) that provides a com-                                                           3                               3        2
+pact representation of all topological sorts of the task graph
+(each path from the source to the sink node in the tSort                                             (b) Inserting steps in task graph – high complexity
+graph represents a topological sort of G). G2Vid alignment
+recovers a traversal of the tSort graph that best aligns with                                               𝑆1        2           𝑆3                                    2
+the video. It uses a modified version of Drop-DTW [18] to                                            1                                                         𝑆1
+align nodes and frames, allowing for i) one-to-many match-                                                                               4               1                 …
+ing (one node/step can be assigned to many frames) and ii)                                                  𝑆2                                                        𝑆2
+unmatched sequence elements (to be able to drop frames                                                                3           𝑆4
+that do not correspond to any node/step).                                                                                                                               3
+                                                                                                                                                               𝑆2
+   Let Ci,j denote the matching cost of node i to frame j, dj
+denote the dropping cost of frame j, and Apiq denote the set                                                                                                           𝑆1
+of predecessors of i. The dynamic programming solution
+computes the cumulative matching Di,j ` , dropping Di,j ´ and                                                            (c) Our proposed solution
+optimal Di,j costs up to the i-th node and j-th frame as
+                                                                                                     𝑆2 2 𝑆3 3 𝑆4 1
+         Di,j ` “ Ci,j ` mintminkPApiqtDk,j´1u, Di,j´1u,
+         Di,j ´ “ dj ` Di,j´1, Di,j “ mintDi,j ` , Di,j ´ u. (1)                                  1                                                4              𝑆3          3
+
+   By iterating over all nodes and frames, the dynamic pro-                                          𝑆3            3     𝑆2           2     𝑆4              2
+gramming outputs the optimal cost and alignment by back-
+tracking the path with minimum cost, starting from the top                                    Figure 2. The illustration of (a) an original task graph and its correspond-
+left and ending at the bottom right of the cumulative matrix.                                 ing tSort graph, (b) a naive approach to capture background, (c) our pro-
+                                                                                              posed solution, which specifically illustrates the predecessors and succes-
+                                                                                              sor of extra node S3.
+
+4. Proposed Method                                                                            t´1, 0, . . . , Su, where S is the number of steps and class
+                                                                                              ´1 and 0 indicate error and background (a task-irrelevant
+We develop a unified framework for Temporal Action Seg-                                       action, e.g., answering phone when making coffee), eˆt P
+mentation (TAS) and Error Recognition (ER) in procedu-                                        t0, . . . , M u, where M is the number of error types and class
+ral task videos. We assume having access to only normal                                       0 denotes no error happening. During training, we use only
+(error-free) videos with their frame-wise step labels during                                  normal (error-free) videos and their ground-truth step labels
+training and the task graph during testing. Our proposed                                      Y. For testing, we assume that the task graph is given.
+framework addresses three fundamental questions: (1) How
+can we build an efficient Generalized Task Graph (GTG)                                        Framework Overview. We introduce Generalized Task
+that enables TAS and Error Detection (ED) for videos? (2)                                     Graph for handling both TAS and ED. Our key idea is to
+How can we obtain features for different errors without col-                                  1) insert extra nodes in the tSort graph to capture the back-
+lecting real error videos? (3) How can we leverage the error                                  ground class that may occur before each step in the task
+features to perform ER? In the following, we first formal-                                    graph, 2) perform TAS and ED by our GTG2Vid with a dy-
+ize the problem, discuss the overarching goal of our frame-                                   namic frame and node dropping term for different types of
+work, and discuss the details of the method to address these                                  errors, 3) obtain error descriptions and features for all types
+questions.                                                                                    of errors, respectively, by leveraging LLMs and VLMs and
+                                                                                              4) use an Error Recognition Module (ERM) that computes
+Problem Setting. For TAS and ER, given a sequence of                                          joint similarities of video, normal type and error type fea-
+                                                                                              tures obtained by VLMs to classify the error types for the
+video frame features X v        “  p  x  v  ,  xv   ,  .  .  .  ,  x  v  q,  our goal is      frames flagged by GTG2Vid.
+                                         1                            T
+                                                 2                                            4.1. Generalized Task Graph (GTG)
+
+to predict its frame-wise steps Yˆ “ pyˆ1, yˆ2, . . . , yˆT q and                             We build GTG to handle execution and omission errors and
+error types Eˆ “ peˆ1, eˆ2, . . . , eˆT q, where T is the number                              develop GTG2Vid for TAS and ED.
+
+of  frames,  xv   P  RD  is  a  pre-extracted             feature            vector,  yˆt  P  Handling Execution Errors. We aim to use the task graph
+                                                                                              to segment videos into steps and to detect execution errors
+               t                                                                              (e.g., slip, correction, modification, and addition errors de-
+                                                                                              fined in [41]). Some of the errors are step-relevant (e.g.,
+                                                                                              spreading jelly using spoon instead of knife) and some are
+                                                                                              not in the task graph (e.g., adding honey to a recipe that does
+                                                                                              not include honey). However, G2Vid drops both frames
+                                                                                              with errors as well as background frames (e.g., answering
+
+                                                                                           10011
+Algorithm 1 GTG-Video Alignment (GTG2Vid)
+
+1: Inputs: C P R2SˆT, Ap¨q, diz, djx (matching cost matrix, predecessor mapping dictionary, node dropping costs, frame dropping costs.)
+
+2: D0,0 ` “ 0; Di,0 ` “ 8; D0,j ` “ 8; @i P t1, ¨ ¨ ¨ , 2Su, @j P t1, ¨ ¨ ¨ , T u                                          Ź Initialize DP tables
+             ři                                                                            Ź Matching table of Xnv (frames) and Z (nodes)
+                            z z´
+3: D0,0 z´ “ 0; Di,0 z´ “ k“1 dk; D0,j “ 8; @i P t1, ¨ ¨ ¨ , 2Su, @j P t1, ¨ ¨ ¨ , T u                          Ź Dropping table of Z (nodes)
+                                         řj x                                                                Ź Dropping table of Xnv (frames)
+4: D0,0 ´x “ 0; Di,0 ´x “ 8; D0,j ´x “ k“1 dk; @i P t1, ¨ ¨ ¨ , 2Su, @j P t1, ¨ ¨ ¨ , T u
+                                                                                                                       Ź Optimal solution table
+5: D0,0 “ 0; Di,0 “ Di,0 ´x; D0,j “ D0,j z´; @i P t1, ¨ ¨ ¨ , 2Su, @j P t1, ¨ ¨ ¨ , T u
+
+6: for i “ 1, ¨ ¨ ¨ , 2S do                                                                                            Ź Iterate nodes in Z
+
+7: for j “ 1, ¨ ¨ ¨ , T do                                                                                           Ź Iterate frames in Xnv
+8: Di,j ` “ ´Ci,j ` mint min tDk,j´1u, Di,j´1u                                             Ź Consider matching node Zi to frame xn,j v
+
+                                                           kPApiq
+
+ 9: Di,j ´x “ djx ` Di,j´1                                                                        Ź Consider dropping frame xn,j v
+10: Di,j z´ “ diz ` min tDk,j u                                                                      Ź Consider dropping node Zi
+
+                                              kPApiq
+
+11: Di,j “ mintDi,j ` , Di,j ´x, Di,j z´u                                                         Ź Select the optimal path
+
+12: end for
+
+13: end for                                                          Ź Compute the optimal alignment by tracing back the path with minimum cost
+                                                      Ź Flag dropping frames as error frames and frames belonging to extra nodes as background
+14: Yˆ˚ “ tracebackpDq
+15: Yˆ “ frame-assignpYˆ˚q
+16: Outputs: D2S,T , Yˆ
+
+the phone while making a recipe) and thus cannot distin-           where Di,j z´ is the accumulative cost until node i and frame
+guish between them and understand when an error occurs.            j in the dynamic programming (DP) table of dropping node
+                                                                   and dzi is the node dropping cost of node i. A low dropping
+   To handle this, we build GTG by inserting extra nodes           cost indicates that the corresponding GTG node is not in
+into the task graph to capture background frames. There-
+fore, by aligning a video with GTG, we can understand              the video and should be omitted. This also allows dropping
+which frames correspond to which steps and which frames
+correspond to background. Additionally, by allowing drop-          extra nodes, whenever there is no corresponding frame in
+ping frames, we can detect execution errors, and by allow-
+ing dropping nodes, we can detect omission errors which            the video.
+we will discuss next.
+                                                                   GTG-Video Alignment (GTG2Vid). Algorithm 1 shows
+   A naive approach is to insert an extra node with a unique
+label between every two nodes (see Figure 2 (b)). There-           the steps of GTG2Vid. Ci,j is the matching cost of the i-
+fore, the task graph can potentially map frames to extra
+nodes. However, the complexity of the tSort graph grows            th node to the j-th frame. We let Ci,j to be the predicted
+exponentially. To solve this problem, our proposed ap-
+proach inserts an extra node Si with a unique ID between           probability of step i for j-th frame using an action segmen-
+every node i and its predecessor in the tSort graph. For ex-
+ample, in Figure 2 (c), between node 2 and 3 as well as            tation model. We train the action segmentation model with
+node 1 and 3, we insert the same extra node S3 to capture
+the background frames with respect to step 3. Our design           smoothing and cross-entropy loss in [23] using framewise
+1) prevents exponential growth of the tSort graph, only in-
+creasing the number of nodes from S to 2S, and 2) inherits         labels. In addition, to ensure that our proposed method can
+the correct execution orders in the original tSort graph.
+                                                                   drop frames and nodes based on the confidence of predic-
+Handling Omission Errors. During execution, an actor
+may skip one or more steps in the task graph, resulting in         tions, we propose a dynamic dropping cost dx for frames
+omission error. In this case, forcing models to follow the
+task graph as done in prior works [5, 19, 77, 106] can lead        and dz for nodes of GTG as
+to wrong TAS results where some frames are assigned to the
+skipped steps. To handle omission errors, we introduce a                                   ˜ ř2S                                 ¸
+node dropping term to our GTG2Vid to make nodes of our
+GTG droppable,                                                                             djx “ ´ 1 i“1 Ci,j log Ci,j ` η ,
+                                                                                           ˆ log 2S ˙ (3)
+                 Di,j z´ “ diz ` minkPApiqtDk,j u (2)
+                                                                                           diz “ ´τ 1 ´ max Ci,j ,
+
+                                                                                                                      j“1,...,T
+
+                                                                   where η and τ are hyper-parameters (larger η and τ lead to
+
+                                                                   dropping more frames and nodes). Our frame dropping cost
+                                                                   dx leads to drop frames with unconfident predictions, indi-
+
+                                                                   cating that the frames do not correspond to any GTG node
+
+                                                                   and may contain errors. Meanwhile, our node dropping cost
+                                                                   dz allows dropping the nodes whose highest step probabil-
+
+                                                                   ities over all frames are low. After obtaining the minimum
+                                                                   cost path, we generate step predictions Yˆ from Yˆ˚ by flag-
+
+                                                                   ging the dropped frames as error frames and frames belong-
+                                                                   ing to extra nodes as background. The complexity of our al-
+
+                                                                   10012
+                                                                                EgoPER
+
+Method                   Quesadilla                   Oatmeal                              Pinwheel                  Coffee                                Tea
+                    w-F1@0 EAcc                                                                               w-F1@0 EAcc                         w-F1@0
+Naive Predictor                              w-F1@0 EAcc w-F1@0 EAcc                                                                                                EAcc
+EgoPED (MV)                                                                                                                                         11.4
+GTG2Vid (MV)        11.2            25.0              13.0                 25.0            10.4      25.0        18.1             33.3               4.4            25.0
+GTG2Vid (w/o n.f.)                                                                                                                                   4.0            75.0
+GTG2Vid             7.5             75.0              5.5                  75.0            7.4       75.0        10.9             100.0             15.2            50.0
+                                                                                                                                                    22.1            75.0
+Naive Predictor     5.1             50.0              2.7                  50.0            4.4       50.0            0.6          33.3                              100.0
+EgoPED (MV)
+GTG2Vid (MV)        16.3            75.0              16.4                 75.0            29.9      100.0           1.7          33.3
+GTG2Vid (w/o n.f.)
+GTG2Vid             31.7  100.0                       31.3                 100.0           17.8      100.0           4.5          100.0
+
+                                                                           CaptainCook4D
+
+                      Hot Chocolate                   Sandwich                             Burritos                  Ramen                                Raita
+                    w-F1@0 EAcc                                                                               w-F1@0 EAcc                         w-F1@0 EAcc
+                                             w-F1@0 EAcc w-F1@0 EAcc
+
+                    7.1             20.0              5.1                  20.0            7.4       25.0            7.4          25.0                 7.3          33.3
+
+                    7.3             80.0              3.4                  80.0            7.1       75.0            3.3          75.0                 4.3          66.6
+
+                    4.4             60.0              4.7                  40.0            6.7       50.0            2.7          25.0                 11.4         66.6
+
+                    2.8             40.0              6.2                  60.0            6.1       25.0            4.6          50.0                 11.2         66.6
+
+                    10.5  100.0                       8.5                  100.0           9.4       75.0            4.4          75.0                 23.0         100.0
+
+                                          Table 1. ER results on EgoPER and CaptainCook4D.
+
+gorithm is OpSQT q, same as G2Vid [19], where S, Q, and                             to map all frames to nodes. It aims to obtain the step predic-
+T denote the number of GTG nodes, separate and linearly-                            tions for the error frames in Yˆ to find the error type features
+ordered threads of GTG, and frames, respectively.
+                                                                                    of the corresponding steps.
+4.2. Obtaining Error Features via LLM/VLM
+                                                                                    Computing Joint Similarities for Error Recognition.
+Our next step is to obtain error features for ER. Since we
+are only given normal videos during training, we i) lever-                          Next, we compute framewise joint similarities p for ER,
+age LLMs to obtain error descriptions for each error type                           where pm,j P r0, 1s and p P RMˆT . For each frame j,
+for every step, and ii) use VLMs to generate the textual fea-                       given step prediction yˆj, yˆj`, and feature xvj , xe, we find the
+tures that are aligned with visual features. To begin, given                        error type mˆ j and compute its joint similarity pmˆ j,j as
+a step i and error type m, we generate its error type de-
+scription using LLMs. The prompt for LLMs combines a                                                 $
+description for step i, error definition for error type m, and                                       &0,
+the number of different error type descriptions to produce.                                                                                            if yˆj ‰ ´1
+Notice that we directly set normal type description (m “ 0)
+as the description of step i. Next, we generate the feature                                mˆ j “ %      argmax        spx  v  ,  xe  ,  yˆj`  ,  mq,  otherwise             (4)
+vector xei,m for the error description using the text encoder                                                               j
+in VLMs, where xe P RSˆMˆD is a tensor containing fea-
+tures of M error type descriptions for S steps. When LLMs                                                mPt1,...,M u
+are prompted to produce multiple error descriptions for an
+error type, we average all features to get a single vector.                                                   #
+Meanwhile, we use the video encoder in VLMs to generate
+frame features for videos. In this way, we can ensure that                                        pmˆ j ,j “     1,                                    if yˆj ‰ ´1 (5)
+the features of videos and error descriptions are aligned in
+the VLM feature space. See the supplementary materials                                                                 v e`
+for detailed prompts and generated error descriptions.                                                           spxj , x , yˆj , mˆ jq, otherwise
+
+                                                                                           where sp¨, ¨, ¨, ¨q is our score function that outputs the joint
+                                                                                           similarity of the frame. Our score function is formulated as
+
+                                                                                                 spxjv, xe, y, mq “ sigmoid `pxy,0 e d xy,m e qT xjv˘ (6)
+
+                                                                                           where  d  is  element-wise     multiplication               and   xe     is  the  fea-
+
+                                                                                                                                                               y,0
+
+                                                                                           ture of step description (normal type) for step y. The intu-
+
+                                                                                           ition of using normal type feature is that error frames often
+
+                                                                                           contain multiple sub-steps, including both normal and error
+
+                                                                                           ones (e.g., an actor opens a tortilla bag, grabs a tortilla from
+
+                                                                                           it, and accidentally drops it). A single error type feature
+
+4.3. Error Recognition Module (ERM)                                                        may be unable to effectively match the corresponding error
+
+Our ERM classifies error types for error frames according                                  frames, especially when the number of frames is large and
+
+to their joint similarities of frame, normal type, and error                               contain multiple sub-steps which the error description does
+type features from Section 4.2 and obtain ER predictions Eˆ.
+                                                                                           not describe. Therefore, our score function computes the
+
+                                                                                           correlation between xey,0, xey,m, and xvj . Thus, it jointly con-
+
+Predicting Steps for Error Frames. First, we obtain TAS                                    siders the similarities of error frames with respect to both
+
+predictions Yˆ by inferring GTG2Vid on a video. Next, we                                   normal and error type features. We validate its effectiveness
+
+obtain another TAS predictions Yˆ`  “     p  yˆ1`  ,  yˆ2`  ,  .  .  .  ,  yˆ`  q,         for ER in Section 5. Finally, we apply a maximum filter on
+
+                                                                             T
+where yˆt` P t0, 1, . . . , Su, by inferring GTG2Vid without
+                                                                                           each error type of p to smoothen the predictions, followed
+using the frame and node dropping term, forcing GTG2Vid                                    by argmax to obtain the error type predictions Eˆ.
+
+                                                                                    10013
+                                                                EgoPER
+
+Method  Quesadilla     Oatmeal   Pinwheel                               Coffee  Tea    All
+
+        F1@.5 Acc Edit F1@.5 Acc Edit F1@.5 Acc Edit F1@.5 Acc Edit F1@.5 Acc Edit F1@.5 Acc Edit
+
+G2Vid 57.0 53.7 60.0 68.8 74.5 76.8 49.1 52.7 53.7 59.1 57.1 75.0 61.1 56.1 69.4 59.0 58.8 70.0
+EgoPED 56.9 61.4 47.3 62.1 54.8 70.3 49.8 54.7 41.0 53.9 59.6 55.4 69.4 64.5 58.3 56.4 59.0 54.5
+GTG2Vid 68.1 64.5 69.4 83.3 78.5 88.6 61.3 58.4 60.9 63.9 62.5 73.7 71.2 62.6 76.9 69.6 65.3 73.9
+
+                                 CaptainCook4D
+
+Method  Hot Chocolate  Sandwich  Burritos                               Ramen   Raita  All
+
+        F1@.5 Acc Edit F1@.5 Acc Edit F1@.5 Acc Edit F1@.5 Acc Edit F1@.5 Acc Edit F1@.5 Acc Edit
+
+G2Vid 17.1 19.2 23.8 21.3 21.7 39.8 33.4 27.5 42.9 28.0 33.9 50.5 18.5 23.1 26.1 23.7 25.1 36.6
+EgoPED 5.0 21.7 13.3 13.1 22.5 18.2 21.1 31.8 21.8 15.7 37.3 25.4 22.6 31.3 23.0 15.5 28.9 20.3
+GTG2Vid 20.8 43.5 27.8 27.2 38.5 38.8 36.6 34.0 41.3 31.3 33.6 42.9 22.1 30.8 26.1 27.6 36.1 35.4
+
+                       Table 2. TAS results on EgoPER and CaptainCook4D.
+
+5. Experiments                                                  nearly 90% of the segments in EgoPER are normal). We
+                                                                then compute w-F1@0, where w-F1@0“ M´EAccˆM`1 F1@0 .
+5.1. Experimental Setup                                         w-F1@0 penalizes the model that fails to recognize all er-
+                                                                ror types. For TAS, we report frame-wise Accuracy (Acc),
+Dataset. We evaluate our proposed method on EgoPER              segment-wise Edit score (Edit) on normal steps, and F1@.5
+[41] and CaptainCook4D [66]. EgoPER consists of 5 tasks         score. For ED, we report F1@.5 score on all segments. We
+with 386 egocentric videos and contains 5 types of errors,      also report F1@.5 score on normal (N.) and error segments
+including omission, addition, modification, slip, and cor-      (E.) separately for alleviating data imbalance. For omis-
+rection. Captaincook4D has 24 tasks with 94.5 hours and         sion error detection, we use Omission Accuracy (O-Acc),
+contains 8 types of errors, including preparation, measure-     predicting the accuracy for omission steps, and Omission
+ment, technique, timing, temperature, missing steps, order-     Intersection over Union (O-IoU), as in [41].
+ing, and other. For EgoPER, we evaluate our method on all
+5 tasks and error types with the same training and testing      Baselines. Given the lack of baselines for joint TAS, ER,
+split in [41]. For CaptainCook4D, to have enough videos         and ED, we report the performance of EgoPED (MV), a
+for training and testing, we select 5 of the tasks which have   modified version of EgoPED [41] that can additionally per-
+at least 5 normal and error videos: Spiced Hot Chocolate        form ER. EgoPED (MV) computes the cosine similarities
+(Hot Chocolate), Microwave Egg Sandwich (Sandwich),             between frames and error types using the error type fea-
+Breakfast Burritos (Burritos), Ramen, and Cucumber Raita        tures generated in Section 4.2. Then it assigns frames to the
+(Raita). We assign all normal videos to the training set        type with the highest similarity and uses the majority vot-
+and error videos to test set. To fit our setting for recogniz-  ing (MV) strategy in [41] over frames within a segment to
+ing execution errors, we report the following error types in    decide the final error type for each segment. EgoPED (MV)
+CaptainCook4D: preparation (Prep.), measurement (Mea.),         detects error segments with step thresholds equal to mean
+technique (Tec.), timing (Time), and temperature (Temp).        similarities over videos in the validation set. For ER and
+See the supplementary materials for breakdown analysis          ED, since both datasets have data imbalance, we report the
+of EgoPER and CaptainCook4D and their detailed training         performance of Naive Predictor as another baseline. Naive
+and testing splits.                                             Predictor classifies frames into the same error type for ER
+                                                                and into normal frames for ED. Specifically, it classifies the
+Evaluation Metrics. We report results on ER, TAS, and ED.       frames into modification errors for EgoPER and prepara-
+In our experiments, we report the F1 score (F1@β) with an       tion errors for CaptainCook4D. For TAS, we compare with
+overlapping threshold β. We compute the F1 score by aver-       G2Vid [19] to show how G2Vid performs with standard task
+aging (if not specified) over the F1 scores that are indepen-   graphs. To run G2Vid with our cost matrix, we remove all
+dently computed on the segments for each step or error type.    the background entries.
+For ER, we report Error Accuracy (EAcc) and weighted
+F1@0 score (w-F1@0). As ER is challenging under the set-        Implementation Details. We employ GPT-4o mini [1] as
+ting of no error video during training, we set β to 0, mean-    our LLM for generating error descriptions and VideoCLIP
+ing that a segment is true positive whenever any frame in the   [93] pre-trained on Ego4D [30] as our VLM for extracting
+segment is correctly classified. EAcc is the percentage of er-  both visual and textual features for videos and error type
+ror types that a model can recognize; that is, the error types  descriptions. For each task in both EgoPER and Captain-
+with F1@0 score larger than 0. For w-F1@0, we first com-        Cook4D, we generate at least 2 descriptions for each error
+pute F1@0 on the error type segments, excluding normal          type of each action. We set the step description as the de-
+ones (m “ 0), to alleviate the effect of data imbalance (e.g.,  scription of normal type. We use the backbone in [52] as
+
+                                 10014
+                                                                  EgoPER
+
+Method   Quesadilla     Oatmeal   Pinwheel                                Coffee               Tea          All
+
+         N. E. F1@.5 N. E. F1@.5 N. E. F1@.5 N. E. F1@.5 N. E. F1@.5 N. E. F1@.5
+
+Naive Predictor 14.4 0.0 7.2 26.1 0.0 13.1 23.4 0.0 11.7 44.1 0.0 22.1 4.8 0.0 2.4 22.6 0.0 11.3
+
+EgoPED   30.1 25.2 27.7 29.3 12.9 21.1 14.6 24.5 19.6 9.5 8.9 9.2 36.3 34.0 35.1 24.0 21.1 22.5
+
+GTG2Vid  40.4 22.6 31.5 58.5 36.4 47.4 30.6 16.0 23.3 33.1 4.0 18.6 51.5 37.0 44.2 42.8 23.2 33.0
+
+                                                                  CaptainCook4D
+
+         Hot Chocolate  Sandwich  Burritos                                Ramen                Raita        All
+
+         N. E. F1@.5 N. E. F1@.5 N. E. F1@.5 N. E. F1@.5 N. E. F1@.5 N. E. F1@.5
+
+Naive Predictor 8.2 0.0 4.1 6.5 0.0 3.2 3.8 0.0 1.9 4.1 0.0 2.0 3.1 0.0 1.6 5.1 0.0 2.6
+
+EgoPED   8.1 2.4 5.2 16.3 6.8 11.5 16.3 8.2 12.2 12.4 10.7 11.6 14.1 9.5 11.8 13.4 7.5 10.5
+
+GTG2Vid  15.8 20.9 18.3 16.7 12.8 14.8 16.9 19.7 18.3 22.6 8.2 15.4 18.2 9.9 14.0 18.0 14.3 16.2
+
+Table 3. ED results of different methods on EgoPER and CaptainCook4D. N. and E. denote the F1@.5 score for normal and error segments.
+
+our action segmentation model. We train the model using           Method           Quesadilla     Pinwheel         Tea
+Adam optimizer with learning rate 0.0001 for 3000 itera-                         Top-1 Top-2   Top-1 Top-2  Top-1 Top-2
+tions. For ER, if yˆj “ ´1 and yˆj` is a background class, we
+directly assign an addition error and preparation error to mˆ j   Uniform 25.0 50.0 25.0 50.0 25.0 50.0
+for EgoPER and CaptainCook4D, respectively, and assign
+the corresponding similarity to 1. For ED, we produce ED          Cos. Sim. 42.6 65.8 27.7 48.4 27.8 45.3
+predictions based on Eˆ by classifying different error types
+into a single error type. In practice, we set τ “ S where S       ERM            54.6 81.5 38.4 60.3 34.3 53.7
+is the number of nodes in GTG and η “ 0.
+                                                                  Table 4. Performance of feature matching methods on EgoPER. Top-1
+5.2. Experimental Results                                         and Top-2 denote the top-1 and top-2 accuracy over all error segments.
+
+Error Recognition (ER). Table 1 compares ER perfor-               formance boost on Top-1 and Top-2 accuracy. Specifically,
+mance between different methods on EgoPER and Cap-                we obtain 10.7% improvement on Top-1 accuracy com-
+tainCook4D. Our proposed framework, GTG2Vid, demon-               pared to cosine similarity (Cos. Sim.) for pinwheel, which
+strates the best recognition ability than Naive Predictor and     verifies our claim in Section 4.3.
+EgoPED (MV). Specifically, our proposed method achieves
+31.7%, 31.3%, 17.8%, and 22.1% on w-F1@0 compared                 Temporal Action Segmentation (TAS). For TAS perfor-
+to 7.5%, 5.5%, 7.4%, and 4.4% by EgoPED (MV) for que-             mance shown in Table 2, our method obtains a 13.2%, 6.3%,
+sadilla, oatmeal, pinwheel, and tea. On the other hand, our       and 19.4% higher F1@.5 , Acc and Edit score than EgoPED
+proposed method outperforms EgoPED (MV) on w-F1@0                 on All of EgoPER. For CaptainCook4D, our method obtains
+for all tasks of CaptainCook4D. In addition, our proposed         a 12.1%, 7.2%, and 15.1% higher F1, Acc, and Edit score
+method achieves overall higher EAcc than EgoPED (MV),             than EgoPED on All. Furthermore, our method have more
+indicating that our method can recognize more error types         robust TAS performance compared to EgoPED, which suf-
+on both datasets. Notice that our performance on w-F1@0           fers a significant performance drop in Hot Chocolate and
+for coffee is worse than EgoPED (MV) because EgoPED               Sandwich. Notice that our Edit score on All is comparable
+predicts most of the segments as errors, shown in Table 3.        to G2Vid since there are not many omission errors in test
+Please see supplementary materials for the F1@0 score of          videos. Still, our method achieves a higher F1@.5 score
+each type of error.                                               than G2Vid, which cannot distinguish between background
+                                                                  frames and errors.
+   Next, we investigate the effectiveness of our ERM and
+our proposed score function (Eq. 6). By replacing ERM             Error Detection (ED). Table 3 shows the ED performance
+with MV, the performance drops significantly (more than           of different methods on EgoPER. Our method achieves
+10% on w-F1@0 across all tasks of EgoPER). On the other           33.0% higher on F1@.5 score, compared to 22.5% by
+hand, our method, GTG2Vid (w/o n.f.), without using nor-          EgoPED for All in EgoPER. Although EgoPED can ob-
+mal type features suffers a drop on EAcc for most of the          tain a higher F1 score on error segments for quesadilla,
+tasks, indicating that our proposed function for computing        pinwheel, and coffee, its detection ability for normal seg-
+joint similarity has a better ability to recognize different er-  ments decreases significantly, specifically a 23.6% drop on
+ror types. Furthermore, Table 4 shows the Top-1 and Top-2         F1@.5 score for coffee compared to our method. Therefore,
+accuracy of different scoring methods given the features of       compared to EgoPED, our method achieves a better balance
+ground-truth error segments (average over frame features)         between normal and error segments. For All in Captain-
+and generated error type features. Our method gains a per-        Cook4D, GTG2Vid outperforms EgoPED, achieving 16.2%
+                                                                  on F1@.5 compared to 10.5% by EgoPED.
+
+                                                                  Ablation of Node and Frame Dropping Term. We show
+                                                                  ablation studies and investigate the effectiveness of our pro-
+
+                                  10015
+                                                      Quesadilla                                                        Tea                                   Oatmeal
+
+                                         BG           Error    Step k, Step k + 1, …                    BG       Error       Step k, Step k + 1, …  BG Error           Step k, Step k + 1, …
+
+         GT Seg.
+         EgoPED
+        GTG2Vid
+
+                GT E.T.
+
+              EgoPED
+                + MV
+
+              GTG2Vid
+               + ERM
+
+Figure 3. Qualitative results for quesadilla, tea, and oatmeal in EgoPER. The top part shows the results of TAS for ground-truths, EgoPED, and our method.
+The bottom part shows ER results for ground-truths, EgoPED, and our method. Seg. and E.T. denote action segmentation and error type, respectively.
+
+𝐹1@. 5                       Pinwheel                                      Quesadilla
+
+        26.0                                                                             33.8
+                        23.2                                           30.9
+
+        0.2  0.4  𝜂  0.6                         0.8      1.0     0.2  0.4            𝜂  0.6       0.8      1.0
+
+𝐹1@. 5
+
+        −80 −40   0                          40       80       −80 −40                0        40       80
+
+                  𝜏                                                                   𝜏
+
+        Figure 4. Ablation of our proposed node and frame dropping term.
+
+posed node and frame dropping term in GTG2Vid. The two                                                                   Figure 5. Omission detection results of different methods on EgoPER.
+upper plots in Figure 4 show F1@.5 scores of our proposed
+frame dropping term (Ours) with different η and a naive                                                                 Our method can recognize different types of errors, e.g., ad-
+dropping cost (G2Vid) [19] with different k top percentile                                                              dition errors (red) on tea, addition and correction (orange)
+of the values in the cost matrix, for pinwheel and que-                                                                 errors on quesadilla, and modification errors (blue) on oat-
+sadilla. Our method achieves 26.0% and 33.8% on F1@.5                                                                   meal. Our method obtains more accurate TAS, ED, and ER
+score compared to 23.2% and 30.9% by G2Vid. On the                                                                      results for error videos on quesadilla, tea and oatmeal com-
+other hand, the two bottom plots in Figure 4 show the F1                                                                pared to EgoPED, thanks to dynamic frame and node drop-
+scores for TAS with different τ for our node dropping term.                                                             ping term in GTG2Vid and our proposed ERM. See supple-
+Smaller τ indicates GTG2Vid drops a fewer number of                                                                     mentary materials for more qualitative visualization.
+nodes. When τ is larger or equal to 0, GTG2Vid starts drop-
+ping nodes, improving TAS performance on videos with                                                                    6. Conclusions
+omission steps.
+                                                                                                                        We studied joint ER and TAS in procedural task videos. Our
+   In addition, Figure 5 shows the performance of omis-                                                                 proposed framework consists of 1) generalized task graphs
+sion detection for different methods on EgoPER. First, since                                                            to capture correct steps and background, 2) a GTG-Video
+G2Vid is unable to drop nodes of a graph, it cannot predict                                                             Alignment algorithm to find the optimal alignment between
+any omitted steps, resulting in 0% on O-Acc and O-IoU.                                                                  nodes in GTG and video frames with dynamic dropping
+Second, although our method suffers a performance drop                                                                  terms, 3) a procedure for generating error descriptions for
+on O-IoU (5.7% lower than EgoPED on All), we gain a                                                                     each error type of every step using LLMs and the corre-
+performance boost on O-Acc (10% higher than EgoPED on                                                                   sponding features using VLMs, and 4) an Error Recognition
+All), indicating that our method successfully drops nodes of                                                            Module to effectively perform ER using joint similarities.
+a task graph according to the input videos and has a stronger                                                           Our experiments on two datasets showed that our proposed
+capability for detecting omitted steps. To conclude, our pro-                                                           method can obtain promising results on ER, ED, and TAS.
+posed method uses 1) dynamic frame dropping term to pre-
+cisely drop error segments and 2) dynamic node dropping                                                                 Acknowledgement
+term to drop unnecessary nodes of task graphs for better
+TAS and omission detection performance.                                                                                 This work was funded, in part, by ARPA-H
+                                                                                                                        (1AY2AX000062), DARPA PTG (HR00112220001),
+Qualitative Analysis. We visualize ER results in Fig. 3.                                                                NSF (IIS-2115110), ONR (N000142512287) and ARO
+
+                                                                                                                 10016
+(W911NF2110276). The views and conclusions contained                        in instructional videos. In Computer Vision – ECCV 2020:
+in this document are those of the authors and should not                    16th European Conference, Glasgow, UK, August 23–28,
+be interpreted as representing the official policies, either                2020, Proceedings, Part XI, 2020. 1
+expressed or implied, of the US Government.
+                                                                      [13] Hanqiu Deng, Zhaoxiang Zhang, Shihao Zou, , and Xingyu
+References                                                                  Li. Bi-directional frame interpolation for unsupervised
+                                                                            video anomaly detection. IEEE Winter Conference on Ap-
+   [1] Josh Achiam, Steven Adler, Sandhini Agarwal, Lama                    plications of Computer Vision, 2023. 2
+        Ahmad, Ilge Akkaya, Florencia Leoni Aleman, Diogo
+        Almeida, Janko Altenschmidt, Sam Altman, Shyamal              [14] Guodong Ding, Fadime Sener, Shugao Ma, and An-
+        Anadkat, et al. Gpt-4 technical report. arXiv preprint              gela Yao. Every mistake counts in assembly. arXiv:
+        arXiv:2303.08774, 2023. 6                                           2307.16453, 2023. 1, 2
+
+   [2] Andra Acsintoae, Andrei Florescu, Mariana-Iuliana              [15] Guodong Ding, Hans Golong, and Angela Yao. Coher-
+        Georgescu, Tudor Mare, Paul Sumedrea, Radu Tudor                    ent temporal synthesis for incremental action segmentation.
+        Ionescu, Fahad Shahbaz Khan, , and Mubarak Shah.                    IEEE Conference on Computer Vision and Pattern Recog-
+        Ubnormal: New benchmark for supervised open-set video               nition, 2024. 2
+        anomaly detection. IEEE Conference on Computer Vision
+        and Pattern Recognition, 2022. 2                              [16] Li Ding and Chenliang Xu. Weakly-supervised action seg-
+                                                                            mentation with iterative soft boundary assignment. IEEE
+   [3] Hyemin Ahn and Dongheui Lee. Refining action segmen-                 Conference on Computer Vision and Pattern Recognition,
+        tation with hierarchical video representations. In Proceed-         2018. 2
+        ings of the IEEE/CVF International Conference on Com-
+        puter Vision (ICCV), pages 16302–16310, 2021. 2               [17] G. Donahue and E. Elhamifar. Learning to predict activity
+                                                                            progress by self-supervised video alignment. IEEE Confer-
+   [4] J. B. Alayrac, P. Bojanowski, N. Agrawal, J. Sivic, I.               ence on Computer Vision and Pattern Recognition, 2024.
+        Laptev, and S. Lacoste-Julien. Unsupervised learning from           1
+        narrated instruction videos. IEEE Conference on Computer
+        Vision and Pattern Recognition, 2016. 2                       [18] Nikita Dvornik, Isma Hadji, Konstantinos G Derpanis, Ani-
+                                                                            mesh Garg, and Allan D Jepson. Drop-dtw: Aligning com-
+   [5] Kumar Ashutosh, Santhosh Kumar Ramakrishnan, Tri-                    mon signal between sequences while dropping outliers. In
+        antafyllos Afouras, and Kristen Grauman. Video-mined                NeurIPS, 2021. 1, 3
+        task graphs for keystep recognition in instructional videos.
+        Neural Information Processing Systems, 2023. 1, 2, 4          [19] Nikita Dvornik, Isma Hadji, Hai Pham, Dhaivat Bhatt,
+                                                                            Brais Martinez, Afsaneh Fazly, and Allan D Jepson. Flow
+   [6] Marcella Astrid, Muhammad Zaigham Zaheer, Jae-Yeong                  graph to video grounding for weakly-supervised multi-step
+        Lee, and Seung-Ik Lee. Learning not to reconstruct anoma-           localization. In European Conference on Computer Vision,
+        lies. arXiv: 2110.09742, 2021. 2                                    pages 319–335. Springer, 2022. 1, 2, 3, 4, 5, 6, 8
+
+   [7] Nadine Behrmann, S. Alireza Golestaneh, Zico Kolter,           [20] Nikita Dvornik, Isma Hadji, Ran Zhang, Konstantinos Der-
+        Juergen Gall, and Mehdi Noroozi. Unified fully and times-           panis, Animesh Garg, Richard Wildes, and Allan Jepson.
+        tamp supervised temporal action segmentation via sequence           Stepformer: Self-supervised step discovery and localization
+        to sequence translation. In ECCV, 2022. 2                           in instructional videos. IEEE Conference on Computer Vi-
+                                                                            sion and Pattern Recognition, 2023. 1
+   [8] Gedas Bertasius, Heng Wang, and Lorenzo Torresani. Is
+        space-time attention all you need for video understanding?    [21] E. Elhamifar and D. Huynh. Self-supervised multi-task pro-
+        In Proceedings of the International Conference on Machine           cedure learning from instructional videos. European Con-
+        Learning (ICML), 2021. 1                                            ference on Computer Vision, 2020. 2
+
+   [9] Daniele Di Mauro Mario Valerio Giuffrida Giovanni              [22] E. Elhamifar and Z. Naing. Unsupervised procedure learn-
+        Maria Farinella Camillo Quattrocchi, Antonino Furnari.              ing via joint dynamic summarization. International Con-
+        Synchronization is all you need: Exocentric-to-egocentric           ference on Computer Vision, 2019. 2
+        transfer for temporal action segmentation with unlabeled
+        synchronized video pairs. European Conference on Com-         [23] Yazan Abu Farha and Jurgen Gall. Ms-tcn: Multi-stage
+        puter Vision, 2024. 2                                               temporal convolutional network for action segmentation. In
+                                                                            Proceedings of the IEEE/CVF conference on computer vi-
+ [10] J. Carreira and A. Zisserman. Quo vadis, action recogni-              sion and pattern recognition, pages 3575–3584, 2019. 1, 2,
+        tion? a new model and the kinetics dataset. In IEEE Con-            4
+        ference on Computer Vision and Pattern Recognition, 2017.
+        1                                                             [24] Mohsen Fayyaz and Jurgen Gall. Sct: Set constrained tem-
+                                                                            poral transformer for set supervised action segmentation.
+ [11] Chien-Yi Chang, De-An Huang, Yanan Sui, Li Fei-Fei, and               IEEE Conference on Computer Vision and Pattern Recog-
+        Juan Carlos Niebles. D3tw: Discriminative differentiable            nition, 2020. 2
+        dynamic time warping for weakly supervised action align-
+        ment and segmentation. IEEE Conference on Computer Vi-        [25] C. Feichtenhofer. X3d: Expanding architectures for effi-
+        sion and Pattern Recognition, 2019. 2                               cient video recognition. In 2020 IEEE/CVF Conference on
+                                                                            Computer Vision and Pattern Recognition (CVPR), 2020. 1
+ [12] Chien-Yi Chang, De-An Huang, Danfei Xu, Ehsan Adeli,
+        Li Fei-Fei, and Juan Carlos Niebles. Procedure planning       [26] C. Feichtenhofer, H. Fan, J. Malik, and K. He. Slowfast
+                                                                            networks for video recognition. In 2019 IEEE/CVF Inter-
+                                                                            national Conference on Computer Vision (ICCV), 2019. 1
+
+10017
+[27] Alessandro Flaborea, Guido Melendugno, Leonardo Pliniq,      [34] Jaehyun Kim, Seongwook Yoon, Taehyeon Choi, and
+      Luca Scofanoq, Edoardo Matteisq, Antonino Furnari, Gio-           Sanghoon Sull. Unsupervised video anomaly detection
+      vanni Farinella, and Fabio Galasso. Prego: online mistake         based on similarity with predefined text descriptions. Sen-
+      detection in procedural egocentric videos. IEEE Confer-           sors, 2023. 2
+      ence on Computer Vision and Pattern Recognition, 2024.
+      1, 2                                                        [35] H. Kuehne, J. Gall, and T. Serre. An end-to-end gener-
+                                                                        ative framework for video segmentation and recognition.
+[28] Daniel Fried, Jean-Baptiste Alayrac, Phil Blunsom, Chris           IEEE Winter Conference on Applications of Computer Vi-
+      Dyer, Stephen Clark, and Aida Nematzadeh. Learning to             sion, 2016. 2
+      segment actions from observation and narration. Annual
+      Meeting of the Association for Computational Linguistics,   [36] Anna Kukleva, Hilde Kuehne, Fadime Sener, and Jurgen
+      2020. 2                                                           Gall. Unsupervised learning of action classes with contin-
+                                                                        uous temporal embedding. IEEE Conference on Computer
+[29] Reza Ghoddoosian, Isht Dwivedi, Nakul Agarwal, and Be-             Vision and Pattern Recognition, 2019. 2
+      hzad Dariush. Weakly-supervised action segmentation and
+      unseen error detection in anomalous instructional videos.   [37] Sateesh Kumar, Sanjay Haresh, Awais Ahmed, Andrey
+      In Proceedings of the IEEE/CVF International Conference           Konin, M. Zeeshan Zia, and Quoc-Huy Tran. Unsuper-
+      on Computer Vision, pages 10128–10138, 2023. 1, 2                 vised action segmentation by joint representation learning
+                                                                        and online clustering. In Proceedings of the IEEE/CVF
+[30] Kristen Grauman, Andrew Westbury, Eugene Byrne,                    Conference on Computer Vision and Pattern Recognition
+      Zachary Chavis, Antonino Furnari, Rohit Girdhar, Jack-            (CVPR), pages 20174–20185, 2022. 2
+      son Hamburger, Hao Jiang, Miao Liu, Xingyu Liu, Miguel
+      Martin, Tushar Nagarajan, Ilija Radosavovic, Santhosh K.    [38] C. Lea, M. D. Flynn, R. Vidal, A. Reiter, and G. D. Hager.
+      Ramakrishnan, Fiona Ryan, Jayant Sharma, Michael Wray,            Temporal convolutional networks for action segmentation
+      Mengmeng Xu, Eric Z. Xu, Chen Zhao, Siddhant Bansal,              and detection. IEEE Conference on Computer Vision and
+      Dhruv Batra, Vincent Cartillier, Sean Crane, Tien Do,             Pattern Recognition, 2017. 1, 2
+      Morrie Doulaty, Akshay Erapalli, Christoph Feichtenhofer,
+      Adriano Fragomeni, Qichen Fu, Christian Fuegen, Abrham      [39] Jungbeom Lee, Jihun Yi, Chaehun Shin, and Sungroh Yoon.
+      Gebreselasie, Cristina Gonza´lez, James M. Hillis, Xuhua          Bbam: Bounding box attribution map for weakly super-
+      Huang, Yifei Huang, Wenqi Jia, Weslie Khoo, Ja´chym               vised semantic and instance segmentation. IEEE Confer-
+      Kola´r, Satwik Kottur, Anurag Kumar, Federico Landini,            ence on Computer Vision and Pattern Recognition, 2021.
+      Chao Li, Yanghao Li, Zhenqiang Li, Karttikeya Man-                2
+      galam, Raghava Modhugu, Jonathan Munro, Tullie Mur-
+      rell, Takumi Nishiyasu, Will Price, Paola Ruiz Puentes,     [40] Sangmin Lee, Hak Gu Kim, and Yong Man Ro. Bman:
+      Merey Ramazanova, Leda Sari, Kiran K. Somasundaram,               Bidirectional multi-scale aggregation networks for abnor-
+      Audrey Southerland, Yusuke Sugano, Ruijie Tao, Minh Vo,           mal event detection. IEEE Transactions on Image Process-
+      Yuchen Wang, Xindi Wu, Takuma Yagi, Yunyi Zhu, Pablo              ing, 2019. 2
+      Arbela´ez, David J. Crandall, Dima Damen, Giovanni Maria
+      Farinella, Bernard Ghanem, Vamsi Krishna Ithapu, C. V.      [41] S. Lee, Z. Lu, Z. Zhang, M. Hoai, and E. Elhamifar. Error
+      Jawahar, Hanbyul Joo, Kris Kitani, Haizhou Li, Richard A.         detection in egocentric procedural task videos. IEEE Con-
+      Newcombe, Aude Oliva, Hyun Soo Park, James M. Rehg,               ference on Computer Vision and Pattern Recognition, 2024.
+      Yoichi Sato, Jianbo Shi, Mike Zheng Shou, Antonio Tor-            1, 2, 3, 6
+      ralba, Lorenzo Torresani, Mingfei Yan, and Jitendra Ma-
+      lik. Ego4d: Around the world in 3,000 hours of egocen-      [42] Jun Li and Sinisa Todorovic. Set-constrained viterbi for
+      tric video. 2022 IEEE/CVF Conference on Computer Vi-              set-supervised action segmentation. IEEE Conference on
+      sion and Pattern Recognition (CVPR), pages 18973–18990,           Computer Vision and Pattern Recognition, 2020. 2
+      2021. 6
+                                                                  [43] J. Li and S. Todorovic. Anchor-constrained viterbi for set-
+[31] Yifei Huang, Yusuke Sugano, and Yoichi Sato. Improving             supervised action segmentation. IEEE/CVF Conference on
+      action segmentation via graph-based temporal reasoning. In        Computer Vision and Pattern Recognition, 2021.
+      2020 IEEE/CVF Conference on Computer Vision and Pat-
+      tern Recognition (CVPR), 2020. 2                            [44] J. Li, P. Lei, and S. Todorovic. Weakly supervised energy-
+                                                                        based learning for action segmentation. International Con-
+[32] Yuchi Ishikawa, Seito Kasai, Yoshimitsu Aoki, and Hi-              ference on Computer Vision, 2019. 2
+      rokatsu Kataoka. Alleviating over-segmentation errors
+      by detecting action boundaries. In Proceedings of the       [45] M. Li, L. Chen, Y. Duarr, Z. Hu, J. Feng, J. Zhou, and J.
+      IEEE/CVF Winter Conference on Applications of Computer            Lu. Bridge-prompt: Towards ordinal action understanding
+      Vision (WACV), pages 2322–2331, 2021. 2                           in instructional videos. In 2022 IEEE/CVF Conference on
+                                                                        Computer Vision and Pattern Recognition (CVPR), 2022. 1,
+[33] Mohaiminul Islam, Tushar Nagarajan, Huiyu Wang, Fu-                2
+      Jen Chu, Kris Kitani, Gedas Bertasius, and Xitong Yang.
+      Propose, assess, search: Harnessing llms for goal-oriented  [46] Shi-Jie Li, Yazan AbuFarha, Yun Liu, Ming-Ming Cheng,
+      planning in instructional videos. European Conference on          and Juergen Gall. Ms-tcn++: Multi-stage temporal convo-
+      Computer Vision, 2024. 1                                          lutional network for action segmentation. IEEE Transac-
+                                                                        tions on Pattern Analysis and Machine Intelligence, pages
+                                                                        1–1, 2020. 1, 2
+
+                                                                  [47] Yanghao Li, Chao-Yuan Wu, Haoqi Fan, Karttikeya Man-
+                                                                        galam, Bo Xiong, Jitendra Malik, and Christoph Feichten-
+                                                                        hofer. Mvitv2: Improved multiscale vision transformers
+
+10018
+      for classification and detection. In 2022 IEEE/CVF Confer-   [61] K. Mangalam, H. Fan, Y. Li, C. Wu, B. Xiong, C. Feicht-
+      ence on Computer Vision and Pattern Recognition (CVPR),            enhofer, and J. Malik. Reversible vision transformers. In
+      2022. 1                                                            2022 IEEE/CVF Conference on Computer Vision and Pat-
+                                                                         tern Recognition (CVPR), 2022. 1
+[48] Zhe Li, Yazan Abu Farha, and Jurgen Gall. Temporal ac-
+      tion segmentation from timestamp supervision. IEEE/CVF       [62] A. Miech, J-B. Alayrac, L. Smaira, I. Laptev, J. Sivic, and
+      Conference on Computer Vision and Pattern Recognition,             A. Zisserman. End-to-end learning of visual representations
+      2021. 2                                                            from uncurated instructional videos. IEEE Conference on
+                                                                         Computer Vision and Pattern Recognition, 2020. 1
+[49] Zeqian Li, Qirui Chen, Tengda Han, Ya Zhan, Yanfeng
+      Wang, and Weidi Xie. Multi-sentence grounding for long-      [63] Fangzhou Mu, Sicheng Mo, and Yin Li. Snag: Scalable and
+      term instructional video. European Conference on Com-              accurate video grounding. IEEE Conference on Computer
+      puter Vision, 2024. 1                                              Vision and Pattern Recognition, 2024. 1
+
+[50] Ji Lin, Chuang Gan, and Song Han. Tsm: Temporal shift         [64] Tushar Nagarajan and Lorenzo Torresani. Step differences
+      module for efficient video understanding. In Proceedings           in instructional video. IEEE Conference on Computer Vi-
+      of the IEEE International Conference on Computer Vision,           sion and Pattern Recognition, 2024. 1
+      2019. 1
+                                                                   [65] Kumaranage Ravindu Yasas Nagasinghe, Honglu Zhou,
+[51] Daochang Liu, Qiyue Li, AnhDung Dinh, Tingting Jiang,               Malitha Gunawardhana, Martin Renqiang Min, Daniel
+      Mubarak Shah, and Chang Xu. Diffusion action segmenta-             Harari, and Muhammad Haris Khan. Why not use your
+      tion. arXiv preprint arXiv:2303.17959, 2023. 2                     textbook? knowledge-enhanced procedure planning of in-
+                                                                         structional videos. IEEE Conference on Computer Vision
+[52] Daochang Liu, Qiyue Li, Anh-Dung Dinh, Tingting Jiang,              and Pattern Recognition, 2024. 1
+      Mubarak Shah, and Chang Xu. Diffusion action segmenta-
+      tion. 2023. 6                                                [66] Rohith Peddi, Shivvrat Arya, Bharath Challa, Likhitha
+                                                                         Pallapothula, Akshay Vyas, Bhavya Gouripeddi, Jikai
+[53] Yunze Liu, Yun Liu, Che Jiang, Kangbo Lyu, Weikang                  Wang, Qifan Zhang, Vasundhara Komaragiri, Eric Ragan,
+      Wan, Hao Shen, Boqiang Liang, Zhoujie Fu, He Wang, and             Nicholas Ruozzi, Yu Xiang, and Vibhav Gogate. Captain-
+      Li Yi. Hoi4d: A 4d egocentric dataset for category-level           Cook4D: A Dataset for Understanding Errors in Procedural
+      human-object interaction. IEEE Conference on Computer              Activities, 2024. 2, 6
+      Vision and Pattern Recognition, 2022. 2
+                                                                   [67] Didik Purwanto, Yie-Tarng Chen, and Wen-Hsien Fang.
+[54] Yang Liu, Jiayu Huo, Jingjing Peng, Rachel Sparks, Prokar           Dance with self-attention: A new look of conditional ran-
+      Dasgupta, Alejandro Granados, and Sebastien Ourselin.              dom fields on anomaly detection in videos. IEEE Interna-
+      Skit: a fast key information video transformer for on-             tional Conference on Computer Vision, 2021. 2
+      line surgical phase recognition. In Proceedings of the
+      IEEE/CVF International Conference on Computer Vision,        [68] Yicheng Qian, Weixin Luo, Dongze Lian, Xu Tang, Peilin
+      pages 21074–21084, 2023. 1                                         Zhao, and Shenghua Gao. Svip: Sequence verification for
+                                                                         procedures in videos. IEEE Conference on Computer Vision
+[55] Z. Lu and E. Elhamifar. Weakly-supervised action seg-               and Pattern Recognition, 2022. 2
+      mentation and alignment via transcript-aware union-of-
+      subspaces learning. International Conference on Computer     [69] Rahul Rahaman, Dipika Singhania, Alexandre Thiery, and
+      Vision, 2021. 2                                                    Angela Yao. A generalized and robust framework for
+                                                                         timestamp supervision in temporal action segmentation. In
+[56] Z. Lu and E. Elhamifar. Set-supervised action learning in           Computer Vision–ECCV 2022: 17th European Conference,
+      procedural task videos via pairwise order consistency. IEEE        2022. 2
+      Conference on Computer Vision and Pattern Recognition,
+      2022. 2                                                      [70] A. Richard, H. Kuehne, and J. Gall. Action sets: Weakly su-
+                                                                         pervised action segmentation without ordering constraints.
+[57] Z. Lu and E. Elhamifar. Fact: Frame-action cross-attention          IEEE Conference on Computer Vision and Pattern Recog-
+      temporal modeling for efficient action segmentation. IEEE          nition, 2018.
+      Conference on Computer Vision and Pattern Recognition,
+      2024. 1, 2                                                   [71] A. Richard, H. Kuehne, A. Iqbal, and J. Gall.
+                                                                         Neuralnetwork-viterbi: A framework for weakly super-
+[58] Z. Lu and E. Elhamifar. Multi-modal few-shot temporal ac-           vised video learning. IEEE Conference on Computer Vision
+      tion segmentation. International Conference on Computer            and Pattern Recognition, 2018. 2
+      Vision, 2025. 1
+                                                                   [72] Nicolae-Ca˘ta˘lin Ristea, Neelu Madan, Radu Tudor Ionescu,
+[59] Z. Lu, A. Iftekhar, G. Mittal, T. Meng, X. Wang, C. Zhao,           Kamal Nasrollahi, Fahad Shahbaz Khan, Thomas B. Moes-
+      R. Kukkala, E. Elhamifar, and M. Chen. Decafnet: Dele-             lund, and Mubarak Shah. Self-supervised predictive convo-
+      gate and conquer for efficient temporal grounding in long          lutional attentive block for anomaly detection. IEEE Con-
+      videos. IEEE Conference on Computer Vision and Pattern             ference on Computer Vision and Pattern Recognition, 2022.
+      Recognition, 2025. 1                                               2
+
+[60] Antonino Furnari Luigi Seminara, Giovanni                     [73] M. Rohrbach, S. Amin, M. Andriluka, and B. Schiele. A
+      Maria Farinella. Differentiable task graph learning:               database for fine grained activity detection of cooking ac-
+      Procedural activity representation and online mistake              tivities. IEEE Conference on Computer Vision and Pattern
+      detection from egocentric videos. Neural Information               Recognition, 2012. 1, 2
+      Processing Systems, 2024. 1, 2
+
+10019
+[74] Saquib Sarfraz, Naila Murray, Vivek Sharma, Ali Diba, Luc      [88]  Quoc-Huy Tran, Ahmed Mehmood, Muhammad Ahmed,
+      Van Gool, and Rainer Stiefelhagen. Temporally-weighted              Muhammad Naufil, Anas Zafar, Andrey Konin, and Zee-
+      hierarchical clustering for unsupervised action segmenta-     [89]  shan Zia. Permutation-aware activity segmentation via un-
+      tion. IEEE/CVF Conference on Computer Vision and Pat-         [90]  supervised frame-to-segment alignment. In Proceedings of
+      tern Recognition, 2021. 2                                     [91]  the IEEE/CVF Winter Conference on Applications of Com-
+                                                                          puter Vision, pages 6426–6436, 2024. 2
+[75] Fadime Sener, Dibyadip Chatterjee, Daniel Shelepov, Kun        [92]
+      He, Dipika Singhania, Robert Wang, and Angela Yao. As-        [93]  Mengmeng Wang, Jiazheng Xing, and Yong Liu. Action-
+      sembly101: A large-scale multi-view video dataset for un-     [94]  clip: A new paradigm for video action recognition. CoRR,
+      derstanding procedural activities. IEEE Conference on         [95]  2021. 1
+      Computer Vision and Pattern Recognition, 2022. 2              [96]
+                                                                    [97]  Xin Wang, Taein Kwon, Mahdi Rad1 Bowen Pan, Ishani
+[76] Y. Shen and E. Elhamifar. Semi-weakly-supervised learn-        [98]  Chakraborty, and Sean Andrist. Holoassist: an egocentric
+      ing of complex actions from instructional task videos. IEEE   [99]  human interaction dataset for interactive ai assistants in the
+      Conference on Computer Vision and Pattern Recognition,       [100]  real world. IEEE International Conference on Computer
+      2022. 2                                                             Vision, 2023. 1, 2
+
+[77] Y. Shen and E. Elhamifar. Progress-aware online action               Zhe Wang, Hao Chen, Xinyu Li, Chunhui Liu, Yuan-
+      segmentation for egocentric procedural task videos. IEEE            jun Xiong, Joseph Tighe, and Charless Fowlkes. Sscap:
+      Conference on Computer Vision and Pattern Recognition,              Self-supervised co-occurrence action parsing for unsuper-
+      2024. 1, 2, 4                                                       vised temporal action segmentation. In Proceedings of the
+                                                                          IEEE/CVF Winter Conference on Applications of Computer
+[78] Y. Shen and E. Elhamifar. Understanding multi-task activ-            Vision, pages 1819–1828, 2022. 2
+      ities from single-task videos. IEEE Conference on Com-
+      puter Vision and Pattern Recognition, 2025. 1                       Jhih-Ciang Wu, He-Yen Hsieh, Ding-Jie Chen, Chiou-
+                                                                          Shann Fuh, and Tyng-Luh Liu. Self-supervised sparse rep-
+[79] Y. Shen, L. Wang, and E. Elhamifar. Learning to segment              resentation for video anomaly detection. European Confer-
+      actions from visual and language instructions via differen-         ence on Computer Vision, 2022. 2
+      tiable weak sequence alignment. IEEE Conference on Com-
+      puter Vision and Pattern Recognition, 2021. 2                       Hu Xu, Gargi Ghosh, Po-Yao Huang, Dmytro Okhonko,
+                                                                          Armen Aghajanyan, Florian Metze, Luke Zettlemoyer, and
+[80] G. A. Sigurdsson, S. Divvala, A. Farhadi, and A. Gupta.              Christoph Feichtenhofer. VideoCLIP: Contrastive pre-
+      Asynchronous temporal fields for action recognition. IEEE           training for zero-shot video-text understanding. 2021. 6
+      Conference on Computer Vision and Pattern Recognition,
+      2017. 2                                                             Ming Xu and Stephen Gould. Temporally consistent unbal-
+                                                                          anced optimal transport for unsupervised action segmenta-
+[81] B. Singh, T. K. Marks, M. Jones, O. Tuzel, and M. Shao.              tion. IEEE Conference on Computer Vision and Pattern
+      A multi-stream bi-directional recurrent neural network for          Recognition, 2024. 2
+      finegrained action detection. IEEE Conference on Com-
+      puter Vision and Pattern Recognition, 2016.                         S. Yeung, O. Russakovsky, N. Jin, M. Andriluka, G. Mori,
+                                                                          and L. Fei-Fei. Every moment counts: Dense detailed la-
+[82] Dipika Singhania, Rahul Rahaman, and Angela Yao.                     beling of actions in complex videos. International Journal
+      Coarse to fine multi-resolution temporal convolutional net-         of Computer Vision, 2018. 1, 2
+      work. CoRR, abs/2105.10859, 2021. 2
+                                                                          Fangqiu Yi, Hongyu Wen, and Tingting Jiang. Asformer:
+[83] Dean Slawson. The case for vr-immersive and ai-adaptive              Transformer for action segmentation. In The British Ma-
+      soft skills training. Training Industry Magazine, 2018. 1           chine Vision Conference (BMVC), 2021. 1, 2
+
+[84] Yaser Souri, Mohsen Fayyaz, Luca Minciullo, Gianpiero                Guang Yu, Siqi Wang, Zhiping Cai, Xinwang Liu, Chuanfu
+      Francesca, and Juergen Gall. Fast Weakly Supervised Ac-             Xu, and Chengkun Wu. Deep anomaly discovery from un-
+      tion Segmentation Using Mutual Consistency. PAMI, 2021.             labeled videos via normality advantage and self-paced re-
+      1, 2                                                                finement. IEEE Conference on Computer Vision and Pat-
+                                                                          tern Recognition, 2022. 2
+[85] Toma´sˇ Soucˇek, Dima Damen, Michael Wray, Ivan Laptev,
+      and Josef Sivic. Genhowto: Learning to generate actions             Muhammad Zaigham Zaheer, Arif Mahmood, Marcella
+      and state transformations from instructional videos. IEEE           Astrid, and Seung-Ik Lee. Claws: Clustering assisted
+      Conference on Computer Vision and Pattern Recognition,              weakly supervised learning with normalcy suppression for
+      2024. 1                                                             anomalous event detection. European Conference on Com-
+                                                                          puter Vision, 2020.
+[86] Yansong Tang, Dajun Ding, Yongming Rao, Yu Zheng,
+      Danyang Zhang, Lili Zhao, Jiwen Lu, and Jie Zhou. Coin:             M Zaigham Zaheer, Arif Mahmood, M Haris Khan, Mattia
+      A large-scale dataset for comprehensive instructional video         Segu, Fisher Yu, and Seung-Ik Lee. Generative cooperative
+      analysis. IEEE Conference on Computer Vision and Pattern            learning for unsupervised video anomaly detection. IEEE
+      Recognition, 2019. 1                                                Conference on Computer Vision and Pattern Recognition,
+                                                                          2022. 2
+[87] Kamalakar Vijay Thakare, Yash Raghuwanshi, Debi Prosad
+      Dogra, Heeseung Choi, and Ig-Jae Kim. Dyannet: A                    P. Zameni, Y. Shen, and E. Elhamifar. Moscato: Predicting
+      scene dynamicity guided self-trained video anomaly detec-           multiple object state change through actions. International
+      tion network. IEEE Winter Conference on Applications of             Conference on Computer Vision, 2025. 1
+      Computer Vision, 2023. 2
+
+10020
+[101]  Luca Zanella, Willi Menapace, Massimiliano Mancini,
+[102]  Yiming Wang, and Elisa Ricci. Harnessing large language
+[103]  models for training-free video anomaly detection. IEEE
+[104]  Conference on Computer Vision and Pattern Recognition,
+[105]  2024. 2
+[106]
+       Ali Zare, Yulei Niu, Hammad Ayyubi, and Shih-Fu Chang.
+[107]  Rap: Retrieval-augmented planner for adaptive procedure
+[108]  planning in instructional videos. European Conference on
+[109]  Computer Vision, 2024. 1
+
+       Junbin Zhang, Pei-Hsuan Tsai, and Meng-Hsun Tsai. Se-
+       mantic2graph: Graph-based multi-modal feature fusion for
+       action segmentation in videos, 2022. 1, 2
+
+       Shrinivas Ramasubramanian Angela Yao Zhanzhong Pang,
+       Fadime Sener. Long-tail temporal action segmentation with
+       group-wise temporal logit adjustment. European Confer-
+       ence on Computer Vision, 2024. 2
+
+       Bin Zhao, Li Fei-Fei, , and Eric P. Xing. Online detection of
+       unusual events in videos via dynamic sparse coding. IEEE
+       Conference on Computer Vision and Pattern Recognition,
+       2011. 2
+       Honglu Zhou, Roberto Mart´ın-Mart´ın, Mubbasir Kapadia,
+       Silvio Savarese, and Juan Carlos Niebles. Procedure-aware
+       pretraining for instructional video understanding. In Pro-
+       ceedings of the IEEE/CVF Conference on Computer Vision
+       and Pattern Recognition, pages 10727–10738, 2023. 1, 2,
+       4
+
+       Joey Tianyi Zhou, Jiawei Du, Hongyuan Zhu, Xi Peng,
+       Yong Liu, , and Rick Siow Mong Goh. Anomalynet: An
+       anomaly detection network for video surveillance. IEEE
+       Transactions on Information Forensics and Security, 2019.
+       2
+
+       Yuansheng Zhu, Wentao Bao, , and Qi Yu. Towards open set
+       video anomaly detection. European Conference on Com-
+       puter Vision, 2022. 2
+
+       D. Zhukov, J. B. Alayrac, R. G. Cinbis, D. Fouhey, I.
+       Laptev, and J. Sivic. Cross-task weakly supervised learning
+       from instructional videos. IEEE Conference on Computer
+       Vision and Pattern Recognition, 2019. 1, 2
+
+       10021
+

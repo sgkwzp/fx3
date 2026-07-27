@@ -1,0 +1,1652 @@
+                                       VISION-BASED MISTAKE ANALYSIS IN PROCEDURAL ACTIVITIES: A REVIEW OF ADVANCES AND CHALLENGES                                           1
+
+                                          Vision-Based Mistake Analysis in Procedural
+                                       Activities: A Review of Advances and Challenges
+
+                                                                            Konstantinos Bacharidis and Antonis A. Argyros
+
+arXiv:2510.19292v2 [cs.CV] 3 Dec 2025     Abstract—Mistake analysis in procedural activities is a critical         Worker performed an
+                                       area of research with applications spanning industrial automa-                unexpected action,
+                                       tion, physical rehabilitation, education and human-robot collabo-               e.g. the worker
+                                       ration. This paper reviews vision-based methods for detecting and                attached part
+                                       predicting mistakes in structured tasks, focusing on procedural               C instead of part B
+                                       and executional errors. By leveraging advancements in computer
+                                       vision, including action recognition, anticipation and activity                                     Worker made a    Worker is about
+                                       understanding, vision-based systems can identify deviations in                                     mistake between     to select the
+                                       task execution, such as incorrect sequencing, use of improper                                      00:18 and 00:35.      wrong tool
+                                       techniques, or timing errors. We explore the challenges posed
+                                       by intra-class variability, viewpoint differences and composi-                                                       (hammer instead
+                                       tional activity structures, which complicate mistake detection.                                                        of a wrench)
+                                       Additionally, we provide a comprehensive overview of existing
+                                       datasets, evaluation metrics and state-of-the-art methods, cate-            Fig. 1. Illustration of mistake analysis in an industrial assembly task: (1)
+                                       gorizing approaches based on their use of procedural structure,             recognize an unexpected or omitted action given an activity protocol (mistake
+                                       supervision levels and learning strategies. Open challenges, such           recognition), e.g.,the worker “attached part C” instead of “grabbing part B”,
+                                       as distinguishing permissible variations from true mistakes and             (2) temporally detect an error within the execution of an action (mistake
+                                       modeling error propagation are discussed alongside future di-               detection) and (3) predict a mistake before it fully occurs (early mistake
+                                       rections, including neuro-symbolic reasoning and counterfactual             recognition), e.g., warn the worker about selecting the wrong tool. The
+                                       state modeling. This work aims to establish a unified perspec-              conceptual worker sketch was generated with [2].
+                                       tive on vision-based mistake analysis in procedural activities,
+                                       highlighting its potential to enhance safety, efficiency and task
+                                       performance across diverse domains.
+
+                                          Index Terms—Mistake Analysis, Procedural Activity Under-
+                                       standing, Error Detection.
+
+                                                                 I. INTRODUCTION                                   productivity by minimizing human error, ensuring proper task
+                                                                                                                   execution, and reducing the risk of injuries (see Figure 1).
+                                          Making mistakes is intrinsic to human nature. While they                 In human-robot collaboration, anticipating potential mistakes
+                                       can act as critical drivers for learning and skill refinement [1],          facilitates smoother cooperation, reduces failure rates, and
+                                       they may also lead to costly or dangerous consequences in                   improves task handover efficiency. Similarly, in rehabilitation,
+                                       high-stakes environments. The ability to detect, anticipate, and            education, or assisted living, such systems can guide users
+                                       respond to mistakes, ideally before they escalate into failures,            through complex tasks, offering feedback and corrections that
+                                       is essential in contexts where safety, efficiency, or performance           enhance skill acquisition or daily independence. In embodied
+                                       are paramount. In such scenarios, real-time mistake analysis                robotics, mistake analysis plays a dual role: supporting hu-
+                                       can support timely interventions and corrective actions, ulti-              man–robot interaction [3] and enabling robots to recognize and
+                                       mately improving both human and system-level outcomes.                      recover from abnormal or unexpected situations [4], a critical
+                                                                                                                   step toward robust autonomy in real-world environments
+                                          Mistake analysis can take on multiple, complementary
+                                       forms. At times, the challenge lies in recognizing that a                      A unifying aspect across these diverse scenarios and do-
+                                       mistake has occurred (mistake recognition); in others, it is                mains is that they all involve procedural activities, i.e. struc-
+                                       about identifying precisely when it happens during the task                 tured tasks composed of ordered, goal-driven action sequences.
+                                       (mistake detection); and in critical situations, the key lies in            Whether in manufacturing, cooking, or caregiving, such proce-
+                                       anticipating mistakes early enough to prevent them altogether               dures typically follow established protocols and depend on the
+                                       (early mistake recognition). These perspectives naturally arise             correct execution of each step. This structure not only makes
+                                       from the way humans reason about everyday errors and                        deviations easier to define and detect, but also means that even
+                                       offer an intuitive framework for understanding how intelligent              small mistakes, such as step skipping, executing actions in
+                                       systems might tackle similar challenges.                                    the wrong order, or using an incorrect tool, can significantly
+                                                                                                                   affect outcomes. Consequently, procedural activities provide
+                                          The impact of robust mistake analysis methods spans mul-                 a natural and impactful setting for mistake analysis: their
+                                       tiple domains. In industrial automation, they can enhance                   regularity enables modeling of expected behaviors, while their
+                                                                                                                   error sensitivity underscores the value of timely detection and
+                                          Both authors are with the Institute of Computer Science, Foundation for
+                                       Research and Technology – Hellas, Greece and the Computer Science Depart-
+                                       ment, University of Crete, Greece (email: {kbach, argyros}@ics.forth.gr).
+VISION-BASED MISTAKE ANALYSIS IN PROCEDURAL ACTIVITIES: A REVIEW OF ADVANCES AND CHALLENGES                                    2
+
+Mistake Recognition:                                  Activity: Making coffee
+
+                                                Observed action time
+                                                          span
+
+ Action:                    Action:             Action: scoop        Action: pour              . . .
+pour water                 place filter             coffee           coffee in filter
+                                                                                                                 Action: pour
+                                                                                                                coffee in cup
+
+                                                Mistake: Scoop & pour coffee
+                                                    before placing the filter
+
+Mistake Detection:                                Activity: Making coffee                         Correct/Mistake
+
+                                                Each color is a different action class.
+
+                                         Action temporal boundaries  Mistake temporal boundaries
+
+Early Mistake Prediction:                            Action: Place filter
+
+          Frame: t-N                            Mistake: Erroneous placement of coffee filter
+
+                                                Frame: t             Frame: t+1                             Frame: t+K
+
+                                         . . .                                                 . . .
+
+            Observed action time span                                Unobserved action time span
+
+                                                End of Observation Point (EOP)
+
+Fig. 2. Illustration of the differences between mistake recognition, early mistake recognition and mistake detection using an example from a filter coffee
+preparation video. In mistake recognition, the error (e.g., omitting coffee grounds) is identified after the action is completed. In early mistake recognition, the
+model anticipates the mistake before it fully unfolds (e.g., detect intent to add coffee before coffee filter is added) in the on-going action. In mistake detection
+the model temporally localizes the specific segment where the mistake occurs. The temporal boundaries of the action and mistake segments can overlap.
+
+intervention. Understanding where and how procedures go off        procedures often allow multiple valid action sequences rather
+track supports more effective training, safer automation, and      than a single canonical order. This complicates the distinction
+helps users maintain task success in real-world environments.      between genuine errors and acceptable alternatives. Further
+                                                                   ambiguity arises at the action level, where steps vary in
+   Computer vision has emerged as a powerful modality for          motion dynamics, timing, or appearance, making the boundary
+mistake detection in procedural tasks. Unlike other sensor-        between atypical yet correct and truly erroneous behavior non-
+based methods, vision offers a non-invasive, cost-effective,       trivial. Additional challenges stem from viewpoint changes
+and scalable alternative leveraging rich visual data. Advances     (e.g., egocentric vs. exocentric), object multifunctionality, and
+in activity recognition, action detection, and multimodal un-      activity compositionality, which demand fine-grained spa-
+derstanding [5] enable detecting subtle deviations such as         tiotemporal reasoning. Crucially, mistake detection requires
+incorrect motion trajectories, missing steps, or tool misuse. For  judging whether an action is appropriate in context, making it
+instance, in cooking, a vision system might infer an error when    a higher-order reasoning task beyond static recognition.
+a user prematurely switches tools or leaves a pan unattended.
+                                                                      The increasing significance of this problem has driven recent
+   Despite recent progress, mistake analysis in procedural ac-     progress in vision-based methods and benchmark datasets
+tivities remains highly challenging [6], [7]. A major difficulty
+lies in the variability of task execution: even well-defined
+VISION-BASED MISTAKE ANALYSIS IN PROCEDURAL ACTIVITIES: A REVIEW OF ADVANCES AND CHALLENGES                                        3
+
+for mistake detection and anticipation. Yet, a unified survey        Specifically, the task is to learn a mapping, f (·), so that
+remains lacking. To our knowledge, this is the first systematic
+review of video-based mistake analysis in procedural activities.                      f : S → M.
+We summarize existing datasets, categorize mistake types,
+outline evaluation protocols, and survey state-of-the-art recog-     M = {mi}Ni=1 is a binary mistake label sequence with mn ∈
+nition and prediction methods, offering a unified perspective        {0, 1}, where mn = 1 denotes that clip vn contains a mistake.
+and identifying key challenges and open questions.
+                                                                        A more informative variant involves not only detecting
+       II. MISTAKE ANALYSIS: PROBLEM STATEMENT
+                                                                     whether a mistake occurs, but also classifying its type and
+   As mentioned in Section I, the problem of video-based             subtype. Let C = {c1, c2, . . . , cN } with cn ∈ C, where C is
+mistake analysis in procedural activities can be naturally           the set of mistake types (e.g., procedural or execution) and let
+decomposed into three interconnected sub-tasks, depicted in          E = {e1, e2, . . . , eN } with en ∈ Ecn , where Ecn denotes the
+Figure 2: (a) mistake recognition, (b) mistake detection and         set of mistake variants associated with type cn. The task then
+(c) early mistake recognition. Among these, recognition con-         becomes a multi-level classification problem:
+stitutes the foundational task, since it provides the basis upon
+which detection and early prediction are built. We therefore                          f : S → (M, C, E).
+begin with a formal definition of mistake recognition and then
+extend this framework to detection and early prediction. In          Such rich output enables explainable and actionable feedback,
+the definitions that follow, these tasks are treated as down-        facilitating effective interventions and correction strategies.
+stream problems that rely on action and activity understanding.
+Specifically, mistake analysis requires knowledge of both the        Mistake detection: Building on recognition, mistake detection
+performed actions and the associated high-level activities, as
+errors are defined relative to the expected execution of these       generalizes the problem, by requiring both the temporal local-
+actions within their activity context.
+                                                                     ization and classification of mistaken action segments to be
+Mistake recognition: Given an untrimmed video of length
+T frames, x1:T = ⟨x1, . . . , xT ⟩ capturing the execution of an     inferred jointly. Specifically, given the sequence of temporally
+activity, the goal is to identify deviations from expected behav-
+ior, termed mistakes. This task can be decomposed into two           localized clips with associated action and activity labels from
+stages: a) action detection and activity recognition: divide the
+continuous video into temporally localized clips, each assigned      the first stage
+an action and an activity label; b) mistake recognition: reason
+about whether each temporal segment constitutes a deviation                           S = {(vn, an, yn)}n=1 N
+from the execution protocol of the assigned action and activity.
+                                                                     the aim of the mistake detection task is to learn a mapping
+   In more detail, in the first step of the process, given an
+untrimmed video, an action detection method produces a                           f : S → L, L = {([tstart (j) , tend (j)], cj )}j=1 m ,
+sequence of clips V = {v1, v2, . . . , vN }, where each clip vn
+is associated with an action label an ∈ A, with A denoting           where each segment lj denotes the temporal boundaries of a
+the set of possible actions. This is followed by an activity         detected mistake and its associated type cj. Mistake detection
+recognition step which associates the sequence of detected           thus generalizes recognition by discovering error segments
+actions with an activity label yn ∈ Y, with Y denoting the           from the jointly inferred action/activity sequence rather than
+set of high-level activities. The final output of this stage is the  assuming pre-segmented clips, aligning the task with real-
+annotated sequence                                                   world procedural analysis pipelines.
+
+                       S = {(vn, an, yn)}Nn=1,                       Early Mistake recognition: The early recognition task ex-
+                                                                     tends recognition into the anticipatory setting, where the
+which serves as input to the mistake recognition stage.              goal is to forecast mistakes before the completion of the
+   Given the sequence S of action- and activity-labeled clips,       corresponding procedural step. In more detail, let v denote
+                                                                     a video segment corresponding to a step of duration T and
+the objective of the second stage (mistake recognition) is to        define a partially observed prefix vpartial = v1:t with t < T .
+analyze S to identify specific segments that deviate from the        The model must learn a predictive mapping
+expected behavior protocol B and, when possible, characterize
+the type of deviation. These deviations, referred to as mistakes                            f : vpartial → (M, C, E),
+or errors, can be broadly categorized into:
+                                                                     where the output anticipates whether the full step v will even-
+   • Procedural errors: Actions performed in incorrect order,        tually contain a mistake and if so, its type and subtype. This
+      omitted, repeated, or performed at inappropriate times.        predictive formulation introduces inherent uncertainty due to
+                                                                     incomplete observations, yet it enables proactive intervention
+   • Execution errors: Actions executed with incorrect mo-           strategies that can prevent errors before they fully materialize.
+      tion, posture, or object manipulation relative to the ex-      A graphical illustration and disambiguation of the three sub-
+      pected pattern.                                                problems of mistake analysis is provided in Figure 2.
+
+                                                                     A. Distinguishing Mistake Analysis in Procedural Activities
+                                                                     from Conventional Video Anomaly Detection
+
+                                                                        Within the broader scope of mistake analysis, which en-
+                                                                     compasses mistake recognition, mistake detection, and early
+                                                                     mistake prediction, we concentrate here on the task of mistake
+                                                                     detection, as it can be viewed as a more generalized form of
+                                                                     recognition, capturing not only whether a mistake occurs but
+VISION-BASED MISTAKE ANALYSIS IN PROCEDURAL ACTIVITIES: A REVIEW OF ADVANCES AND CHALLENGES                                                                                                                         4
+
+  Scope: Detects incorrect    Video Mistake Detection (Task-aware)
+  actions against a
+  predefined procedural       Exploits knowledge about the task.
+  reference or a predefined
+  action execution protocol.  Procedural Mistake                                                  Video Anomaly Detection (Task-agnostic)                                          Scope: Detects unexpected/
+                                    Detection                                                                                                                                      unusual events without explicit
+Modeling Principles:                                                                                   Anomaly is considered a deviation from the step sequence execution of       knowledge of what is correct.
+ Short- and long-term                                                                                 an action. The action can be a part of an activity or a stand-alone event.
+                                                                      Executional Mistake                                                                                           Modeling Principles:
+  dynamics modelling                                                         Detection                                                                                                Short-term Dynamics
+ Multi-step temporal
+                              Anomaly is considered a deviation       Anomaly is considered a deviation   Anomaly is considered a deviation from the step                               Modelling
+  context dependency          from the action sequence execution      from the step sequence execution    sequence execution of an action (action is not a                            No action or scene context
+ Models deviation from       of the activity, i.e. perform Action A  of an action. The action is a part  part of a procedural activity).                                             Models coarse-grained
+                              instead of Action B.                    of a procedural activity.
+  expected task structure                                                                                                                                                               appearance or motion
+                                                                                                                                                                                        irregularities
+    Targets: Procedural
+    Activities and their                                                                                                                                                            Targets:
+    actions (steps).                                                                                                                                                                Atomic Actions.
+
+Common Applications in:                                                                                                                                                              Common Applications in:
+ Industrial Manufacturing,                                                                                                                                                            Surveillance & Security,
+ Skill Education and                                                                                                                                                                  Traffic Monitoring, Basic
+ Assessment, Quality                                                                                                                                                                  Crowd Behavior Analysis.
+ Analysis in Complex
+ Workflows, Daily Assistive
+ Robotics.
+
+Fig. 3. Illustration of the association between video anomaly and mistake detection in procedural activities.Human sketches in the figure generated with [8].
+
+also when and where it occurs within the activity. This tem-                                              components, hesitant execution), and (c) both rely on modeling
+poral and spatial specificity makes detection a natural point of                                          normal behavior to detect deviations that may not alter the
+comparison to video anomaly detection, which similarly aims                                               overall sequence but affect execution quality or safety.
+to localize unexpected events in continuous video streams.
+                                                                                                             As a final remark, most anomaly detection methods operate
+   In principle, mistake detection in procedural activities is                                            on static or short-term temporal observations, whereas mistake
+related to video anomaly detection [9], [10]. However, the                                                detection in procedural activities demands long-range temporal
+two tasks differ fundamentally in the contextual grounding                                                reasoning to assess whether an action sequence aligns with
+of what constitutes an error, with mistake detection requiring                                            a predefined procedure. This challenge is further amplified
+task-specific procedural knowledge to distinguish between                                                 in egocentric video [12]–[14], where shifting viewpoints,
+acceptable variations and true deviations (Figure 3).                                                     occlusions and object-scale variations hinder the application
+                                                                                                          of conventional anomaly detection techniques.
+   Video anomaly detection typically focuses on identifying
+irregularities, i.e., deviations from normal visual or motion                                                             III. A TAXONOMY OF MISTAKES
+patterns, without necessarily understanding task-specific goals.
+Such anomalies exhibit distinct visual or semantic properties,                                               A fundamental step in mistake analysis for procedural activ-
+making them recognizable as unexpected events. For instance,                                              ities is establishing an error-type taxonomy. Broadly, mistakes
+in the ShanghaiTech Campus dataset [11], a widely used                                                    fall into two coarse-grained categories: procedural mistakes,
+benchmark, anomalies include unusual behaviors such as fight-                                             arising from deviations in the sequence relative to the activity
+ing, chasing, or other atypical activities, detected through their                                        protocol, and executional mistakes, occurring when an action
+visual distinctiveness from typical campus scenes. Procedural                                             is performed incorrectly in terms of motion quality, temporal
+mistake detection differs markedly from conventional anomaly                                              fidelity, or object manipulation. Each category can be further
+detection. Unlike generic anomalies, mistakes in procedural                                               decomposed into fine-grained subcategories.
+activities are defined relative to a structured sequence of
+actions required to complete a task. These include missing,                                                  This organization naturally extends the binary problem of
+adding, modifying, or incorrectly executing an action step, all                                           mistake recognition into a multi-class classification setting,
+of which must be interpreted within the overarching goal. For                                             where each detected mistake is assigned a coarse-grained
+example, an engineer assembling a circuit board who omits a                                               label ci ∈ C (procedural or executional) and a fine-grained
+resistor must disassemble parts to correct the mistake. Such                                              subtype ei ∈ Eci . This layered formulation, referred to as
+errors stem from violating the prescribed action order and                                                error category recognition, enables more detailed analyses of
+cannot be captured by appearance-based irregularities alone                                               deviations, providing actionable insights into the causes and
+but require reasoning over long temporal dependencies. In con-                                            nature of mistakes in structured activities. Due to the emerging
+trast, video anomaly detection primarily flags unusual events                                             nature of the problem, however, existing works adopt varied
+based on appearance or motion, whereas mistake detection is                                               definitions of mistake/error types, particularly for executional
+inherently structured and goal-dependent.                                                                 mistakes. For instance, Peddi et al. [13], in the CaptainCook4D
+                                                                                                          dataset, define the categories {Order Error, Omission Error,
+   A common ground between the two notions is executional                                                 Technique Error, Timing Error, Temperature Error}, with the
+mistakes in procedural activities, where the correct action is                                            first two being procedural and the remainder executional.
+performed in a visually plausible way but with incorrect tech-                                            In contrast, Lee et al. [15] propose a different but partially
+nique or suboptimal quality. This overlaps with conventional                                              overlapping scheme, distinguishing Step Omission, Step Ad-
+video anomaly detection since (a) both examine deviations at                                              dition and Step Correction as procedural, while identifying
+the atomic action level, (b) errors may still manifest as local                                           Step Modification and Step Slip as executional. Although both
+visual irregularities (e.g., shaky hand movements, misaligned                                             taxonomies include omissions and technique-based deviations,
+VISION-BASED MISTAKE ANALYSIS IN PROCEDURAL ACTIVITIES: A REVIEW OF ADVANCES AND CHALLENGES                                                                    5
+
+                                                                       Mistake/Error
+
+                                            An unintended deviation from the expected sequence of actions
+                                           or the manner of performing an action within a structured activity
+
+                                                    that can potentially lead to an undesired outcome.
+
+       Procedural Mistake/Error                                                                Executional Mistake/Error
+
+A deviation from the expected sequence of                                              Errors that occur when the proper (expected)
+  actions that affect the structure of the                                               action is performed an incorrect manner.
+
+activity task, i.e. protocol-level deviations.
+
+Action Omission       Action Addition      Action Correction     Action Technique          Action- Step                Action           Scenario-Specific
+                                                                        Error              Timing Error         Modification Error             Error
+Skip one or multiple  Perform an action         Perform an
+  actions from the       that does not       action in order to  Execute erroneously   Perform an action step   Perform an action in    Context-dependent
+execution protocol       belong to the        fix the effect of  a step of an action,  with a wrong duration,   a different way than    violations requiring
+   of the activity.                                              e.g. grasp the knife                           expected, e.g. use a    domain knowledge,
+                      activity task graph       an error in a    in an incorrect way.   e.g. Boil pasta for 8'                        e.g. temperature rating
+                           (protocol).       previous action.                               instead of 10'.         different tool.
+                                                                                                                                                error.
+
+Fig. 4. Hierarchical taxonomy of error types in procedural activities. The taxonomy distinguishes between procedural and executional errors, which arise
+from incorrect technique, timing, or action semantics. Scenario-specific errors are included to account for domain-dependent cases.
+
+their definitions differ in granularity and interpretation. A             within an activity. They occur when execution violates
+general overview of the taxonomy adopted in this survey is                domain-specific constraints not captured by general cate-
+illustrated in Figure 4. Following the distinctions introduced            gories like technique or timing. For instance, in surgery,
+in prior work [16], procedural mistakes can be further divided            placing a suture in the wrong anatomical region is a
+into the following cases:                                                 critical error, even if technique and timing are correct.
+
+   • Omitted actions: an expected step is skipped.                                 IV. MISTAKE ANALYSIS DATASETS
+   • Unnecessary actions: an extra known step outside the
+                                                                       Only a handful of datasets introduced between 2018 and
+      execution protocol is performed.                              2025 explicitly support mistake analysis in procedural activ-
+   • Corrective actions: an unexpected step is introduced to        ities, underscoring that this is an emerging research problem
+                                                                    only recently addressed systematically. Figure 5 presents a
+      compensate for a prior mistake (only identifiable under       timeline and the relative size of these datasets.
+      an offline setting).
+                                                                    A. Datasets: overview & key attributes
+   In contrast, the categorization of executional mistakes is
+inherently more nuanced and task-dependent, since their def-        Table I provides an overview of the datasets. Only tasks
+inition depends on the characteristics of the actions and           relevant to procedural action and activity understanding are
+constraints of the operational domain. Nevertheless, they can       included; tasks a dataset may support but not directly related
+generally be grouped into four broad categories, each reflecting    to mistake analysis are omitted. The reported specifications
+a different dimension of execution fidelity:                        refer to the subsets of these datasets used for such tasks, rather
+                                                                    than the original dataset specifications, which may include ad-
+   • Action technique errors refer to discrepancies in how          ditional vision tasks. All datasets under consideration include
+      an action is performed. The procedural structure is pre-      annotations for actions, activities, and supported error types,
+      served, actions occur in the correct order with the appro-    as well as additional ones that are specific to each dataset.
+      priate objects, but execution deviates from the expected
+      technique, e.g., improper grip, incorrect alignment.          Epic-Tent [17]: Was the first dataset to offer annotated task-
+                                                                    level mistakes in a real-world procedural activity setting. It
+   • Temporal execution errors capture deviations related to        comprises over 5.4 hours of first-person (ego-centric) video
+      the timing or rhythm of action execution. These include       recorded from 29 participants, each equipped with two head-
+      premature or delayed step initiation, violations of required  mounted cameras, tasked with assembling a tent in an outdoor
+      step duration, or incorrect pacing that compromises task      setting. Epic-Tent includes rich multi-modal annotations, such
+      performance. For instance, removing an object from a          as frame-level action and error labels, 2D gaze positions, and
+      heat source too soon may yield a functionally incorrect       self-reported uncertainty levels, enabling a range of research
+      result even if all other steps are correctly executed.        applications in egocentric action and activity recognition,
+                                                                    human-object interaction, and mistake detection. It supports
+   • Action modification errors occur when an action is             coarse-to-fine procedural understanding, with the overall tent
+      performed via an alternative approach deviating from the      assembly task decomposed into 12 sub-activities, each com-
+      predefined protocol, such as using a different tool, skip-    prising of low-level steps from a total of 38 unique actions.
+      ping a sub-step, or combining multiple steps. Even if the
+      intended outcome is achieved, the deviation introduces
+      inconsistencies or risks relative to the standard procedure.
+
+   • Scenario-specific errors are context-dependent, tied to
+      the semantics and requirements of particular actions
+VISION-BASED MISTAKE ANALYSIS IN PROCEDURAL ACTIVITIES: A REVIEW OF ADVANCES AND CHALLENGES                                               6
+
+                                     BRIO-TA                                  Captain  IndustReal EgoOops          Ego4D-M
+                                                             ATA              Cook4D
+      Epic-Tent                                                                                               (Synthetic Mistake Annot.)
+                 CSV
+2018-2019                                                                                                             EK-M
+
+                 2022            2023                                         2024                      2025
+                                                                                 Ego-Exo4D  EgoPER
+                       Assembly                                   HoloAssist
+                          101
+
+Fig. 5. Timeline of datasets supporting mistake analysis (2018–2025). Circle sizes refer to dataset scale. Datasets: Epic-Tent [17], CSV [18], Assembly-
+101 [14], BRIO-TA [19], ATA [20], HoloAssist [21], CaptainCook4D [13], Ego-Exo4D [22], IndustReal [23], EgoPER [15] and EgoOops [12]. Ego4D-M
+and EK-M [24] are synthetic extensions of Ego4D [22] and EK-100 [25], generated to incorporate explicit mistake annotations.
+
+   For mistake analysis, Epic-Tent provides coarse, segment-                  a focus on fine-grained procedural activities. It contains over
+level annotations indicating whether the overall task or its sub-             362 videos which amount for 6,000 video clips of individ-
+components were completed correctly or incorrectly, without                   uals assembling 101 toy car models, captured from multiple
+distinguishing between procedural (e.g., skipping a step, in-                 cameras (exocentric and egocentric) and viewing angles in a
+correct order) and executional (e.g., misplacing a pole, using                constrained laboratory environment. Assembly101 supports a
+incorrect force) errors, though both may occur. Unlike other                  wide range of tasks, including fine-grained action recognition,
+datasets targeting mistake analysis, Epic-Tent did not define                 action localization, action anticipation, activity recognition
+evaluation protocols for this task, as nearly every sample                    and mistake or error detection. Additionally, the dataset is
+included at least one procedural error, preventing binary suc-                designed to enable evaluation in zero-shot settings, allowing
+cess/failure splits. To address these limitations and explicitly              models to generalize to previously unseen actions or activity
+enable online mistake detection, Flaborea et al. [26] introduced              compositions. Each video is annotated with frame-level action
+Epic-Tent-O, proposing an uncertainty-based dataset partition-                annotations under two granularity levels (1380 fine- (single-
+ing strategy: videos from high-confidence participants were                   task) and 202 coarse-grained (multiple fine-grained)) and
+used for training, while those from less confident performers,                mistake annotations, making it suitable for both step-level and
+more prone to errors, were reserved for testing.                              task-level reasoning. The dataset provides multi-modal data,
+                                                                              including synchronized RGB video from multiple viewpoints,
+Chemical Sequence Verification (CSV) [18]: CSV addresses                      depth information and 3D hand pose data.
+the challenges of procedural activity understanding and mis-
+take analysis in the context of chemical procedures. It en-                      For mistake analysis tasks, annotations exist for 1.01K of
+compasses 14 activities, each representing a chemical experi-                 the 6K benchmark video clips, provided at a coarse action-
+ment conducted by 82 volunteers following predefined scripts.                 segment level, focusing on procedural errors, such as missing,
+The dataset comprises a collection of 70 video recordings,                    or out-of-order steps. While executional errors (e.g., incorrect
+partitioned into train-test subsets under a 80-20 split. The                  orientation or grasp) may occur in the data, they are relatively
+recorded sequences include deviations from the predefined                     rare and not annotated. The annotation process does not
+execution protocols, incorporating step-level transformations                 differentiate between procedural and executional errors and no
+such as additions, deletions and reordering of procedural steps.              formal taxonomy of the mistake types is provided to support
+Annotations follow a weak supervision scheme, providing                       fine-grained mistake recognition. Subsequent works by Ding et
+video-level activity and action labels without temporal bound-                al. [16] and Flabora et al. [26] extended Assembly101 to better
+aries for the actions. Notably, the dataset does not include                  support the mistake detection task with additional annotations
+explicit annotations specifying the procedural mistake types.                 and better restructuring. Specifically, Ding et al. [16] enriched
+The dataset supports multiple tasks, including activity, action               Assembly101 with mistake-type information and explicit part-
+and mistake recognition. Additionally, it introduces the task                 to-part connection details to facilitate procedural and mistake
+of early mistake recognition (early warning) to predict errors                reasoning, whereas Flabora et al. [26] enabled the support of
+before they fully manifest, enabling proactive intervention.                  online mistake detection, producing the variant Assembly101-
+                                                                              O. In this adaptation, all correctly executed sequences were
+Assembly101 [14]: This is a large-scale benchmark designed                    moved to the training set, while sequences with mistakes were
+for action and activity understanding in assembly tasks, with                 reserved for validation and testing. Procedure lengths were
+VISION-BASED MISTAKE ANALYSIS IN PROCEDURAL ACTIVITIES: A REVIEW OF ADVANCES AND CHALLENGES  7
+
+adjusted to better suit real-time detection requirements.         intervention annotations, a novel direction for AI assistive
+                                                                  scenarios, covering three intervention types: correcting errors,
+BRIO Toy Assembly (BRIO-TA) [19]: The dataset comprises           following up with more instructions, and confirming the previ-
+75 video recordings capturing both normal and anomalous           ous action. These are temporally aligned with the conversation
+assembly processes of a toy car model. The dataset includes       transcripts, enhancing explainability in mistake analysis.
+three distinct error types that may arise during the assembly
+process: (a) step ordering variation, (b) step omission and (c)   CaptainCook4D [13]: This is one of the largest and most
+abnormal duration. Each erroneous sequence exhibits only one      well structured datasets targeting the understanding of mis-
+of these three anomaly types. The dataset provides segment-       takes/errors in complex procedural activities within the do-
+wise temporal annotations of action occurrences along with        main of cooking. It comprises 384 recordings totaling over
+video-level mistake annotations. It supports the tasks of action  94.5 hours of real-world kitchen interactions, capturing both
+recognition and segmentation, as well as mistake recognition.     standard and intentionally erroneous executions of 24 recipes.
+RGB videos is the only supported modality. Performance is         The activities are structured from a pool of 352 coarse-grained
+evaluated using standard action segmentation metrics, includ-     actions which are, in turn, defined from a set of fine-grained
+ing Accuracy, Intersection over Union (IoU) and Edit Dis-         actions (steps). A standout feature of CaptainCook4D is its
+tance, alongside mistake recognition metrics such as Accuracy.    multimodal design, which includes RGB video, depth data,
+However, the dataset does not explicitly define an evaluation     3D object annotations, gaze data and audio. Unlike previous
+protocol or metrics tailored to each specific error type.         datasets that either lacked error annotations or only considered
+                                                                  a binary notion of correctness, CaptainCook4D offers a rich
+Anomalous Toy Assembly (ATA) [20]: The design of the              and fine-grained taxonomy of 7 mistake types that capture
+ATA dataset was motivated by the challenge of identifying         both procedural and executional deviations. These mistakes are
+mistakes in procedural activities, where the absence of fine-     annotated at both the coarse- and fine-grained levels, allowing
+grained temporal annotations poses significant difficulties. The  models to reason not only about what went wrong but also
+dataset comprises of 141 untrimmed videos of 32 participants      when and how this occurred.
+assembling 3 different toy models, recorded from 4 distinct
+viewpoints. It includes both correct and erroneous executions,    Ego-Exo4D [27]: This dataset was designed to support re-
+where errors can be seen or unseen during training, making        search in ego-exo video learning and multi-modal perception,
+it suitable for evaluating generalization in mistake detection.   focusing on skilled human activities. It is among the largest
+ATA is annotated with weak supervision in the form of             publicly available datasets containing time-synchronized first-
+video transcripts describing action sequences, while errors are   and third-person video data, collected from 740 participants
+not explicitly labeled in the transcripts, simulating real-world  across 123 scenes in 13 cities worldwide. Participants per-
+conditions where mistake annotations are unavailable. The         formed 43 skilled physical and procedural activities unscripted
+captured errors encompass execution mistakes (e.g., misplace-     within natural settings. In addition to RGB video, the dataset
+ment of parts) and procedural mistakes (e.g., step omissions or   provides multi-modal sensory data, including audio, IMU,
+order deviations), making it a comprehensive benchmark for        eye gaze, RGB and grayscale SLAM recordings, and 3D
+evaluating mistake detection methods for both supervised and      environment point clouds. It also includes time-indexed video-
+zero-shot settings. The dataset provides multiple modalities,     language resources, such as participant narrations during
+including RGB videos, ASR (automatic speech recognition)          task execution and spoken expert commentaries evaluating
+transcripts and gaze data, enabling multimodal learning.          performance. The dataset supports tasks related to activity
+                                                                  understanding, including modeling instructor-learner relation-
+HoloAssist [21]: The HoloAssist dataset was designed to           ships, recognizing fine-grained key-steps and task structures,
+advance interactive AI assistants in real-world settings. It      assessing skill proficiency, and recovering 3D body and hand
+captures 20 collaborative object-centric manipulation tasks       movements from egocentric video. Apart from action(step) and
+between two individuals: a task performer, who executes the       activity annotations, it provides 2D/3D pose annotations and
+task while wearing a mixed-reality headset that records seven     object annotations, with an average of 5.5 objects annotated
+synchronized data streams, and a task instructor, who observes    with correspondences between the two views in each take.
+the performer’s first-person feed in real time and provides       Mistake analysis is introduced as a downstream problem
+verbal guidance, including interventions in case of mistakes.     within the task of procedure understanding. For this purpose,
+The dataset includes 166 hours of interaction data from           only 6 activities are considered, covering 186 step annotations.
+350 instructor–performer pairs drawn from 222 participants.       In total 628 sequences are recorded. The focus is on detecting
+Manual annotations accompany the dataset, including text          procedural mistakes by identifying missing steps and recog-
+summaries, intervention types, mistake labels, and segment-       nizing steps that were not intended for the given activity.
+level action annotations at two abstraction levels: (a) coarse-
+grained, describing high-level task steps, and (b) fine-grained,  IndustReal [23]: This dataset was created to support the task
+referring to atomic actions composing each step. There are        of procedure step recognition in the context of industrial set-
+414 coarse-grained and 1,887 fine-grained action classes.         tings, with a particular focus on handling execution errors. The
+                                                                  dataset contains 84 egocentric (first-person) videos, from 27
+   For mistake analysis, HoloAssist provides segment-level        participants, captured during the assembly of a toy car, where
+binary labels denoting correct or erroneous action execution.     the primary goal is to recognize and understand individual
+It contains both procedural and executional errors, though        steps of the assembly process and detect execution errors
+without distinguishing between types. Notably, it introduces
+VISION-BASED MISTAKE ANALYSIS IN PROCEDURAL ACTIVITIES: A REVIEW OF ADVANCES AND CHALLENGES  8
+
+within these steps. IndustReal focuses on two activities (a) the      (e.g., grasp wrong object). Finally, participants were instructed
+activity of assembling a toy car and (b) the activity of main-        to follow scripted task and error scenarios, ensuring controlled
+tenance. The first is the most challenging, with the task being       coverage of error types; however, unintentional errors also
+divided into 5 sub-activities, each containing multiple actions       occurred naturally during execution and were also annotated.
+(steps). The total set of distinct actions in the dataset is 75.
+The structured breakdown of the assembly activity enables the         Ego4D-M & EPIC-KITCHENS-M: Addressing the scarcity
+tracking of task progression by identifying which sub-activity        of large-scale mistake data, Li et al. [24] introduced EK-M
+(or sub-task) has been completed. The dataset is enriched with        and Ego4D-M, which were synthetically created by repur-
+multimodal sensor data, including video recordings and depth          posing existing egocentric corpora via a data engine named
+information (from stereo or depth cameras), providing a richer        MisEngine. Unlike datasets relying on staged or naturally
+understanding of spatial and temporal context.                        occurring errors, these benchmarks are generated by systemat-
+                                                                      ically cross-matching instruction texts with video segments of
+   For mistake analysis, apart from annotations for procedural        disparate actions (e.g., pairing a “pick up hammer” instruction
+deviations (e.g., action omissions), IndustReal also includes         with a “pick up bolt” video) based on Semantic Role Label-
+executional error cases. For this error type, the dataset provides    ing (SRL) mismatches. This automated misalignment process
+frame-level annotations for errors occurring during assembly at       allows for the inheritance of rich annotations from the source
+the action level, such as incorrect object interaction. In total, it  datasets (Ego4D [22] and EPIC-KITCHENS(EK) [25]), result-
+contains 38 errors, 14 of which are exclusive to the validation       ing in benchmarks that are two orders of magnitude larger than
+and test sets. It was the first dataset to relate mistake analysis    prior works. Specifically, they provide approximately 257K
+and assembly state progression, using sub-task completion as          and 221K samples respectively, covering 12, 283 and 16, 099
+a means for fine-grained procedural mistake detection.                action classe respectively, offering supervision for fine-grained
+                                                                      semantic, temporal (frame-level PNR 1), and spatial (bounding
+EgoPER [15]: EgoPER is a recent dataset that introduces               box) mistake attribution.
+a multi-modal benchmark for the study of mistake/error de-
+tection in egocentric procedural tasks. The dataset features          B. Datasets: Comparison & Discussion
+5 diverse cooking activities preparation of pinwheels, coffee,
+quesadilla, tea and oatmeal performed by 11 participants. It             The recent surge in datasets targeting procedural activity
+contains over 120 hours of video recordings captured with a           understanding and mistake analysis has considerably enriched
+head-mounted camera in unconstrained environments. Unlike             the field, each offering distinct perspectives in terms of
+prior datasets that focus solely on successful task completions       domain coverage, annotation granularity, sensing modalities
+and generalized mistake recognition, EgoPER explicitly incor-         and supported tasks. Datasets such as Assembly101, EpicTent
+porates a rich taxonomy of human errors, including step omis-         and CaptainCook4D focus on structured multi-step activities
+sion, addition, modification, slip, and correction. Although          (e.g., assembly or cooking), while others like EgoOops and
+all mistakes/errors are scripted, the execution of those errors       CSV capture the variability of everyday tasks. Industrial and
+was left natural, meaning participants had flexibility in how         instructional contexts are represented by datasets such as
+they introduced the error, leading to realistic and diverse           EgoPER, ATA, IndustReal and BRIO-TA, while Holo-Assist
+instantiations of each error type. Each video is annotated            and Ego-Exo4D emphasize AR guidance and ego-exocentric
+with segment-wise action labels, object bounding boxes, hand-         coordination. However, no single dataset fully captures the
+object interactions, gaze tracking, and audio, offering a com-        multifaceted nature of real-world mistake understanding. A
+prehensive view of both correct and erroneous executions.             deeper look shows that while individual datasets address
+                                                                      certain challenges effectively, crucial aspects of the problem
+EgoOops [12]: The dataset consists of 40 video recordings             space remain underexplored or only partially covered. In what
+from 5 diverse task domains, namely electrical circuit as-            follows, we discuss several such aspects.
+sembly, color mixture experiments, ionic reactions, toy block
+construction and cardboard crafts, captured in authentic but          Size, modality diversity and domain generality: Datasets
+constrained (in terms of environment), educational and work-          like Assembly101 and EpicTent are, to this date, the largest
+shop settings. A key feature of EgoOops, shared only by               in size, providing thousands of annotated sequences for tasks
+CaptainCook4D and EgoPER, is procedural text integration,             such as action recognition, anticipation and mistake detection.
+with texts tightly aligned with video segments to facilitate step-    However, they tend to focus on a narrower set of tasks
+level grounding. EgoOops offers segment-wise annotations,             or domains (e.g., assembly or camping), which limits their
+including video-text alignments, detailed mistake labels (cov-        domain generality. Ego-Exo4D, while smaller in comparison,
+ering order and execution mistakes), object label annotations         offers valuable insights from both first-person and third-
+(microQR) and natural language descriptions of why specific           person perspectives, being the first dataset to incorporate
+actions deviate from the intended procedure, allowing for             synchronized egocentric and exocentric perspectives, enabling
+mistake explainability. Procedural mistakes in EgoOops follow         new opportunities for cross-perspective activity analysis, but
+the common ordering error scenarios found in related datasets,        lacks explicit mistake annotation. In contrast, datasets like
+such as skipped, swapped, or repeated steps. In addition,             CaptainCook4D and EgoOops are relatively smaller, but they
+the dataset introduces a detailed taxonomy of 6 executional           offer a richer multi-modal information (e.g., depth, RGB,
+mistakes, which occur when participants fail to correctly
+follow instructions in terms of executing the steps of an action         1Point-of-No -Return: signifies the reference frame for the mistake.
+VISION-BASED MISTAKE ANALYSIS IN PROCEDURAL ACTIVITIES: A REVIEW OF ADVANCES AND CHALLENGES                                                        9
+
+Dataset           Year Domain/              View #Activ #Actions Tasks    Error   #Objs 3DM #Seqs. Dur. #Partps. Modalities & An-
+                             Environment                                  Type                                                          notations
+
+EpicTent [17]     2018, 2023 Assembly/Real  Ego  1    38 MR               PEs∗∗   NA  ✗      24 >5.4h 29 RGB, Gaze
+
+CSV [18]          2022 Chemistry/Lab        Ego  14   106 MR, SR, PEs             NA  ✗      70 11.1h 82 RGB
+
+                                                                    EMR
+
+Assembly101 [14]  2022 Toy Assembly/Lab Ego, Exo 101  202 MR,             PEs,    15  ✗ 362 167.0h 53 RGB, 3D Hand
+
+                                                                    ASD, SR EEs∗                     Pose
+
+BRIO-TA [19]      2022 Assembly             Exo  1    23 MR, SR PEs               10  ✗ 75 2.9h 15 RGB
+
+ATA [20]          2023 Toy Assembly/Lab     Exo  3    15 MR, SR PEs               11  ✗ 141 24.8h 32 RGB, Audio, Text,
+
+                                                                                                     Pose, Obj. BB
+
+HoloAssist [21]   2023 Assembly/Lab         Ego  20   414 MR, SR, PEs,            16  ✗ 350 166h 222 RGB, Depth, Pose
+
+                                                                    ASD, SA, EEs                     (Hand & Head),
+
+                                                                    EMR                              Gaze, Text, IMU
+
+CaptainCook4D     2023 Cooking/Real         Ego  24   352 MR, SR, PEs,            NA  ✗ 384 94.5h    8 RGB, Depth, Text,
+
+[13]                                                                EMR, EEs                         Task Graphs
+
+Ego-Exo4D [27]    2024 Physical Exercise, Exo, Ego 6           TAML               5.6K∗∗∗ ✓ 628 30h  740 RGB, Audio, Gaze,
+                                                      186 MR, SR, PEs
+
+                  Assembly/Real                                     SA                               Depth, IMU, Text,
+
+                                                                                                     Task Graphs, Bar,
+
+                                                                                                     Mag
+
+IndustReal [23]   2024 Toy Assembly/Lab     Ego  2    75 MR,              PEs,    36  ✗ 84 5.8h 27 RGB, Depth, Gaze,
+
+                                                                    ASD, SR, EEs                     Hand, Pose
+
+                                                                    TAML
+
+EgoPER [15]       2024 Cooking/Real         Ego  5    70 MR,              PEs,    35  ✗ 386 28h      11 RGB,        Depth,
+
+                                                                    TAML EEs                         Audio, Gaze, Hand
+
+                                                                                                     BB, Obj BB, Task
+
+                                                                                                     Graphs
+
+EgoOops [12]      2024 Diverse/Real         Ego  5    46 MR,              PEs,    58  ✗ 40 6.8h      4 RGB, Text, Object
+
+                                                                    TAML EEs                         (label-only)
+
+EK-M [24]         2025 Cooking/Real(synth.) Ego Inherited 12.3K MR,       PEs, Inherited ✗ >221K NATW 37 RGB, Text
+
+                                                                    TAML EEs
+
+Ego4D-M [24]      2025 Diverse/Real(synth.) Ego Inherited 16K MR,         PEs, Inherited ✗ >257K NATW 248 RGB, Text, PNR,
+
+                                                                    STAML EEs                        BB
+
+                                                                                           TABLE I
+  PROCEDURAL UNDERSTANDING DATASETS TARGETING MISTAKE DETECTION. SUPPORTED TASKS: MR: MISTAKE RECOGNITION, ASD: ACTIVITY
+STATE DETECTION, SR: STEP (ACTION) RECOGNITION, TAML: TEMPORAL ACTION AND MISTAKE LOCALIZATION, STAML: SPATIOTEMPORAL ACTION
+AND MISTAKE LOCALIZATION, SA: SKILL ASSESSMENT, EMR: EARLY MISTAKE RECOGNITION. PARTPS: PARTICIPANTS. TEXT REFERS TO TRANSCRIPT
+AVAILABILITY. NOTE THAT: TAML AND STAML CORRESPOND TO THE GENERAL TASK OF MISTAKE DETECTION (MD). ADDITIONAL ABBREVIATIONS:
+ PES: PROCEDURAL ERRORS, EES: EXECUTION ERRORS, 3DM: 3D MODELS PUBLICLY AVAILABLE, OF: OPTICAL FLOW, BB: BOUNDING BOXES, BAR:
+   BAROMETER, MAG: MAGNETOMETER. ∗ SPARSE ANNOTATIONS, ∗∗ REFINED IN SUBSEQUENT WORKS, ∗∗∗ REFERS TO TOTAL OBJECTS ANNOTATED
+  ACROSS ALL DATASET-SUPPORTED TASKS, ONLY A SUBSET USED FOR MISTAKE ANALYSIS (EXACT NUMBER NOT PROVIDED), NA: NOT ANNOTATED,
+ NATW: NON-AVAILABLE AT THE TIME OF WRITING. INHERITED: THE SYNTHETIC DATASET INHERITS THE SPECIFIC ATTRIBUTE FROM THE ORIGINAL.
+
+audio, gaze tracking), which makes them valuable for research       some task segmentation but lacks the hierarchical breakdown
+in real-time and multi-modal systems. Nonetheless, large-scale      found in EpicTent and CaptainCook4D. Finally, EgoOops,
+datasets such as Assembly101 and ATA address industrial use         though more focused on mistake detection than datasets
+cases and are focused on specific tasks, which may limit their      such as Assembly101, does not emphasize task structuring,
+generalization across other procedural activities.                  hindering efforts to understand the linkage between mistake
+                                                                    occurrence and task decomposition.
+Hierarchical task structuring & mistake taxonomies: While
+several datasets, including EpicTent and CaptainCook4D, pro-           Regarding the mistake annotation specificity and the pres-
+vide detailed hierarchical task and action step annotations,        ence of clear taxonomies, these aspects remain highly incon-
+alignment between this task structuring and mistake annota-         sistent across datasets. Existing datasets vary in the tasks they
+tions is often lacking. Several datasets offer valuable hierarchi-  cover and the error types they capture. IndustReal, Captain-
+cal annotations, providing insights into the decomposition of       Cook4D, and EgoOops provide rich, context-sensitive annota-
+activities into sub-activities and action steps. EpicTent, Cap-     tions of both execution and procedural errors, such as incorrect
+tainCook4D, and IndustReal stand out, offering well-structured      tool use, missing steps, or mis-sequenced actions, particularly
+task steps that facilitate detailed action analysis within a        in egocentric settings. Epic-Tent, BRIO-TA, and ATA focus
+broader task context. Assembly101, focused on assembly pro-         more on task steps, action sequences, and task verification,
+cedures, provides less granular annotations, primarily marking      with annotations centered on procedural errors like skipped
+transitions between broader actions rather than detailed steps.     or misordered steps, thus remaining task-specific rather than
+Ego-Exo4D provides synchronized first- and third-person per-        context-sensitive. Conversely, Assembly101, HoloAssist, and
+spectives but lacks explicit hierarchical annotations, limiting     Ego-Exo4D were designed for procedural activity understand-
+support for fine-grained task structuring. Datasets like BRIO-      ing, with mistake recognition only a downstream task. Con-
+TA, ATA, and CSV, while valuable in industrial settings, gen-       sequently, no well-defined error taxonomy exists, and error
+erally lack detailed hierarchical annotations, making them less     annotations remain sparse or implicit.
+suitable for in-depth hierarchical analysis. Holo-Assist offers
+                                                                    Mistake/error accumulation: Most of the reviewed datasets,
+                                                                    including Assembly101 (original), EpicTent, CaptainCook4D,
+VISION-BASED MISTAKE ANALYSIS IN PROCEDURAL ACTIVITIES: A REVIEW OF ADVANCES AND CHALLENGES                    10
+
+BRIO-TA, ATA, CSV, EgoOops and Ego-Exo4D, do not                    receiver operating characteristic curve (AUC) are commonly
+explicitly model or annotate error accumulation. For instance,      used to quantify model performance.
+in furniture manufacturing, a missing screw may lead to the
+incorrect placement of another component, which in turn could          While these general-purpose metrics provide a founda-
+compromise the structural integrity of the final assembly, po-      tional assessment, several works have proposed adaptations
+tentially resulting in collapse. In such cases, an erroneous prior  that better reflect the temporal and procedural nature of
+state can propagate additional errors, exacerbating the overall     the mistake detection task. One such task-specific metric is
+failure. In many of these datasets, errors are either isolated      the Error Detection Accuracy (EDA) [15], [28], originally
+events or are followed by corrections that resolve the problem      introduced in [15]. EDA is defined as the ratio of correctly
+within the same sequence segment. For example, Assembly101          detected erroneous segments over the total number of ground-
+(original) and EpicTent include procedural errors but lack          truth erroneous segments across all test videos. segments.
+temporal linking that would allow tracking their downstream         Specifically, given the test set, Vt, consisting of K videos,
+impact. Similarly, EgoOops emphasizes error detection but not       Vt = {V1, . . . , VK }, where each video Vk is decomposed into
+how one error might lead to others. CaptainCook4D offers            a set of segments Vk = {vi(k)}i=1 Nk , with corresponding ground-
+multimodal recordings with rich supervision but treats errors       truth mistake labels mi(k) ∈ {0, 1} and predicted mistake labels
+at a segment level without modeling cumulative consequences.        mˆ i(k) ∈ {0, 1}, the EDA is defined as:
+
+   Exceptions are the variant of Assembly101 proposed by            EDA = k=1 i=1 K Nk 1{mi(k) = 1 ∧ mˆ i(k) = 1} , (1)
+Ding et al. [16] and, more recently, the IndustReal dataset.               K                 Nk      (k)
+The first incorporates the notion of error accumulation in the             k=1 i=1 1{mi = 1}
+mistake detection task using a rule-based action transition
+analysis scheme, where an action transition rule is classified as   where 1{·} denotes the indicator function, returning 1 if its
+transitive or intransitive, depending on how mistakes propagate     argument is true and 0 otherwise. A segment vi(k) is considered
+through the action sequence. Transitive rules imply that any        erroneous (mi(k) = 1) if at least a subset of its frames is
+subsequent dependent action after an incorrect anchor action is     labeled as a mistake, following a frame-centered evaluation
+also a mistake, while intransitive rules consider only specific     scheme. This formulation aggregates detections across all test
+dependent actions as mistakes. Although very generalizable,         videos and captures the model’s ability to correctly localize
+this approach is accompanied by physical annotations of             error-prone intervals while tolerating limited temporal impre-
+specific cases in the dataset. Contrary, IndustReal emphasizes      cision at segment boundaries. Essentially, EDA is a recall-type
+long-horizon task monitoring in real industrial environments,       metric that quantifies the proportion of ground-truth erroneous
+where an initial error can propagate through subsequent ac-         segments successfully recognized across the entire test set.
+tions. Its design supports tracing such error chains, offering a
+realistic depiction of procedural degradation over time, crucial    A related metric, the Anomaly Segment Accuracy (ASA), was
+for systems aiming to assist real-world task execution.             introduced in the BRIO-TA dataset [19] to quantify segment-
+                                                                    level performance in mistake recognition and detection tasks.
+     V. EVALUATION METRICS IN MISTAKE ANALYSIS                      ASA is a segment-level analogue of the standard accuracy
+                                                                    metric, adapted to mistake analysis. The ASA metric measures
+   The evaluation of models for mistake analysis in procedural      the proportion of action segments that are correctly classified
+activities is tightly coupled with the task formulation, which      as either normal or erroneous, and is defined as
+includes identifying a mistake (mistake recognition), antici-
+pating it before it fully unfolds (early mistake recognition),      ASA =  k=1 i=1 K Nk 1{mˆ i(k) = mi(k)}  ,  (2)
+or temporally localizing it within a video sequence (mistake
+detection). In this section, we categorize evaluation protocols                              K
+in existing works by target task and further divide them into                                k=1 Nk
+two groups: (a) generalized metrics, assessing overall system
+performance using standard classification or detection scores,      where 1{·} denotes the indicator function.
+and (b) error type-specific metrics, evaluating performance            By construction, ASA treats both correct and erroneous seg-
+over specific mistake categories or structural aspects, such as
+sequencing violations or execution errors.                          ments symmetrically, in contrast to EDA which focuses exclu-
+                                                                    sively on erroneous segments. Consequently, ASA provides a
+A. Generalized Metrics                                              balanced segment-level measure of classification performance,
+                                                                    assessing correctness across the entire procedural execution
+   1) Mistake Recognition: The predominant evaluation strat-        rather than solely focusing on erroneous segment localization.
+egy adopted in prior work [15] involves formulating mistake
+recognition either as a binary classification task, wherein each       2) Early Mistake Recognition: This task resembles early
+action is labeled as correct or mistaken, or as a multi-class       action recognition, where the goal is to anticipate an event
+classification task that further distinguishes between specific     before it fully unfolds. Therefore, similar protocols and evalua-
+error types. In these settings, standard classification metrics     tion metrics have been partially adopted. In early action recog-
+such as precision, recall, F1 score and the area under the          nition [29], common strategies include measuring classifica-
+                                                                    tion accuracy at fixed observation percentages (e.g., 10%, 20%,
+                                                                    . . . , 100% of the action duration, termed anticipation windows)
+                                                                    or computing metrics like AUC to capture performance over
+                                                                    time. Similarly, recent works in early mistake recognition [13],
+                                                                    [18], [21] evaluated model performance at different antici-
+                                                                    pation windows, gauging predictive accuracy before the full
+VISION-BASED MISTAKE ANALYSIS IN PROCEDURAL ACTIVITIES: A REVIEW OF ADVANCES AND CHALLENGES                    11
+
+mistake occurred. As an example, CaptainCook4D [13] intro-           Each function maps the observed frequency fa of actions in
+duces an early error detection task, where models are evaluated      the test video to the number of instances ne in which an error
+at fixed intervals prior to the annotated mistake point (e.g.,       e occurs. For example, the error Loose Assembly, arising when
+2s before). Performance is measured using Top-1 accuracy
+and F1-score within these anticipation windows. This allows          a component is positioned but not secured, is expressed as:
+for assessing how well the model can detect an impending
+mistake with limited temporal context. In a related but slightly     FLoose Assembly = max(fplace component − ftighten bolt, 0), (4)
+different fashion, SVIP [30] evaluates sequence verification
+models on partially observed video snippets to assess the            where fa denotes the frequency of action a ∈
+ability to recognize incomplete or incorrect procedures early        {place component, tighten bolt} within the video sequence.
+on. While SVIP focuses on binary classification accuracy of a
+completed vs. incomplete (or incorrect) procedure, its use of           To evaluate mistake detection, a baseline method is typically
+early segment evaluation reflects similar motivations to those       employed, which involves generating two distinct segmenta-
+found in early action recognition literature.                        tion results: S0 (a constrained offline step segmentation using
+                                                                     a reference transcript from the training set) and Sτ (a predicted
+   Although these works do not always explicitly refer the term      step segmentation with τ > 0). The corresponding action
+anticipation window, they embody the same principle: evaluate        frequency distributions, f0 and fτ , are computed for these
+how reliably a model flags mistakes before they fully manifest.      segmentations. Using these distributions, the occurrence of
+                                                                     each error e is determined as:
+   3) Mistake Detection: As outlined in Section VI, mistake
+detection can be formulated as a temporal action localization        ne = Fe(fτ ) × (1 − min(Fe(f0), 1)).      (5)
+(TAL) problem, where the objective is to identify the type of
+mistake and its temporal boundaries within the video. Under             This formulation ensures that errors are detected based on
+this format, several recent works [12], [13], [19] adopt evalua-     deviations from the reference segmentation while mitigating
+tion protocols derived from established TAL benchmarks [31],         false positives. Specifically, the term (1−min(Fe(f0), 1)) con-
+[32], employing metrics such as mean Average Precision               ditions error detection on discrepancies between the predicted
+(mAP) and Recall at X (R@X). These metrics are computed              and reference transcripts. The computed error occurrences ne
+at varying temporal Intersection-over-Union (tIoU) thresholds,       are subsequently used to quantify the overall error detection
+typically ranging from 0.1 to 0.5 in increments of 0.1 or 0.2.       performance by computing the F1-score.
+
+   Under this scheme, mAP is calculated across all mistake ac-       Omission errors using edit distance: Lee et al. [15] intro-
+tion classes, explicitly excluding the “correct” class to isolate    duced the Omission Intersection over Union (O-IoU) metric
+error detection performance. Furthermore, a predicted mistake        to evaluate the performance of mistake detection methods,
+label is valid only if it corresponds to the same procedural         particularly in scenarios involving omissions, defined as:
+step as the ground-truth segment, thereby enforcing alignment
+in both temporal and semantic dimensions. This evaluation            O-IoU = |GTo ∩ Do| , (6)
+strategy ensures that models are assessed not only for their                     |GTo ∪ Do|
+ability to detect mistakes but also for their step-level precision.
+                                                                     where {GTo, Do} refer to the set of ground-truth, and detected
+   Beyond conventional TAL metrics, some recent works have           omission errors respectively. The set Do is determined by
+introduced task-specific measures that capture higher-order          identifying the closest step sequence from the training videos
+aspects of procedural consistency. Notably, Schoonbeek et
+al. [23] propose the Procedure Order Similarity (POS) metric         to the predicted steps in the test video, based on the Edit
+to assess how well the predicted sequence of completed steps         distance. Specifically, given Pˆ, the set of predicted steps
+adheres to the canonical step order. POS is defined as:
+                                                                     (actions) derived from the an action segmentation method, and
+                                                                     P the set of steps corresponding to the best-matched training
+                                                                     sequence, then, the set of omitted steps, Do, is estimated as
+                                                                     the ratio Do = P/Pˆ, i.e. all steps in P missing from Pˆ.
+
+POS = 1 − min  DamLev(P, Pˆ)  ,1 ,  (3)                              Procedural error assessment using Weighted Distance Ra-
+                                                                     tio (WDR): Qian et al. [18] introduced WDR as an evaluation
+               |P |                                                  metric for procedural mistake detection, which quantifies the
+                                                                     performance of a method by assessing the similarity between
+where P = {ai}Ni=1 is the ordered ground-truth step sequence,        action sequences from correct and incorrect procedural exe-
+Pˆ = {aˆj}M j=1 is the predicted sequence, and DamLev denotes        cutions. WDR is defined as the ratio of the average distance
+the Damerau–Levenshtein distance [33] without substitutions.         between negative video pairs to the average distance between
+This metric accounts for missing, repeated, or wrongly ordered       positive video pairs. A positive pair consists of two videos in
+steps providing a holistic measure of procedural correctness.        which the procedural steps are executed correctly and in the
+                                                                     correct order, whereas a negative pair contains at least one
+B. Mistake/Error Type-specific Metrics                               video with a procedural error. The metric is defined as:
+
+Omission errors using action frequencies: The work of                W DR =                  N i=1 1 N wdi  ,  (7)
+Ghoddoosian et al. [20] proposed a metric to evaluate the per-
+formance of mistake detection methods by expressing the dis-                                 P
+crepancies between expected and predicted action frequencies                                 P j=1 1 dj
+for specific action pairs. The metric relies on defining error-
+specific functions {Fe} that operate over these frequencies.         where P and N denote the number of positive and negative
+                                                                     pairs, respectively. Here, dj represents the Euclidean distance
+VISION-BASED MISTAKE ANALYSIS IN PROCEDURAL ACTIVITIES: A REVIEW OF ADVANCES AND CHALLENGES  12
+
+between the learned video embeddings in a negative video pair       inherently constrained to the action level, aligning with prede-
+(Vj,1, Vj,2). In contrast, wdi is the normalized distance for a     fined boundaries. Consequently, methods can only determine
+positive video pair (Vi,1, Vi,2), defined as wdi = di/edi, where    whether an entire action instance contains an error, overlapping
+di is the Euclidean distance between the learned embeddings         with mistake recognition, which assumes access to semanti-
+of the videos, and edi is the Levenshtein distance between          cally labeled clips. This limitation stems from the lack of fine-
+the corresponding text sequences of pair i. The text sequences      grained temporal localization, pinpointing the precise moment
+symbolically represent the procedural steps performed in the        of error occurrence within action boundaries,in most datasets.
+video (e.g., “pick part → attach part → tighten screw”),            We discuss these challenges further in Section VIII-A.
+enabling the metric to account for semantic similarity at the
+step level in addition to visual similarity.                           Several works [12], [13], [20] tackled mistake detection as a
+                                                                    temporal action localization problem, assuming that deviations
+   A higher W DR indicates better performance, as it reflects a     from expected procedural flow, such as missing steps, incorrect
+model’s ability to clearly separate incorrect sequences (larger     orderings, or executional anomalies, manifest as misaligned or
+distances) from correct ones (smaller distances). High W DR         inconsistent temporal patterns. Most approaches build upon
+suggests that a model effectively distinguishes between valid       self- or fully supervised action segmentation models fine-
+and invalid sequences. Conversely, a low WDR indicates poor         tuned on task-specific action pools to segment untrimmed
+differentiation between correct and incorrect sequences.            videos into procedural steps. Mistake presence is then in-
+                                                                    ferred through misalignment with expected sequences, un-
+C. Mistake Explanation Metrics                                      expected transitions, or out-of-distribution behavior. Methods
+                                                                    such as [13], [15] employ spatiotemporal backbones (I3D [38],
+   With the emergence of methods that provide natural lan-          SlowFast [39]) with segmentation or detection modules (e.g.,
+guage justifications for detected errors [34], evaluating the       ActionFormer [40], MS-TCN++ [41], MiniRoad [42]) fol-
+semantic quality and diagnostic accuracy of these explanations      lowed by mistake recognition processes like segment-level
+has become a critical sub-task. Current approaches primarily        classification [13], misalignment scoring [15], or temporal
+repurpose standard image and video captioning metrics to            inconsistency detection [12]. Some also exploit text-based
+assess the similarity between the generated explanation and         procedural priors alongside RGB to identify temporal in-
+a ground-truth reference.                                           consistencies, for example, EgoOops [12] aligns predicted
+                                                                    actions with task descriptions to highlight erroneous segments.
+   The most common evaluation protocols utilize N-gram over-        In weakly supervised settings [20], models rely solely on
+lap metrics, including BLEU [35], ROUGE [36], and CIDEr             ordered transcripts and constrained alignment objectives to
+[37]. These metrics quantify performance by calculating the         localize unseen mistakes without direct annotations. Despite
+precision and recall of word sequences between the predicted        architectural differences, these methods share a common goal:
+and reference explanations. For instance, Patsch et al. [34]        to detect when mistakes occur in untrimmed video and to
+employ CIDEr as a primary metric to capture the consensus           segment the corresponding intervals.
+of generated explanations with human annotations. While
+these metrics effectively measure linguistic fluency and textual       A recent work by Li et al. [24] pushes the boundaries
+similarity, they can fail to capture diagnostic correctness in the  of offline mistake detection beyond simple temporal intervals
+context of mistake analysis. A generated explanation could          by introducing Mistake Attribution (MATT). Unlike standard
+achieve a high BLEU score by matching the majority of               detection schemes followed by existing methods, which flag
+a sentence (e.g., “The user failed to pick up the object”)          the entire duration of a deviation (entire action segment
+while missing or hallucinating the critical causal detail (e.g.,    (procedural error) or a portion of the action segment (ex-
+specifying the wrong object).                                       ecutional error)), MATT aims to spatiotemporally localize
+                                                                    the mistake occurrence. To achieve this, they introduce a
+    VI. RELATED WORK ON MISTAKE ANALYSIS TASKS                      mechanism to detect the Point-of-No-Return (PNR) frame,
+                                                                    which corresponds to the exact instant the mistake becomes
+   In this section, we provide a comprehensive overview of          irreversible. The PNR serves as a temporal anchor for spatial
+mistake analysis tasks and review the existing literature. A        reasoning, enabling models to localize the mistake’s visual
+broader categorization and presentation of methods, organized       manifestation (e.g., via bounding boxes) on the exact frame
+according to their methodological characteristics rather than       where the error consolidates.
+the specific tasks they target, is presented in Section VII.
+It is important to note that, for mistake recognition, the             Finally, recent works attempt to reformulate this offline
+majority of existing studies treat it as part of the broader        setting into an online pipeline, making predictions incremen-
+mistake detection problem. Accordingly, our analysis focuses        tally as new frames arrive, using only past context. Flaborea
+on recognition within the context of detection frameworks.          et al. [26] introduced PREGO, combining an online action
+Additionally, in these works the classification of error types is   recognition module with a symbolic reasoning branch driven
+typically formulated as a downstream classification task.           by a pre-trained LLM that predicts the next expected action
+                                                                    and flags discrepancies as mistakes. Plini et al. [43] extend this
+A. Mistake Detection and Recognition                                by adding chain-of-thought reasoning and few-shot in-context
+                                                                    examples, improving adaptability and temporal precision.
+   As stated in Section II, mistake detection operates directly
+on raw video, requiring both error localization and classi-
+fication, though in existing approaches this localization is
+VISION-BASED MISTAKE ANALYSIS IN PROCEDURAL ACTIVITIES: A REVIEW OF ADVANCES AND CHALLENGES  13
+
+B. Early Mistake Recognition                                        but still signify incorrect or suboptimal execution, particularly
+                                                                    in executional error analysis. Comprehensive mistake detection
+   Early mistake recognition methods aim to identify mistakes       thus requires reasoning about correctness both at the macro
+in video segments when only an initial portion of a procedural      sequence level and the micro patterns within actions. This
+step is observed. Unlike early action recognition [44], which       process typically follows a multi-stage pipeline, where low-
+seeks to infer the action being performed from a predefined         level visual perception modules (e.g., object detection [48],
+action set, early mistake recognition focuses on detecting devi-    pose [49] and gaze estimation [50]) extract cues from video
+ations from the intended action based on partial observations.      input. Mid-level modules then track interactions, model tempo-
+This is particularly challenging as it requires attending subtle    ral dynamics, or recognize ongoing actions. Finally, high-level
+cues in the evolving action dynamics, while mistakes may            reasoning components compare extracted information against
+manifest in diverse and often previously unseen forms.              predefined task models or learned activity graphs to assess
+                                                                    alignment with expected execution patterns. Deviations at the
+   Despite this strong relationship between the two tasks and       action or sequence level are flagged as potential errors.
+the extensive research dedicated to the former, the latter has
+received comparatively less attention, with only a few works           Existing methods for mistake analysis often share core
+addressing it [13], [18], [21]. Qian et al. [18] target mistake     design principles, i.e. video inputs, temporal modeling, and ac-
+detection and early mistake recognition as a video alignment        tion understanding, but differ in problem formulation, supervi-
+problem, leveraging a Transformer-based architecture to align       sion use, and procedural knowledge integration. The broadest
+pairs of video sequences while jointly optimizing a video-          categorization follows the overarching design pipeline, shaped
+level activity recognition loss. To facilitate early mistake        by the targeted error class: procedural, executional, or both.
+recognition, they propose a baseline method based on the            Procedural-focused methods emphasize step dependencies,
+assumption that a reference, correct execution of an activity,      action ordering [51], [43], or task progression models [18],
+Pref, and a candidate execution, Pcand, which may contain           whereas executional ones [52] focus on fine-grained motion,
+mistakes, generally span similar time intervals. Under this         posture, or object manipulations, often ignoring broader con-
+assumption, the time span of both executions is partitioned         text. Hybrid approaches [15] attempt to unify both perspec-
+into k intervals and the ℓ2 distance between Pref and Pcand         tives, typically requiring more complex architectures capable
+is computed in the feature space f . A sudden increase in the       of jointly modeling high-level task structure and low-level
+similarity distance acts as an indicator of an unexpected event,    signals. The mistake family a method targets influences its
+which may correspond to a mistake in the execution process.         learning objective, supervision level, and integrated priors.
+                                                                    We group existing methods along four key pillars: (a) the
+   Wang et al., in HoloAssist [21], introduce a formulation         specific mistake task; (b) supervision regime; (c) learning
+that indirectly supports early mistake recognition via an in-       paradigm; and (d) degree of procedural structure integration,
+tervention forecasting task. Framed as a temporal prediction        from structure-agnostic to hierarchy-aware models. Table II
+problem, the model anticipates the need and type of interven-       summarizes representative methods along these dimensions.
+tion based on observed task progression. Interventions were
+delivered verbally by a domain expert monitoring the actor’s        A. Procedural Structure Utilization
+performance in real time. These serve as supervisory signals,
+marking critical moments where deviations from expected                Understanding and analyzing multi-action activities from
+task execution warrant external assistance, enabling models         video data requires models to capture temporal structure,
+to learn patterns indicative of upcoming failures. Finally,         action-wise dependencies and deviations from ideal proce-
+Peddi et al. [13], in CaptainCook4D, formulate early mis-           dures. As showcased in the previous section, recent research
+take detection in alignment with classical action anticipation      in procedural video understanding has introduced a variety
+paradigms [31], where a model receives a partial observation        of modeling paradigms that differ in how they represent and
+of an action segment and predicts whether it will result in a       utilize procedural knowledge. Under the premise of how (and
+wrong or correct execution. They benchmarked this task with         whether) a mistake analysis method incorporates knowledge of
+top-performing convolutional (SlowFast [39], X3D [45]) and          the procedure, we can categorize existing methods into four
+transformer-based models (Omnivore [46], VideoMAE [47])             broad classes based on the degree of structure imposed and
+by giving them access to only the first half of an action seg-      the source of procedural guidance: structure-free, step-wise,
+ment. Experiments showed a significant performance drop over        graph-based and template-driven models. A visual overview
+full-segment mistake recognition, highlighting the increased        of the categorization scheme based on the scope and utilization
+difficulty of forecasting errors under limited temporal context.    degree of the procedural knowledge is shown in Figure 6.
+
+    VII. METHODOLOGICAL AND SUPERVISION-BASED                          1) Structure-Free Methods: Structure-free methods (SFM)
+      GROUPING OF MISTAKE ANALYSIS APPROACHES                       approach procedural video understanding without imposing
+                                                                    any prior assumptions about the underlying task structure.
+   Procedural activities are inherently structured, with each ac-   These models treat the input video as a continuous or disjoint
+tion contributing to a defined sequence toward a specific goal.     sequence of frames or clips, learning to predict action labels
+Beyond this sequential organization, the internal characteristics   directly. While simple and often scalable, they lack an explicit
+of each action instance, i.e. its constituent steps, object manip-  notion of step boundaries or temporal dependencies, which
+ulations, and evolving scene states, also determine the activity    can limit their ability to capture procedural coherence or
+execution correctness. These intra-action dynamics often re-
+veal subtle deviations that may not disrupt the global sequence
+VISION-BASED MISTAKE ANALYSIS IN PROCEDURAL ACTIVITIES: A REVIEW OF ADVANCES AND CHALLENGES  14
+
+detect structural anomalies such as missing or disordered          description of an action into specific components (Predicate,
+steps. Peddi et al. [13] evaluated several baseline methods        Object). By cross-attending these role tokens with the video
+in CaptainCook4D, focusing on structure-free approaches for        step features, the model can explicitly attribute the error to a
+supervised mistake recognition. Specifically, they examined        specific semantic violation (e.g., recognizing that the object
+the performance of VideoMAE [47] with a linear classifier,         was manipulated incorrectly despite the correct action being
+X3D [45], Omnivore [46] and SlowFast [39] models. These            performed). This moves modeling from coarse detection to
+frameworks classify short video clips as correct/mistake us-       fine-grained semantic and spatiotemporal localization.
+ing only visual features from fixed-length segments, without
+leveraging procedural context, sequential dependencies, graph-        A notable departure from these supervised paradigms is the
+based reasoning, or alignment with predefined task templates.      approach in [15], which despite following a similar action
+                                                                   localization pipeline as previous methods, it introduces a
+   Under a different setting, Lee et al. [15] utilize a two-       Contrastive Step Prototype Learning (CSPL) mechanism en-
+stage, structure-free framework for procedural error detection.    abling step-wise mistake detection in an unsupervised manner.
+A temporal convolutional network first segments the input          Instead of learning directly from both correct and erroneous
+into per-frame step assignments, augmented with relational         executions, CSPL exploits only correct sequences. The model
+hand/object graphs to generate rich feature representations. For   learns discriminative step-specific prototypes in a contrastive
+each step, a set of prototypes of correct executions is learned    embedding space (via InfoNCE loss [56]), encouraging the
+via contrastive loss, pulling frame features toward nearest        network to produce similar embeddings for instances of the
+prototypes and pushing them from others. At test time, each        same step while pushing away different ones. At inference,
+frame is scored by its cosine similarity to the closest prototype  each step in a test sequence is projected into this space and
+of the predicted step; low similarity indicates a procedural       classified based on proximity to its corresponding prototype.
+error (omission, addition, modification, slip, or correction).     Deviations from the expected prototype are flagged as errors.
+
+   A distinct line of research within the structure-free paradigm     Finally, a recent step-wise approach is the PECC frame-
+is proposed by Mazzamuto et al. [52], who approach mistake         work [57], which extends the two-stage paradigm with a
+detection through unsupervised gaze modeling. Rather than          probabilistic treatment of step embeddings. As in prior STM
+relying on annotated action steps, temporal boundaries, or an      models, PECC first applies a TAS backbone to obtain per-
+explicit procedural structure, their method treats gaze behavior   frame step labels, enforcing an explicit action segmentation.
+as an implicit signal of task regularity. They introduce a         A Causal Dilated Convolution (CDC) module refines TAS
+gaze completion task, training a model to predict future gaze      features to preserve temporal dependencies and ensure causal
+distributions from past egocentric video and eye movements         consistency across boundaries. For each segmented step,
+during correct task executions. Mistakes are detected by com-      PECC fits a Gaussian Mixture Model (GMM) over normal-
+paring predicted and observed gaze, with significant deviations    execution features, yielding a probabilistic representation of
+indicating potential attentional inconsistencies in execution.     step-specific appearance and motion. During inference, frames
+                                                                   are scored by per-step log-likelihood under the corresponding
+   2) Step-wise Models: Step-wise models (STM) explicitly          GMM and flagged as errors when their likelihood deviates
+incorporate procedural structure by segmenting a task into         from the learned distribution. While it reliably identifies exe-
+discrete steps or actions, without the use of an explicit task     cution errors, it captures procedural ones only indirectly, typ-
+graph (no nodes-and-edges encoding of step dependencies)           ically when misordering or omissions cause inconsistent TAS
+and no template alignment against a master protocol.               predictions. Like all models in this category, its performance
+                                                                   remains tied to the quality of the underlying segmentation.
+   The foundational methods in this category typically follow
+a supervised two-stage pipeline: first segmenting the action,         3) Graph-Based Models: Graph-based approaches repre-
+then classifying it as correct or incorrect. Wang et al. [21]      sent procedural knowledge as structured graphs, where nodes
+utilize a pre-trained ViT [53] backbone to encode video clips      correspond to actions and edges encode transitions or depen-
+corresponding to annotated action steps and feed the resulting     dencies. These models leverage the graph structure to reason
+per-step embeddings into a TimeSformer [54] coupled with           over the procedural space, enabling more robust inference
+a classification head that jointly predicts the step label and     of task progression and detection of deviations. This method
+a binary “correct vs. mistake” flag. Similarly, the baseline       family is the most prominent in mistake analysis, with existing
+provided in the BRIO-TA dataset [19] utilizes spatiotemporal       works being grouped into three distinct clusters based on
+backbones like I3D [38] or X3D [45] followed by temporal           the type of knowledge embedded in the graph and the way
+segmentation models (e.g., MS-TCN [41]) to output frame-           structure is enforced or utilized: (i) procedural task graphs,
+wise mistake predictions. Advancing this paradigm, Patsch          (ii) semantic knowledge graphs and (iii) rule-based graphs.
+et al. [34] introduce MistSense, which fuses explicit hand
+pose features with RGB data, each modelled via a dedicated         Procedural Task Graph methods (PTG): These methods uti-
+temporal encoder and aligned via Q-Formers, to target fine-        lize acyclic graph structures to explicitly encode the temporal
+grained executional errors.                                        and logical structure of a procedure, where nodes typically
+                                                                   represent discrete action steps or intermediate scene states,
+   While these approaches treat the step as a monolithic unit      and, edges define valid transitions or causal dependencies.
+for binary classification, recent work by Li et al. [24] advances  Such graphs may be manually annotated or automatically
+the STM paradigm via Mistake Attribution. Instead of a simple      induced from video data [51]. They are particularly effective
+binary flag, their method conditions the step-wise analysis
+on Semantic Role Labeling [55], decomposing the textual
+VISION-BASED MISTAKE ANALYSIS IN PROCEDURAL ACTIVITIES: A REVIEW OF ADVANCES AND CHALLENGES                          15
+
+              Local  Local                                        Glocal                     Glocal
+
+No Structure                                                                                         Full Structure
+
+Fig. 6. Method taxonomy based on procedural structure usage. Horizontal axis reflects the degree of structure imposed, from flat models that predict without
+procedural priors to structured ones that explicitly encode or reference task structure. Vertical axis captures the scope of structure, with local scope models
+learning short-range temporal dependencies and global scope models being capable to reason over the full procedural execution. Sketches illustrated with [8].
+
+in modeling normal task flow and detecting anomalies, as          tively distinguishing between graph-compliant variations and
+mistake events often correspond to deviations from expected       true off-graph mistakes.
+graph transitions.
+                                                                  Semantic Knowledge Graph methods (SKG): These meth-
+   Seminara et al. [51], in a seminal work, investigated both     ods utilize graphs to represent semantic relationships among
+approaches and their impact on the action understanding           objects, actions and their attributes within the task domain.
+problem and the downstream task of mistake detection. For         These graphs are constructed from textual knowledge bases,
+the more challenging variant of automatic graph construction,     external corpora, or structured ontologies. Rather than focus-
+they proposed a differential learning scheme, where a neural      ing on temporal ordering, semantic graphs provide contextual
+encoder extracts frame-level features, while a probabilistic ad-  grounding for actions by representing affordances, object-
+jacency matrix, jointly optimized with step recognition, mod-     action interactions and high-level concepts. When combined
+els step dependencies. To enable differentiable graph learning    with vision models, they support reasoning about action
+they proposed the Task Graph Maximum Likelihood (TGML)            plausibility given the current scene configuration, offering
+loss, that allows end-to-end optimization of the task graph’s     indirect support for error detection via semantic inconsistency
+adjacency matrix. It comprises two core components: (a) a         analysis. Despite the potential of this strategy to capture richer
+positive reinforcement term, maximizing edge probabilities in     affordance-level reasoning and to enforce semantic validity of
+the adjacency matrix for observed action transitions and (b) a    action–object interactions, existing methods have not widely
+contrastive penalization term, penalizing edges corresponding     adopted it due to practical challenges: fine-grained objects
+to action transitions absent in training sequences.               in procedural tasks are difficult to detect and track reliably,
+                                                                  generic detectors rarely cover task-specific components, and
+   Building on the use of explicit procedural structures, Lee     grounding semantic relations in visual representations requires
+and Elhamifar [58] propose GTG2Vid, a method that for-            substantial task-specific annotation and model fine-tuning.
+malizes the alignment of an observed video sequence to a          These limitations make robust semantic reasoning difficult to
+predefined task graph as a dynamic programming problem.           achieve in real-world procedural video settings.
+The method defines novel frame and node skipping dropping         Rule-based Graph methods (RG): These methods incorpo-
+policies via a cumulative cost function over frame-node as-       rate domain knowledge in the form of explicit procedural
+signments, combining: (i) matching costs between each frame       rules or logic, often defined by experts or extracted from
+and candidate graph node (action), (ii) frame-drop costs that     formal manuals and usually are combined with the former
+penalize advancing in time without transitioning to a new         two classes. The rules govern permissible action transitions
+graph node, allowing the model to ignore ambiguous or             or constraints on execution order, giving rise to graphs that
+visually uninformative frames (background actions) and (iii)      represent normative task flows. Such representations are well-
+node-drop costs that penalize skipping graph nodes, enabling      suited to high-precision domains such as industrial assembly
+the representation of omitted, reordered, or prematurely by-      or medical workflows, where deviations from the rule-defined
+passed procedural steps. On top of this alignment, the Error      paths are critical indicators of mistakes. Although each cluster
+Recognition Module evaluates the visual consistency of each       reflects a different design philosophy for incorporating prior
+frame with the expected embedding of its assigned graph node,     knowledge and modeling task regularities, a number of exist-
+identifying off-graph behavior as mistakes.                       ing methods can belong to more than one class. An exemplar
+                                                                  hybrid approach is the seminal work of Ding et al. [16],
+   While previous methods optimize for alignment to a single      build a knowledge base of spatial (object-to-object relations)
+path, Huang et al. [59] leverage the task graph to explicitly     and temporal (orderings of spatial relations) graph structures
+handle execution variability. In their AMNAR framework, the       and defines a set of logical rules in the temporal structure to
+graph functions as a query engine that retrieves all permissible  detect ordering mistakes in the toy assembly and disassembly
+transitions given the current state, rather than enforcing a      procedures in the Assembly101 [14] dataset.
+unique trajectory. This allows the model to generate adaptive
+”normal” representations for multiple valid branches, effec-
+VISION-BASED MISTAKE ANALYSIS IN PROCEDURAL ACTIVITIES: A REVIEW OF ADVANCES AND CHALLENGES  16
+
+Template-Driven Model (TDM): TDMs incorporate external              steps. This limits their ability to detect subtle or high-level
+procedural templates, such as transcripts, instructional scripts,   error types, such as improper ordering of steps, repetitions,
+or curated step sequences, as priors to guide the understanding     or omissions, which may only be apparent when reasoning
+of complex multi-step activities. These templates define the        over the entire task trajectory. Moreover, they may struggle to
+canonical action ordering and serve as reference structures         generalize to novel mistake types or execution variants unseen
+against which observed video sequences are aligned. Essen-          during training, given their reliance on direct supervision.
+tially, given a procedural template represented as an ordered
+action sequence and the predicted sequence, TDMs seek the              2) One-Class Classification (OCC): In this context, models
+optimal alignment between them under temporal consistency           for mistake recognition or detection are trained solely on
+or monotonicity constraints, interpreting deviations as pro-        samples of correct behavior, aiming to identify deviations from
+cedural or executional errors. These models leverage strong         the learned norm during inference. This approach suits mis-
+task priors encoding what should be done and in what or-            take and broader anomaly detection tasks, where anomalous
+der, enabling both action segmentation and mistake detection        events, such as procedural mistakes, are rare and lack explicit
+under weak supervision. Ghoddoosian et al. [20] employ a            error examples for training. Existing works follow different
+method based on action transcripts, using the Constrained           strategies within this framework. Some adopt prototype learn-
+Discriminative Forward Loss (CDFL) [60] to align frame-             ing, clustering normal executions as reference points at test
+level predictions with expected transcripts while maximizing        time. For instance, Lee et al. [15] learn multiple contrastive
+the decision margin between valid-invalid labels. Mistake           prototypes per procedural step and score incoming frames
+detection is set by measuring deviations from the canonical         by their distance to the nearest prototype, while Seminara
+template without error examples during training. Narasimhan         et al. [51] extend this idea using a differentiable task graph
+et al. [61] introduce VideoTaskformer, which learns procedural      that models step transitions and flags off-graph deviations as
+structure by predicting randomly masked steps in instructional      errors. However, static representations struggle to capture the
+videos. Instead of aligning predictions to transcripts, it applies  diversity of branching tasks. Addressing this, Huang et al. [59]
+a masked modeling objective [62] over ordered step descrip-         introduce the AMNAR framework, which, similar to the
+tions, using a transformer to reason over global context and        graph-guided approach of Seminara et al. [51], leverages a task
+identify missing or out-of-order steps disrupting procedural        graph to model valid transitions. AMNAR uses the graph to
+flow. Schoonbeek et al. [23] employ a two-stage template-           dynamically reconstruct multiple valid action representations
+driven pipeline: an Assembly State Detection (ASD) module           conditioned on the current context, ensuring that permissible
+based on YOLOv8-m [63] recognizes current assembly states           variations in execution order are not misclassified as mistakes.
+from video, followed by a Procedure Step Recognition (PSR)
+stage mapping detected states to step sequences via non-               Other approaches explore OCC with predictive and step-
+parametric heuristics. Deviations from canonical templates, de-     aware reasoning strategies, in which the model anticipates fu-
+fined by task instructions, indicate procedural error presence.     ture procedural steps and evaluates the consistency of observed
+                                                                    behavior against these predictions. Methods such as PREGO
+B. Learning Strategies and Objectives                               (in Flaborea et al. [26]) and the extension TI-PREGO (in Plini
+                                                                    et al. [43]) utilize an OCC framework that anticipates the next
+   1) Ordinary Classification (OC): The methods [19], [21],         step embedding based on symbolic task progression predicted
+[13], [34] following this learning strategy treat both action       by an LLM, while grounding the actual observation through
+and mistake recognition (and detection) as standard super-          a visual encoder. Discrepancies between predicted and actual
+vised classification tasks. A backbone network, such as a 3D        embeddings are used to detect errors as they occur in real time,
+convolutional model (e.g., I3D [38]) or a transformer-based         without ever observing mistakes during training.
+architecture (e.g., TimeSformer [54]), is trained end-to-end
+using a multi-class cross-entropy loss for classifying action          3) Task Completion (TC): The Task Completion learning
+steps and a binary cross-entropy loss for labeling each step as     objective encompasses methods that evaluate model perfor-
+correct or erroneous. Crucially, this approach requires dense,      mance based on the accurate realization of an entire task,
+segment-level annotations, including both ground-truth action       rather than relying solely on localized predictions at the frame
+class and associated correctness label for each step. As such, it   or segment level. In this paradigm, models aim to capture
+necessitates the availability of annotated sequences containing     the temporal dependencies and structural coherence of sub-
+both correct and erroneous executions during training, which        events that collectively define a procedural sequence. The
+can be costly and time-intensive to curate, particularly in         notion of a “task” may vary in granularity: at the activity
+domains with complex or long-horizon tasks.                         level, it involves a sequence of high-level action steps (e.g.,
+                                                                    “crack egg”, “whisk”, “pour” to complete “make an omelet”);
+   At inference, each segmented clip is classified indepen-         whereas at the action level, it may refer to the unfolding of
+dently, typically without access to broader task context. To mit-   a single action via a trajectory of intermediate states, such
+igate prediction noise and improve temporal coherence, simple       as human pose configurations, hand-object interactions, or
+post-processing strategies such as majority voting or sliding-      gaze fixations. Deviations between the predicted and canonical
+window smoothing are often applied across adjacent segments.        sequence, such as missing, reordered, or inconsistent steps, are
+Such learning objectives, inherent in structure-free methods,       interpreted as mistakes in the execution.
+do not explicitly account for procedural dependencies between
+                                                                       Training objectives in this category often include masked
+                                                                    step prediction, sequence reconstruction, or permutation-based
+                                                                    reasoning, encouraging the model to infer and enforce task-
+VISION-BASED MISTAKE ANALYSIS IN PROCEDURAL ACTIVITIES: A REVIEW OF ADVANCES AND CHALLENGES                                                                                   17
+
+Method                     Task   Error  Error                Error    Dataset                        View  Learning   Modality/Input  Superv.     Procedural  Online  Video   Action & Activity
+                                  Type   Granularity         Metric                                          Strategy                   Fully       Structure     ✗    Trim.  Learning Method
+Moriwaki et al. [19]        MD     PEs,  Coarse              TALM,     BRIO-TA [19]                   Ego                    RGB         Full                     ✗
+ICIP’22                     MD     EEs                         ASA                                     NV       OC                      Weak           STM        ✗      ✓    I3D [38] + MS-TCN [41]
+Ding et al. [16]            MD     PEs   Coarse,              CPM      Assembly101 [14]               Ego/      TC        Text (AL)      Full      STM, SKG       ✗      ✓
+arXiv’23                    MD           Fine                                                         Exo       TC                      Weak                      ✗      ✓    TempAgg [64]
+Narasimhan et al. [61]     EMP     PEs   Coarse               CPM      COIN [65]                      Ego       OC           RGB        Weak          TDM         ✓      ✓
+arXiv’23                    MD                                                                        Exo   OC, OCC,                     Full          STM        ✗      ✓    VideoTaskformer [61]
+Wang et al. [21]            MR     PEs,  Coarse               CPM      HoloAssist [21]                Ego      VTA           RGB,                     TDM              Both
+ICCV’23                    MTR,    EEs                                                                Ego   TC, OCC         HP, EG       Full         TDM         ✗      ✓    TimeSformer [54]
+Ghoddoosian et al. [20]    EMP,    PEs   Coarse               CPM,     ATA [20], CSV [18]                       CC                      Weak      SFM (MTR,       ✓
+ICCV’23                     MD                                TALM                                    Ego                    RGB        Weak    EMP), STM (D)     ✓      ✗    I3D [38] + OadTR [66]
+Schoonbeek et al. [23]      MD     PEs   Coarse                POS     IndustReal [23]                Ego      OCC                      Fully          SFM        ✗    Both   + Viterbi variant [20]
+WACV’24                     MD                             CPM (F1)                                   Ego   TC, OCC       RGB, VL,      Weak          TDM         ✓    Both   MViTv2 [67]
+Peddi et al. [13]           MD     PEs,  Coarse,              CPM      CaptainCook4D [13]             Ego   TC, OCC          Stereo                    PTG        ✓
+NeurIPS’24                  MD     EEs   Fine                                                         Ego   VTA, TC          RGB           ✗      TDM, STM        ✗      ✓    Omnivore [46]
+                            MD                        EDA, CPM (AUC),  EgoPER [15], ATA [20]          Ego   TC, OCC                     Weak          TDM         ✗    Both   + ActionFormer [40]
+Lee et al. [15]             MD     PEs   Coarse          O-IoU, TALM   HoloAssist [21]                Ego                    RGB        Weak           SFM        ✗    Both
+CVPR’24                     MD                                CPM      Assembly101-O [26],            Ego      OCC                      Weak           PTG        ✗    Both   (I3D [38]+FasterRCNN [68]
+Flaborea et al. [26]        MD     PEs   Coarse                        Epic-Tent-O [26]               Ego      OCC           RGB        Weak           STM             Both   +GCN) + ActionFormer [40]
+CVPR’24                     MD                                CPM      Assembly101-O [26],            Ego      OCC                                     PTG        ✓           OadTR [66] + Llama 2.0
+Seminara et al. [51]        MD     PEs   Coarse                        Epic-Tent-O [26] + Task              VTA, TC          RGB        Fully          PTG        ✗      ✗
+NeurIPS’24                                                    TALM     EgoOops [12]                   Ego       TC                      Fully                          Both   MinoRoad [42] +
+Haneji et al. [12]         MD-e    PEs   Coarse                                                       Ego                    RGB                       STM                    Graph Transformer [51]
+arXiv’24                 (ST) MD                              CPM      Assembly101-O [26],                      OC,                                    STM             Both   StepFormer [69]
+Plini et al. [43]                  PEs   Coarse                        Epic-Tent-O [26]                        VTA           RGB                                         ✓    + Drop-DTW [70]
+arXiv’24                                                      CPM      HoloAssist [21],                        VTA                                                            MiniRoad [42]
+Mazzamuto et al. [52]              EEs   Coarse                        Epic-Tent [17]                                        RGB,                                             + Llama 3.1 (CoT)
+CVPR’25                                                       EDA,     EgoPER [15], HoloAssist [21],                          EG                                              Gaze-centered Transformer
+Huang et al. [59]                  PEs   Coarse       CPM (Prec, AUC)  Captain-Cook4D [13]                                   RGB,                                             Autoenc. + MoCoDAD [71]
+CVPR’25                                                                HoloAssist [21],                                       TG                                              I3D [38] + ActionFormer [40]
+Hou et al. [57]                    EEs   Coarse                EDA     EgoPER [15]                                           RGB                                              +Graph Structure Operations
+ICME’25                           PEs**                   CPM (AUC)    EgoPER [15]                                                                                            (ActionFormer [40]+ CDC)+
+Kung et al. [28]                   PEs,  Coarse                                                                              RGB,                                             GMM+Gaussian Smoothing Module
+arXiv’25                           EEs                        EDA,     EgoPER [15],                                           Text                                            Llama 3 + ASFormer [72]
+Lee and Elhamifar [58]             PEs   Coarse           CPM (AUC)    CaptainCook4D* [13]                                   RGB,                                             + HierVL [73]
+ICCV’25                            EEs   Fine                                                                                 TG                                              DiffAct [74] + G2Vid [75]
+                                                             TALM,     Epic-Tent-O [26],                                                                                      + (VideoCLIP [76] + GPT4o mini)
+Patsch et al. [34]                 PEs,  Coarse,              CPM      HoloAssist [21]                                       RGB,                                             (ViT [53] + Q-Former [77]) +
+ICCV’25                            EEs   Fine                          EK-M [24],                                             HP                                              (HardFormer [78] + Q-Former [77])
+Li et al. [24]                     EEs   Coarse            CPM (F1)    Ego4D-M [24]                                          RGB                                              + Llama 2.0
+arXiv’25                          PEs**  Fine                 NGM                                                             Text                                            SRL [55] + InternVideo2 [79]
+                                                                                                                                                                              + Transformer Heads
+                                                         CPM, TALM,
+                                                              OBJM
+
+                                                                                           TABLE II
+   METHOD TAXONOMY ACROSS KEY DESIGN FACTORS. TASKS: {MR–MISTAKE RECOGNITION, MTR–MISTAKE TYPE RECOGNITION, EMP–EARLY
+ MISTAKE RECOGNITION, MD–MISTAKE DETECTION (TEMPORAL), (ST)MD - SPATIO-TEMPORAL MD, -E: SUPPORTS EXPLAINABILITY}. MODALITIES:
+{AL–ACTION LABELS, HP–HAND POSE, EG–EYE GAZE, VL–VISIBLE LIGHT, TG-TASK GRAPH}. PROCEDURAL STRUCTURE: {STM–STEPWISE MODEL,
+TDM–TEMPLATE-DRIVEN MODEL, SKG–SEMANTIC KNOWLEDGE GRAPH, PTG–PROCEDURAL TASK GRAPH, SF–STRUCTURE-FREE}. ERROR METRICS:
+
+     {CPM–CLASSIFICATION METRICS (ACC, PREC, REC, F1, AUC), TALM–TEMPORAL LOCALIZATION METRICS (EDIT DISTANCE, IOU, F1@0.5),
+   EDA–ERROR DETECTION ACCURACY, POS–PROCEDURE ORDER SIMILARITY, ASA–ANOMALY SECTION ACCURACY, OIOU–OMISSION IOU, NGM:
+
+       N-GRAM METRICS (BLEU, ROUGE-L, CIDER).}. MISC.: {NV: NON-VISION METHOD, OBJM-OBJECT DETECTION METRICS, GCN–GRAPH
+  CONVOLUTIONAL NETWORKS, ACOT–AUTOMATIC CHAIN OF THOUGHT [80], TAS-TEMPORAL ACTION SEGMENTATION, CDC - CAUSAL DILATED
+CONVOLUTION, GMM- GAUSSIAN MIXTURE MODEL}. NOTE THAT: For works introducing novel datasets, the top-performing baseline is listed in the last
+column. Overall, for every work we list top-performing model configuration. *: EVALUATED ON A SUBSET OF THE DATASET.**: [57] DOES NOT EXPLICITLY
+
+     MODEL PROCEDURAL STRUCTURE; SUCH ERRORS ARE DETECTED WHEN MANIFESTED AS DEVIATIONS IN THE PER-STEP VISUAL DISTRIBUTION.
+
+level consistency. Unlike conventional classification frame-                                                predict the activity or next action.
+works, TC approaches do not require explicit error labels;
+correctness is inferred from whether the predicted trajec-                                                     In mistake analysis, VTA enables assessing step correctness
+tory conforms to a learned procedural schema. For instance,                                                 by evaluating alignment strength or semantic consistency
+Narasimhan et al. [61] learn structured task representations                                                between predicted visual content and the textual description
+by predicting randomly masked steps in instructional videos,                                                of correct behavior. Its adoption remains limited due to scarce
+allowing the model to identify steps that break the expected                                                datasets like EgoOops [12] and CaptainCook4D [13], which
+temporal or logical flow. In a complementary formulation, a                                                 provide paired instructional text and annotated mistakes. In
+subset of methods approach this objective via anticipation-                                                 EgoOops, Haneji et al. [12] align egocentric video segments
+based reasoning, where correctness is evaluated by comparing                                                with procedural transcripts. StepFormer++ predicts the current
+the model’s recognized step with the expected next step, as                                                 step and localizes mistakes by detecting misalignments be-
+inferred from a structured procedure. PREGO [26] and TI-                                                    tween visual input and expected procedural steps, using cross-
+PREGO [43] formulate mistake detection as a joint problem                                                   attention to learn temporal and semantic alignment between
+of step recognition and step anticipation, where a mismatch                                                 video tokens and step embeddings. To address data limitations,
+between anticipated and recognized steps signals a deviation                                                Kung et al. [28] propose a counterfactual VTA framework for
+from the canonical trajectory of the action-steps of the activity.                                          mistake analysis using Ego4D [22]. While Ego4D lacks error
+                                                                                                            annotations, it provides rich activity- and action-level captions.
+   4) Video-Text Alignment as a Supervisory Signal (VTA):                                                   LLaMA 3.2 8B is used to generate counterfactual descriptions
+VTA-based approaches utilize procedural text (e.g., step                                                    at action and activity levels, describing missing, misordered,
+descriptions from manuals, task guides, or LLM-generated                                                    or incorrectly executed steps. These synthetic error-augmented
+scripts) as a supervisory signal to guide action detection, antic-                                          captions are paired with correct video clips for contrastive
+ipation, and activity understanding [81]–[83]. These methods                                                training of HierVL [73], a hierarchical video-language model.
+typically segment untrimmed videos into candidate action clips
+by aligning them to textual templates using techniques such                                                    Moving beyond sentence-level alignment, Li et al. [24] in
+as dynamic time warping, cross-modal attention, or contrastive                                              MisFormer, which utilizes Semantic Role Labeling (SRL) to
+learning between video and language embeddings, then pass                                                   decompose procedural instructions into fine-grained compo-
+the aligned segments to classification or matching modules to                                               nents (e.g., Predicate (verb), Object). Unlike previous VTA ap-
+                                                                                                            proaches that treat the text as a single embedding, MisFormer
+VISION-BASED MISTAKE ANALYSIS IN PROCEDURAL ACTIVITIES: A REVIEW OF ADVANCES AND CHALLENGES  18
+
+employs a dual-branch transformer that cross-attends these         pseudo-labels and exemplifying self-supervised weak super-
+specific role tokens against video patches. This enables the       vision. Similarly, Ghoddoosian et al. [20] propose a weakly-
+model to determine specifically which part of the instruction      supervised method for instructional mistake detection using
+was violated (e.g., correct action (verb) but wrong object).       only activity transcripts without frame-level labels or error
+Complementing these attribution-focused methods, Patsch et         examples. Supervision is limited to expected action sequences,
+al. [34] leverage VTA for post-hoc explanation rather than         with no temporal error information. Their method infers frame-
+just detection. Their MistSense framework employs a gating         wise action boundaries by aligning predictions to the transcript
+mechanism that, upon detecting an error, projects video-based      using a loss that enforces consistency with valid sequences
+features into the embedding space of a Large Language Model        while maximizing separation from invalid ones. Narasimhan
+(LLM). This allows the system to generate natural language         et al. [61], in VideoTaskformer, operate under weak supervision
+descriptions of the error (e.g., “The person is mounting a screw   differently: instead of aligning to a transcript, the model learns
+in a wrong way”), bridging the gap between binary detection        procedural knowledge by predicting masked steps within
+and interpretable user feedback.                                   instructional sequences. Trained with step-level annotations
+                                                                   (e.g., “crack egg”, “whisk”, “pour”), without step timing
+C. Supervision Levels in Mistake Analysis                          or correctness information, it infers missing steps based on
+                                                                   surrounding context, acquiring a representation of procedural
+   1) Fully Supervised Approaches: Fully supervised ap-            structure that identifies absent or out-of-order steps. In more
+proaches rely on datasets with explicit error annotations at a     recent works, Lee and Elhamifar [58] andJ Huang et al. [59]
+fine-grained level. In this setting, mistakes are annotated with   utilize structure-driven weakly supervised methods that lever-
+precise spatial and temporal localization, typically at the frame  age a predefined task graph as indirect supervision. Unlike
+or segment level, enabling models to learn the error type and      transcript-alignment or masked-step prediction approaches,
+also its exact temporal occurrence in the video. Most methods      these methods do not require frame-level step labels or er-
+following this paradigm operate in an offline setting [13], [14],  ror annotations; instead, they perform joint step alignment
+[21], where detailed annotations are used to supervise both        and error recognition by optimizing a dynamic programming
+step segmentation and mistake classification. Ding et al. [16]     objective constrained by the graph topology. This framework
+leverage fine-grained labels to construct spatiotemporal knowl-    allows both frame [58] and node [58], [59] skipping, enabling
+edge graphs guiding mistake reasoning. Similarly, Mirowaki         the model to infer deviations from canonical execution without
+et al. [19], in the BRIO-TA dataset, provide segment-level         relying on densely annotated training data.
+annotations indicating correct or erroneous execution, allowing
+models to be trained using standard supervised classification         A complementary form of weak supervision is introduced
+objectives at the action segment level.                            by the PECC framework [57], which requires only step-level
+                                                                   annotations of correct executions and no mistake labels. Unlike
+   2) Weakly-Supervised Methods: Weak supervision is a             transcript-based alignment methods [20], masked-step predic-
+learning strategy employed to reduce annotation effort, charac-    tion approaches [61], or graph-constrained frameworks [58],
+terized by two complementary perspectives: (1) the method-         [59], PECC does not rely on external procedural structure,
+ological design leveraging auxiliary supervision signals and       textual cues, or predefined transition rules. Instead, it learns
+(2) the granularity of annotations available during training.      per-step feature distributions by training a temporal action
+                                                                   segmentation backbone on correct sequences and fitting Gaus-
+   In mistake analysis, the first perspective concerns the ab-     sian Mixture Models in a one-class manner. Weak supervision
+sence of explicit mistake annotations, compensated by ex-          here is defined purely through exposure to correct behavior,
+ploiting the procedural structure (actions and their transitions)  without auxiliary signals such as transcripts, task graphs, or
+of the activity. This is exemplified by methods leveraging         LLM-generated pseudo-labels. PECC treats each step (action)
+global step order to detect execution inconsistencies [20],        independently, detecting errors as low-likelihood deviations in
+[23], [27], [58], [61]. Although these methods do not require      the learned feature space. This makes the approach effective
+annotated mistake labels for training, they still rely on step-    for executional anomalies but limits its ability to capture
+level annotations, i.e. knowledge of actions and their order.      higher-level procedural mistakes, such as step omissions or
+The second perspective relates to annotation granularity, where    misordering, that other weakly supervised methods address
+weak supervision labels mistakes only at the video level (e.g.,    through explicit global structure or sequence-level reasoning.
+indicating a mistake’s presence) without specifying when it oc-
+curs. In such cases, models must implicitly localize deviations       Finally, a recent sub-line of weakly-supervised ap-
+based on high-level error cues (e.g., “action skipped”).           proaches [26], [43] departs from previous formulations and
+                                                                   defines mistake detection as a combination of step recognition
+   Grauman et al. in Ego-Exo4D [27] explore a weak mistake         and step anticipation. These methods exploit the structured
+detection strategy with two variants depending on supervision      nature of task transcripts as supervision signals, without re-
+granularity: (1) instance-level supervision, where both video      quiring any frame-level action or mistake annotations. Notably,
+segments and key-step labels are provided during training and      they leverage pre-trained LLMs as reasoning agents to infer
+inference, analogous to action recognition, and (2) procedure-     expected next steps based on procedural understanding.
+level supervision, where training and inference use unlabeled
+segments along with a taxonomy of procedure-specific key-             3) Unsupervised Methods: Unsupervised methods for mis-
+step names. In the second approach, key-step assignments are       take recognition or detection aim to identify deviations in ac-
+generated via a pre-trained video-language model, providing        tion execution without labeled mistakes, annotated boundaries,
+VISION-BASED MISTAKE ANALYSIS IN PROCEDURAL ACTIVITIES: A REVIEW OF ADVANCES AND CHALLENGES  19
+
+or knowledge of an action’s procedural role. They assume           subtle or ambiguous errors. Beyond annotation gaps, datasets
+only correct executions are available during training, with        exhibit limited modality coverage and biased recording per-
+mistakes manifesting as deviations, statistically or structurally  spectives. Modalities such as gaze, object state, 2D/3D pose,
+distinct from valid behavior. Accordingly, such methods learn      or synchronized audio can enhance error analysis but are
+compact representations or generative models of correct task       often absent due to sensor or collection constraints. Most
+performance, flagging as outliers those instances that cannot      datasets adopt egocentric viewpoints, especially for house-
+be well explained, reconstructed, or predicted by the model.       hold or instructional tasks, limiting applicability to industrial
+                                                                   contexts where exocentric or hybrid ego–exo views are more
+   Existing unsupervised methods follow strategies centered        suitable. The lack of standardized evaluation metrics further
+on predictive modeling, where states of modalities (e.g.,          complicates comparison: most works rely on general-purpose
+gaze, human 2D/3D pose) are predicted and mistakes in-             classification or segmentation metrics (e.g., Acc., F1-score,
+ferred from large prediction deviations. They rely on latent       IoU) that poorly capture the challenges of mistake analysis
+modeling of correct trajectories, often as feature embed-          tasks, hindering cross-method benchmarking.
+dings, where deviations from learned distributions are flagged
+as mistakes/anomalies. This category of mistake recogni-           Ambiguity over permissible variations & actual errors:
+tion/detection methods is related to VAD methods (see Sec-         A key problem in procedural mistake analysis is distinguish-
+tion II-A). However, even though they do not explicitly model      ing legitimate execution variations from true errors. Human
+task semantics, action steps, or procedural knowledge, unsu-       procedures are inherently variable, often allowing multiple
+pervised mistake analysis methods are applied to procedural        valid action sequences, interaction styles, or tool-use alter-
+activities (e.g., cooking, object assembly), where mistakes are    natives achieving the same goal without compromising qual-
+subtle and often arise from missing, improperly ordered, or        ity. Annotation challenges stem from limited consensus on
+poorly executed steps. In contrast, VAD methods with similar       what constitutes a mistake versus a permissible variation,
+approaches [84]–[87] focus on coarse distinct actions with         driving high labeling costs and inter-annotator disagreement,
+no procedural context, usually in surveillance applications.       particularly when procedural flexibility is high or correctness
+Mazzamuto et al. [52] leverages egocentric gaze prediction         criteria implicit. Consequently, existing datasets often omit
+as an unsupervised proxy for task regularity. It defines a         such nuance or adopt simplified taxonomies overlooking real-
+novel gaze completion task and measures deviations between         world task complexity. Modeling approaches typically rely
+predicted and observed gaze to detect mistakes online, without     on distributional regularities learned from data, lacking ex-
+using any labels or manual annotations. To capture this, they      plicit representations of task goals, procedural constraints, or
+formulate the gaze completion task with a transformer-based        causal dependencies. This leads to misclassification of rare but
+model that learns to predict future gaze trajectories based        correct behaviors and missed detections of context-dependent
+on past egocentric video and gaze history. During inference,       violations requiring deeper task reasoning. Addressing this
+discrepancies between the predicted gaze and the actual ob-        necessitates models to reason about action affordances, object
+served gaze are interpreted as anomalies, with large deviations    roles, and the causal effects of omissions or order errors.
+signaling possible mistakes or disruptions in task execution.      Recent video-language models [88] jointly encode temporal
+                                                                   and semantic context and can be prompted with structured task
+       VIII. CHALLENGES AND FUTURE DIRECTIONS                      goals or contextual cues. Yet precise error attribution remains
+                                                                   difficult, especially for finer distinctions and task-specific cor-
+   Despite significant progress in procedural activity under-      rectness rules. Vision–language approaches like PREGO [26]
+standing, a number of challenges and open problems remain.         and TI-PREGO [43] show promise in identifying procedural
+Addressing them is critical for advancing mistake analysis,        errors, though executional ones remain underexplored. Their
+particularly in developing methods that are robust, inter-         sensitivity to prompt phrasing and contextual formulation [89]
+pretable and generalizable. We outline the major open prob-        further raises robustness concerns in real-world settings.
+lems in the field and highlight promising research directions.
+                                                                   Disjoint embedding spaces between LLMs & video en-
+A. Challenges in Mistake Analysis                                  coders: A key limitation in current mistake analysis frame-
+                                                                   works lies in the lack of task-level reasoning, where models
+Datasets, modality & evaluation bottlenecks: Despite grow-         fail to encode procedural goals, causal dependencies, and
+ing interest in mistake analysis for procedural activities, the    object affordances, resulting in systems that primarily detect
+limited number and scale of comprehensive datasets remain          low-level visual deviations without understanding whether an
+major bottlenecks. Most existing video datasets target action      observed deviation truly constitutes a mistake [52]. Video-
+or activity recognition, detection, or anticipation, typically     Language Models (Video LLMs) [26], [43] have emerged as a
+assuming correct task execution. As a result, mistake anno-        promising direction, integrating the semantic richness of LLMs
+tations (when available) are often coarse, restricted to binary    with the temporal and spatial modeling capacity of video
+video-level labels (mistake vs. correct), and omit key aspects     encoders. However, representational misalignment between the
+such as temporal boundaries, causal origins, or semantic           two modalities (vision, language) remains a core challenge.
+types (e.g., omission, misordering). The scarcity of temporally    Current designs rely on dual-stream architectures with shallow
+localized and semantically disambiguated annotations hampers       fusion, handcrafted prompts, or minimal supervision of cross-
+model development and evaluation, while annotation protocols       modal correspondences. As a result, they struggle to ground
+remain labor-intensive and domain-specific, particularly for
+VISION-BASED MISTAKE ANALYSIS IN PROCEDURAL ACTIVITIES: A REVIEW OF ADVANCES AND CHALLENGES  20
+
+complex procedural logic or contextual correctness in visual      from visual features; however, ensuring these generative expla-
+data [90] and remain limited to detecting procedural mistakes,    nations remain factually grounded and structurally verifiable,
+which require alignment with predefined step sequences, rather    remains a critical challenge that necessitates the integration
+than executional mistakes, which require fine-grained percep-     of explicit symbolic constraints. Furthermore, the reliance on
+tion of action quality and context-dependent deviations.          standard captioning metrics (e.g., BLEU, CIDEr) to evaluate
+                                                                  these systems [34] is arguably inadequate for mistake analysis;
+B. Future Directions in Mistake Analysis                          such metrics quantify textual overlap rather than the causal
+                                                                  correctness or interventional utility of the diagnosis, under-
+Lifelong learning & open-vocabulary recognition: A major          scoring the need for new, logic-grounded evaluation protocols.
+limitation of current methods is the reliance on closed-world
+training setups, where action-object classes, and task flows      Understanding error dependencies & propagation: Build-
+are assumed fixed and fully known during training. However,       ing on interpretable representations for procedural under-
+real-world procedures are dynamic, evolving across domains,       standing, the next step is to move beyond detection and
+involving diverse object-tool configurations, and introducing     examine how errors influence downstream actions within task
+novel behaviors or error patterns unseen during training. This    sequences. In real-world industrial or medical settings, errors
+motivates a shift toward lifelong learning and open-vocabulary    rarely occur in isolation; initial deviations can propagate,
+recognition frameworks for more robust, scalable, and gener-      altering execution and causing more severe failures. Under-
+alizable analysis. Lifelong learning paradigms, particularly for  standing these inter-error dependencies is essential for systems
+video understanding (e.g., [91]), enable models to incremen-      that not only detect mistakes but anticipate and mitigate
+tally learn from streaming video while retaining performance      cascading effects. While early works like AMNAR [59] use
+on prior tasks. Such adaptability is crucial for vision-based     graph structures to predict valid next-steps based on current
+mistake analysis, especially for executional mistakes, where      history, future methods must extend this to explicitly learn the
+new action styles may arise due to tool substitutions. Com-       likelihood of specific error transitions (e.g., Error A increases
+plementing continual learning, open-vocabulary recognition        the probability of Error C) to enable early interventions pre-
+allows models to describe and detect mistakes beyond closed       venting cascading failures. Integrating predictive capabilities
+taxonomies, enabling zero-shot recognition of novel mistake       into real-time mistake detection could enhance automated
+classes. Future methods could draw inspiration from action        quality control and prevention. Recent synthetic-domain works
+understanding works that generalize beyond fixed label sets       like [96], can model explicit visual state transitions, providing
+using vision-language alignment and compositional prompts         a foundation for inferring causal chains of mistakes via object
+in multi-modal large language models (e.g., [92], [93]).          state transitions in real-world procedural tasks.
+Explainable analysis via symbolic reasoning integration
+with video models: A key challenge in vision-based mistake        Enhancing datasets with counterfactual state transitions
+analysis is the internal mechanisms that guide model decisions,   and synthetic mistakes: Procedure-aware video understand-
+especially when detecting subtle deviations in procedural         ing and mistake recognition require modeling both actual and
+tasks. Current end-to-end neural models often operate as          hypothetical scene state transitions, capturing action-induced
+black boxes, offering little insight into why a given action      transformations and plausible deviations from incomplete or
+is classified as a mistake. Such explainability should be         erroneous actions. Several works have highlighted the link
+considered a foundational principle and a critical requirement    between action or activity recognition and object/scene state
+due to the inherent flexibility of human-performed tasks. Many    changes [97]–[101]. A promising direction for advancing
+procedures allow for multiple valid execution paths, making       mistake analysis involves augmenting procedural datasets with
+it essential for models to differentiate between permissible      synthetic state-change sequences and counterfactual exem-
+variations and true violations of task constraints. A promising   plars [28], [102]–[104], enabling models to reason about the
+direction towards this goal is integrating symbolic reasoning,    causal and semantic impact of actions by grounding visual
+such as procedural constraints, causal rules and temporal         representations in expected and unexpected outcomes. This
+logic, with neural video perception. Mistake analysis could       fosters richer temporal representations that distinguish correct
+benefit from neuro-symbolic designs that (a) parse observed       progressions from deviations or failures, even in subtle or
+video into symbolic representations of steps (a concept briefly   ambiguous cases. Recent works by Lee and Elhamifar [58], as
+explored in PREGO [26] and TI-PREGO [43] for aligning             well as Kung et al. [28] showed that, given prior knowledge
+observed actions with expected procedural steps) and object       of an activity’s execution protocol, one can use structured
+states [94], (b) enforce procedural logic via symbolic reasoners  procedural knowledge bases (e.g., WikiHow [105]) or LLM-
+or temporal logic automata [95], and (c) ground discrepancies     generated textual descriptions to define expected pre- and post-
+(both procedural and executional) as violations of explicit       action states and hypothetical post-conditions for potential
+task rules or specific semantic roles (e.g., predicate or object  failures. These textual representations can then be aligned with
+mismatches [24]). Such hybrid systems would enhance de-           visual features to reinforce plausible state transitions while
+tection accuracy and offer interpretable explanations as well     decoupling them from counterfactual ones via contrastive
+as zero-shot generalization across new procedures. Regarding      learning, thereby strengthening the visual grounding of proce-
+explainability, [34] demonstrate the potential of using LLMs to   dural semantics. Complementing these generative approaches,
+generate intuitive natural language error descriptions directly   Li et al. [24] demonstrated a retrieval-based data augmentation
+VISION-BASED MISTAKE ANALYSIS IN PROCEDURAL ACTIVITIES: A REVIEW OF ADVANCES AND CHALLENGES  21
+
+strategy which allows the automatic construction of semanti-                     [5] A. Stergiou and R. Poppe, “About time: Advances, challenges, and
+cally attributed mistake video samples by systematically cross-                       outlooks of action understanding,” IJCV, pp. 1–65, 2025.
+matching instruction texts with video segments of disparate
+actions from existing large-scale corpora (e.g., pairing a “pick                 [6] J. K. Aggarwal and M. S. Ryoo, “Human activity analysis: A review,”
+up hammer” instruction with a “pick up bolt” video) allowing                          Acm Computing Surveys (Csur), vol. 43, no. 3, pp. 1–43, 2011.
+for retrieval-based clip switching. However, such strategy fails
+to maintain visual consistency with the preceding action clips                   [7] S. Herath, M. Harandi, and F. Porikli, “Going deeper into action
+of the activity sample, as well as preserving scene semantics.                        recognition: A survey,” IVC, vol. 60, pp. 4–21, 2017.
+This discontinuity disrupts the temporal coherence required to
+model realistic error propagation and causal dependencies in                     [8] OpenAI, “Chatgpt,” 2025, large language model. [Online]. Available:
+long-horizon activities.                                                              https://chat.openai.com/
+
+                         IX. CONCLUSIONS                                         [9] R. Nayak, U. C. Pati, and S. K. Das, “A comprehensive review on
+                                                                                      deep learning-based methods for video anomaly detection,” Image and
+   Vision-based mistake analysis in procedural activities is                          Vision Computing, vol. 106, p. 104078, 2021.
+a rapidly evolving field with potential to improve task per-
+formance, safety, and efficiency across domains. This paper                     [10] M. Abdalla, S. Javed, M. A. Radi, A. Ulhaq, and N. Werghi,
+reviews existing methods, datasets, and evaluation metrics,                           “Video anomaly detection in 10 years: A survey and outlook,”
+outlining challenges and opportunities in detecting and pre-                          arXiv:2405.19387, 2024.
+dicting procedural and executional errors. By categorizing
+approaches by procedural structure, supervision, and learning                   [11] W. Luo, W. Liu, and S. Gao, “A revisit of sparse coding based anomaly
+strategies, we offer a structured view of the state of the art. Key                   detection in stacked rnn framework,” in IEEE/CVF ICCV, 2017, pp.
+challenges remain, such as the ambiguity between permissible                          341–349.
+variations and true mistakes, limited comprehensive datasets,
+and the need for models that reason about error dependen-                       [12] Y. Haneji, T. Nishimura, H. Kameko, K. Shirai, T. Yoshida, K. Ka-
+cies and propagation. Addressing these requires innovations                           jimura, K. Yamamoto, T. Cui, T. Nishimoto, and S. Mori, “Egooops:
+such as neuro-symbolic reasoning, leveraging large language                           A dataset for mistake action detection from egocentric videos with
+models for procedural understanding, and enriching datasets                           procedural texts,” arXiv:2410.05343, 2024.
+with counterfactual transitions and synthetic mistakes. Fu-
+ture research should emphasize explainable mistake analysis,                    [13] R. Peddi, S. Arya, B. Challa, L. Pallapothula, A. Vyas, J. Wang,
+stronger cross-task generalization, and real-time predictive                          Q. Zhang, V. Komaragiri, E. Ragan, N. Ruozzi et al., “Captain-
+detection, unlocking new possibilities for human–robot collab-                        cook4d: A dataset for understanding errors in procedural activities,”
+oration, automation, and assistive technologies, and ultimately                       arXiv:2312.14556, 2023.
+transforming how mistakes are understood and mitigated in
+structured activities.                                                          [14] F. Sener, D. Chatterjee, D. Shelepov, K. He, D. Singhania, R. Wang,
+                                                                                      and A. Yao, “Assembly101: A large-scale multi-view video dataset for
+                        ACKNOWLEDGMENTS                                               understanding procedural activities,” in IEEE/CVF CVPR, 2022, pp.
+                                                                                      21 096–21 106.
+   This work was conducted within the framework of the
+Action ‘Flagship Research Projects in challenging interdisci-                   [15] S.-P. Lee, Z. Lu, Z. Zhang, M. Hoai, and E. Elhamifar, “Error detection
+plinary sectors with practical applications in Greek industry,’                       in egocentric procedural task videos,” in IEEE/CVF CVPR, 2024, pp.
+implemented via the National Recovery and Resilience Plan                             18 655–18 666.
+Greece 2.0, funded by the European Union – NextGenera-
+tionEU (project: TAEDR-0535864). It was also co-funded by                       [16] G. Ding, F. Sener, S. Ma, and A. Yao, “Every mistake counts in
+the European Union (EU - HE Magician – Grant Agreement                                assembly,” 2023. [Online]. Available: https://arxiv.org/abs/2307.16453
+101120731) and the VMware University Research Fund.
+                                                                                [17] Y. Jang, B. Sullivan, C. Ludwig, I. Gilchrist, D. Damen, and W. Mayol-
+   We acknowledge the use of ChatGPT (GPT-5) and Gemini                               Cuevas, “Epic-tent: An egocentric video dataset for camping tent
+(2.5 Flash) for creating components of the figures and assisting                      assembly,” in IEEE/CVF ICCV Workshops, 2019, pp. 0–0.
+with language corrections during manuscript editing.
+                                                                                [18] Y. Qian, W. Luo, D. Lian, X. Tang, P. Zhao, and S. Gao, “Svip:
+                             REFERENCES                                               Sequence verification for procedures in videos,” in IEEE/CVF CVPR,
+                                                                                      2022, pp. 19 890–19 902.
+   [1] J. Reason, Human error. Cambridge university press, 1990.
+   [2] G. DeepMind, “Gemini,” 2025, Large Language Model. [Online].             [19] K. Moriwaki, G. Nakano, and T. Inoshita, “The brio-ta dataset: Un-
+                                                                                      derstanding anomalous assembly process in manufacturing,” in IEEE
+        Available: https://deepmind.google/technologies/gemini/                       ICIP, 2022, pp. 1991–1995.
+   [3] S. Nikolaidis, Y. X. Zhu, D. Hsu, and S. Srinivasa, “Human-robot
+                                                                                [20] R. Ghoddoosian, I. Dwivedi, N. Agarwal, and B. Dariush, “Weakly-
+        mutual adaptation in shared autonomy,” in ACM/IEEE HRI, pp. 294–              supervised action segmentation and unseen error detection in anoma-
+        302.                                                                          lous instructional videos,” in IEEE/CVF ICCV, 2023, pp. 10 128–
+   [4] E´ . Garrabe´, P. Teixeira, M. Khoramshahi, and S. Doncieux, “Enhancing        10 138.
+        robustness in language-driven robotics: A modular approach to failure
+        reduction,” arXiv:2411.05474, 2024.                                     [21] X. Wang, T. Kwon, M. Rad, B. Pan, I. Chakraborty, S. Andrist,
+                                                                                      D. Bohus, A. Feniello, B. Tekin, F. V. Frujeri et al., “Holoassist: an
+                                                                                      egocentric human interaction dataset for interactive ai assistants in the
+                                                                                      real world,” in IEEE/CVF ICCV, 2023, pp. 20 270–20 281.
+
+                                                                                [22] K. Grauman, A. Westbury, E. Byrne, Z. Chavis, A. Furnari, R. Girdhar,
+                                                                                      J. Hamburger, H. Jiang, M. Liu, X. Liu et al., “Ego4d: Around the
+                                                                                      world in 3,000 hours of egocentric video,” in IEEE/CVF CVPR, 2022,
+                                                                                      pp. 18 995–19 012.
+
+                                                                                [23] T. J. Schoonbeek, T. Houben, H. Onvlee, F. Van der Sommen et al., “In-
+                                                                                      dustreal: A dataset for procedure step recognition handling execution
+                                                                                      errors in egocentric videos in an industrial-like setting,” in IEEE/CVF
+                                                                                      WACV, 2024, pp. 4365–4374.
+
+                                                                                [24] Y. Li, A. Jain, F. Bellos, and J. J. Corso, “Mistake attribution: Fine-
+                                                                                      grained mistake understanding in egocentric videos,” arXiv preprint
+                                                                                      arXiv:2511.20525, 2025.
+
+                                                                                [25] D. Damen, H. Doughty, G. M. Farinella, A. Furnari, E. Kazakos,
+                                                                                      J. Ma, D. Moltisanti, J. Munro, T. Perrett, W. Price et al., “Rescaling
+                                                                                      egocentric vision: Collection, pipeline and challenges for epic-kitchens-
+                                                                                      100,” International Journal of Computer Vision, vol. 130, no. 1, pp.
+                                                                                      33–55, 2022.
+
+                                                                                [26] A. Flaborea, G. M. D. Di Melendugno, L. Plini, L. Scofano, E. De Mat-
+                                                                                      teis, A. Furnari, G. M. Farinella, and F. Galasso, “Prego: online mistake
+                                                                                      detection in procedural egocentric videos,” in IEEE/CVF CVPR, 2024,
+                                                                                      pp. 18 483–18 492.
+
+                                                                                [27] K. Grauman, A. Westbury, L. Torresani, K. Kitani, J. Malik, T. Afouras,
+                                                                                      K. Ashutosh, V. Baiyya, S. Bansal, B. Boote et al., “Ego-exo4d:
+                                                                                      Understanding skilled human activity from first-and third-person per-
+                                                                                      spectives,” in IEEE/CVF CVPR, 2024, pp. 19 383–19 400.
+VISION-BASED MISTAKE ANALYSIS IN PROCEDURAL ACTIVITIES: A REVIEW OF ADVANCES AND CHALLENGES  22
+
+[28] C.-H. Kung, F. Ramirez, J. Ha, Y.-T. Chen, D. Crandall, and Y.-               [52] M. Mazzamuto, A. Furnari, Y. Sato, and G. M. Farinella, “Gazing into
+      H. Tsai, “What changed and what could have changed? state-change                   missteps: Leveraging eye-gaze for unsupervised mistake detection in
+      counterfactuals for procedure-aware video representation learning,”                egocentric videos of skilled human activities,” in IEEE/CVF CVPR,
+      arXiv:2503.21055, 2025.                                                            2025, pp. 8310–8320.
+
+[29] H. Zhao and R. P. Wildes, “Review of video predictive under-                  [53] A. Dosovitskiy, L. Beyer, A. Kolesnikov, D. Weissenborn, X. Zhai,
+      standing: Early action recognition and future action prediction,”                  T. Unterthiner, M. Dehghani, M. Minderer, G. Heigold, S. Gelly et al.,
+      arXiv:2107.05140, 2021.                                                            “An image is worth 16x16 words: Transformers for image recognition
+                                                                                         at scale,” arXiv:2010.11929, 2020.
+[30] Y. Qian, W. Luo, D. Lian, X. Tang, P. Zhao, and S. Gao, “Svip:
+      Sequence verification for procedures in videos,” in IEEE/CVF CVPR,           [54] G. Bertasius, H. Wang, and L. Torresani, “Is space-time attention all
+      2022, pp. 19 890–19 902.                                                           you need for video understanding?” in ICML, vol. 2, no. 3, 2021, p. 4.
+
+[31] B. Lai, S. Toyer, T. Nagarajan, R. Girdhar, S. Zha, J. M. Rehg, K. Ki-        [55] M. Gardner, J. Grus, M. Neumann, O. Tafjord, P. Dasigi, N. F. Liu,
+      tani, K. Grauman, R. Desai, and M. Liu, “Human action anticipation:                M. E. Peters, M. Schmitz, and L. Zettlemoyer, “Allennlp: A deep
+      A survey,” arXiv:2410.14045, 2024.                                                 semantic natural language processing platform,” in Proceedings of
+                                                                                         workshop for NLP open source software (NLP-OSS), 2018, pp. 1–6.
+[32] Z. Zhong, M. Martin, M. Voit, J. Gall, and J. Beyerer, “A survey on
+      deep learning techniques for action anticipation,” arXiv:2309.17257,         [56] A. v. d. Oord, Y. Li, and O. Vinyals, “Representation learning with
+      2023.                                                                              contrastive predictive coding,” arXiv:1807.03748, 2018.
+
+[33] F. J. Damerau, “A technique for computer detection and correction of          [57] T. Hou, S. Li, X. Jiang, Z. Wang, F. Shen, and X. Xu, “Probabilistic
+      spelling errors,” Communications of the ACM, vol. 7, pp. 171–176,                  embeddings with causal constraint for error detection in egocentric pro-
+      1964.                                                                              cedural videos,” in 2025 IEEE International Conference on Multimedia
+                                                                                         and Expo (ICME), 2025, pp. 1–6.
+[34] C. Patsch, Y. Wu, M. Zakour, D. Salihu, and E. Steinbach, “Mistsense:
+      Versatile online detection of procedural and execution mistakes,” in         [58] S.-P. Lee and E. Elhamifar, “Error recognition in procedural videos
+      Proceedings of the IEEE/CVF International Conference on Computer                   using generalized task graph,” in Proceedings of the IEEE/CVF Inter-
+      Vision, 2025, pp. 14 528–14 537.                                                   national Conference on Computer Vision, 2025, pp. 10 009–10 021.
+
+[35] K. Papineni, S. Roukos, T. Ward, and W.-J. Zhu, “Bleu: a method for           [59] W.-J. Huang, Y.-M. Li, Z.-W. Xia, Y.-M. Tang, K.-Y. Lin, J.-F. Hu,
+      automatic evaluation of machine translation,” in Proceedings of the                and W.-S. Zheng, “Modeling multiple normal action representations for
+      40th annual meeting of the Association for Computational Linguistics,              error detection in procedural tasks,” in Proceedings of the Computer
+      2002, pp. 311–318.                                                                 Vision and Pattern Recognition Conference, 2025, pp. 27 794–27 804.
+
+[36] C.-Y. Lin, “ROUGE: A package for automatic evaluation of                      [60] J. Li, P. Lei, and S. Todorovic, “Weakly supervised energy-based
+      summaries,” in Text Summarization Branches Out. Barcelona, Spain:                  learning for action segmentation,” in IEEE/CVF ICCV, 2019, pp. 6243–
+      Association for Computational Linguistics, Jul. 2004, pp. 74–81.                   6251.
+      [Online]. Available: https://aclanthology.org/W04-1013/
+                                                                                   [61] M. Narasimhan, L. Yu, S. Bell, N. Zhang, and T. Darrell, “Learning and
+[37] R. Vedantam, C. Lawrence Zitnick, and D. Parikh, “Cider: Consensus-                 verification of task structure in instructional videos,” arXiv:2303.13519,
+      based image description evaluation,” in Proceedings of the IEEE                    2023.
+      conference on computer vision and pattern recognition, 2015, pp.
+      4566–4575.                                                                   [62] J. Devlin, M.-W. Chang, K. Lee, and K. Toutanova, “Bert: Pre-training
+                                                                                         of deep bidirectional transformers for language understanding,” in
+[38] J. Carreira and A. Zisserman, “Quo vadis, action recognition? a new                 Conference of the North American chapter of the association for
+      model and the kinetics dataset,” in IEEE/CVF CVPR, 2017, pp. 6299–                 computational linguistics, 2019, pp. 4171–4186.
+      6308.
+                                                                                   [63] G. Jocher, A. Chaurasia, and J. Qiu, “Ultralytics yolov8,” 2023.
+[39] C. Feichtenhofer, H. Fan, J. Malik, and K. He, “Slowfast networks for               [Online]. Available: https://github.com/ultralytics/ultralytics
+      video recognition,” in IEEE/CVF ICCV, 2019, pp. 6202–6211.
+                                                                                   [64] F. Sener, D. Singhania, and A. Yao, “Temporal aggregate representa-
+[40] C.-L. Zhang, J. Wu, and Y. Li, “Actionformer: Localizing moments of                 tions for long-range video understanding,” in ECCV, 2020, pp. 154–
+      actions with transformers,” in ECCV. Springer, 2022, pp. 492–510.                  171.
+
+[41] Y. A. Farha and J. Gall, “Ms-tcn: Multi-stage temporal convolutional          [65] Y. Tang, D. Ding, Y. Rao, Y. Zheng, D. Zhang, L. Zhao, J. Lu, and
+      network for action segmentation,” in IEEE/CVF CVPR, 2019, pp.                      J. Zhou, “Coin: A large-scale dataset for comprehensive instructional
+      3575–3584.                                                                         video analysis,” in IEEE/CVF CVPR, 2019, pp. 1207–1216.
+
+[42] J. An, H. Kang, S. H. Han, M.-H. Yang, and S. J. Kim, “Miniroad:              [66] X. Wang, S. Zhang, Z. Qing, Y. Shao, Z. Zuo, C. Gao, and N. Sang,
+      Minimal rnn framework for online action detection,” in IEEE/CVF                    “Oadtr: Online action detection with transformers,” in IEEE/CVF
+      ICCV, 2023, pp. 10 341–10 350.                                                     ICCV, 2021, pp. 7565–7575.
+
+[43] L. Plini, L. Scofano, E. De Matteis, G. M. D. di Melendugno,                  [67] Y. Li, C.-Y. Wu, H. Fan, K. Mangalam, B. Xiong, J. Malik, and
+      A. Flaborea, A. Sanchietti, G. M. Farinella, F. Galasso, and A. Furnari,           C. Feichtenhofer, “Mvitv2: Improved multiscale vision transformers
+      “Ti-prego: Chain of thought and in-context learning for online mistake             for classification and detection,” in IEEE/CVF CVPR, 2022, pp. 4804–
+      detection in procedural egocentric videos,” arXiv:2411.02570, 2024.                4814.
+
+[44] Y. Kong and Y. Fu, “Human action recognition and prediction: A                [68] S. Ren, K. He, R. Girshick, and J. Sun, “Faster r-cnn: Towards real-
+      survey,” IJCV, vol. 130, no. 5, pp. 1366–1401, 2022.                               time object detection with region proposal networks,” IEEE Trans. on
+                                                                                         PAMI, vol. 39, pp. 1137–1149, 2016.
+[45] C. Feichtenhofer, “X3d: Expanding architectures for efficient video
+      recognition,” in IEEE/CVF CVPR, 2020, pp. 203–213.                           [69] N. Dvornik, I. Hadji, R. Zhang, K. G. Derpanis, R. P. Wildes, and A. D.
+                                                                                         Jepson, “Stepformer: Self-supervised step discovery and localization in
+[46] R. Girdhar, M. Singh, N. Ravi, L. Van Der Maaten, A. Joulin, and                    instructional videos,” in IEEE/CVF CVPR, 2023, pp. 18 952–18 961.
+      I. Misra, “Omnivore: A single model for many visual modalities,” in
+      IEEE/CVF CVPR, 2022, pp. 16 102–16 112.                                      [70] M. Dvornik, I. Hadji, K. G. Derpanis, A. Garg, and A. Jepson, “Drop-
+                                                                                         dtw: Aligning common signal between sequences while dropping
+[47] Z. Tong, Y. Song, J. Wang, and L. Wang, “Videomae: Masked autoen-                   outliers,” NeurIPS, vol. 34, pp. 13 782–13 793, 2021.
+      coders are data-efficient learners for self-supervised video pre-training,”
+      NeurIPS, vol. 35, pp. 10 078–10 093, 2022.                                   [71] A. Flaborea, L. Collorone, G. M. D. Di Melendugno, S. D’Arrigo,
+                                                                                         B. Prenkaj, and F. Galasso, “Multimodal motion conditioned diffusion
+[48] Z. Zou, K. Chen, Z. Shi, Y. Guo, and J. Ye, “Object detection in 20                 model for skeleton-based video anomaly detection,” in IEEE/CVF
+      years: A survey,” Proc. of the IEEE, vol. 111, no. 3, pp. 257–276,                 ICCV, 2023, pp. 10 318–10 329.
+      2023.
+                                                                                   [72] F. Yi, H. Wen, and T. Jiang, “Asformer: Transformer for action
+[49] C. Zheng, W. Wu, C. Chen, T. Yang, S. Zhu, J. Shen, N. Kehtarnavaz,                 segmentation,” arXiv:2110.08568, 2021.
+      and M. Shah, “Deep learning-based human pose estimation: A survey,”
+      ACM Comput. Surv., vol. 56, no. 1, Aug. 2023. [Online]. Available:           [73] K. Ashutosh, R. Girdhar, L. Torresani, and K. Grauman, “Hiervl:
+      https://doi.org/10.1145/3603618                                                    Learning hierarchical video-language embeddings,” in IEEE/CVF
+                                                                                         CVPR, 2023, pp. 23 066–23 078.
+[50] D. Cazzato, M. Leo, C. Distante, and H. Voos, “When i look into
+      your eyes: A survey on computer vision contributions for human gaze          [74] D. Liu, Q. Li, A.-D. Dinh, T. Jiang, M. Shah, and C. Xu, “Diffusion
+      estimation and tracking,” Sensors, vol. 20, no. 13, p. 3739, 2020.                 action segmentation,” in Proceedings of the IEEE/CVF international
+                                                                                         conference on computer vision, 2023, pp. 10 139–10 149.
+[51] L. Seminara, G. M. Farinella, and A. Furnari, “Differentiable task
+      graph learning: Procedural activity representation and online mistake        [75] N. Dvornik, I. Hadji, H. Pham, D. Bhatt, B. Martinez, A. Fazly, and
+      detection from egocentric videos,” arXiv:2406.01486, 2024.                         A. D. Jepson, “Flow graph to video grounding for weakly-supervised
+                                                                                         multi-step localization,” in European Conference on Computer Vision.
+                                                                                         Springer, 2022, pp. 319–335.
+VISION-BASED MISTAKE ANALYSIS IN PROCEDURAL ACTIVITIES: A REVIEW OF ADVANCES AND CHALLENGES  23
+
+ [76]  H. Xu, G. Ghosh, P.-Y. B. Huang, D. Okhonko, A. Aghajanyan, and            [101]  Y. Niu, W. Guo, L. Chen, X. Lin, and S.-F. Chang, “Schema:
+       F. M. L. Z. C. Feichtenhofer, “Videoclip: Contrastive pre-training         [102]  State changes matter for procedure planning in instructional videos,”
+ [77]  for zero-shot video-text understanding,” in Conference on Empirical               arXiv:2403.01599, 2024.
+       Methods in Natural Language Processing, 2021. [Online]. Available:         [103]  T. Soucˇek, D. Damen, M. Wray, I. Laptev, and J. Sivic, “Genhowto:
+ [78]  https://api.semanticscholar.org/CorpusID:238215257                         [104]  Learning to generate actions and state transformations from instruc-
+ [79]                                                                             [105]  tional videos,” in 2024 IEEE/CVF Conference on Computer Vision and
+       J. Li, D. Li, S. Savarese, and S. Hoi, “Blip-2: Bootstrapping language-           Pattern Recognition (CVPR), 2024, pp. 6561–6571.
+ [80]  image pre-training with frozen image encoders and large language                  I. Chatzi, N. C. Benz, E. Straitouri, S. Tsirtsis, and M. Gomez-
+ [81]  models,” in International conference on machine learning. PMLR,                   Rodriguez, “Counterfactual token generation in large language mod-
+ [82]  2023, pp. 19 730–19 742.                                                          els,” arXiv:2409.17027, 2024.
+ [83]                                                                                    T. Soucˇek, P. Gatti, M. Wray, I. Laptev, D. Damen, and J. Sivic,
+ [84]  M. S. Shamil, D. Chatterjee, F. Sener, S. Ma, and A. Yao, “On the utility         “Showhowto: Generating scene-conditioned step-by-step visual instruc-
+ [85]  of 3d hand poses for action recognition,” in European Conference on               tions,” in IEEE/CVF CVPR, 2025, pp. 27 435–27 445.
+ [86]  Computer Vision. Springer, 2024, pp. 436–454.                                     M. Koupaee and W. Y. Wang, “Wikihow: A large scale text summa-
+                                                                                         rization dataset,” arXiv:1810.09305, 2018.
+ [87]  Y. Wang, K. Li, X. Li, J. Yu, Y. He, G. Chen, B. Pei, R. Zheng,
+ [88]  Z. Wang, Y. Shi et al., “Internvideo2: Scaling foundation models
+ [89]  for multimodal video understanding,” in European Conference on
+ [90]  Computer Vision. Springer, 2024, pp. 396–416.
+ [91]
+ [92]  Z. Zhang, A. Zhang, M. Li, and A. Smola, “Automatic chain of thought
+ [93]  prompting in large language models,” arXiv:2210.03493, 2022.
+ [94]
+       K. Kahatapitiya, A. Arnab, A. Nagrani, and M. S. Ryoo, “Victr: Video-
+ [95]  conditioned text representations for activity recognition,” in IEEE/CVF
+ [96]  CVPR, 2024, pp. 18 547–18 558.
+ [97]
+ [98]  Y. Chen, D. Chen, R. Liu, S. Zhou, W. Xue, and W. Peng, “Align before
+ [99]  adapt: Leveraging entity-to-region alignments for generalizable video
+[100]  action recognition,” in IEEE/CVF CVPR, 2024, pp. 18 688–18 698.
+
+       W. Li, H. Fan, Y. Wong, M. Kankanhalli, and Y. Yang, “Topa:
+       Extending large language models for video understanding via text-only
+       pre-alignment,” NeurIPS, vol. 37, pp. 5697–5738, 2024.
+
+       F. Sato, R. Hachiuma, and T. Sekii, “Prompt-guided zero-shot
+       anomaly action recognition using pretrained deep skeleton features,”
+       in IEEE/CVF CVPR, 2023, pp. 6471–6480.
+
+       A. Markovitz, G. Sharir, I. Friedman, L. Zelnik-Manor, and S. Avidan,
+       “Graph embedded pose clustering for anomaly detection,” in IEEE/CVF
+       CVPR, 2020, pp. 10 539–10 547.
+
+       G. A. Noghre, A. D. Pazho, and H. Tabkhi, “An exploratory study
+       on human-centric video anomaly detection through variational autoen-
+       coders and trajectory prediction,” in IEEE/CVF WACV, 2024, pp. 995–
+       1004.
+
+       A. Stergiou, B. De Weerdt, and N. Deligiannis, “Holistic representation
+       learning for multitask trajectory anomaly detection,” in IEEE/CVF
+       WACV, 2024, pp. 6729–6739.
+
+       Y. Tang, J. Bi, S. Xu, L. Song, S. Liang, T. Wang, D. Zhang, J. An,
+       J. Lin, R. Zhu et al., “Video understanding with large language models:
+       A survey,” IEEE Trans. on CSVT, 2025.
+
+       K. Zhou, J. Yang, C. C. Loy, and Z. Liu, “Learning to prompt for
+       vision-language models,” IJCV, vol. 130, no. 9, pp. 2337–2348, 2022.
+
+       I. S. Rawal, A. Matyasko, S. Jaiswal, B. Fernando, and C. Tan,
+       “Dissecting multimodality in videoqa transformer models by impairing
+       modality fusion,” arXiv:2306.08889, 2023.
+
+       S. N. Gowda, D. Moltisanti, and L. Sevilla-Lara, “Continual learning
+       improves zero-shot action recognition,” in ACCV, 2024, pp. 3239–3256.
+
+       R. Gupta, M. N. Rizve, J. Unnikrishnan, A. Tawari, S. Tran, M. Shah,
+       B. Yao, and T. Chilimbi, “Open vocabulary multi-label video classifi-
+       cation,” in ECCV. Springer, 2024, pp. 276–293.
+
+       D. Chatterjee, F. Sener, S. Ma, and A. Yao, “Opening the vocabulary
+       of egocentric actions,” NeurIPS, vol. 36, pp. 33 174–33 187, 2023.
+
+       F. Gouidis, K. Papoutsakis, T. Patkos, A. Argyros, and D. Plexousakis,
+       “Enabling visual intelligence by leveraging visual object states in a
+       neurosymbolic framework: A position paper,” in Australasian Joint
+       Conference on Artificial Intelligence. Springer, 2024, pp. 312–320.
+
+       M. Choi, H. Goel, M. Omama, Y. Yang, S. Shah, and S. Chinchali,
+       “Towards neuro-symbolic video understanding,” in ECCV. Springer,
+       2024, pp. 220–236.
+
+       X. Hong, Y. Lan, L. Pang, J. Guo, and X. Cheng, “Transformation
+       driven visual reasoning,” in IEEE/CVF CVPR, 2021, pp. 6903–6912.
+
+       N. Saini, H. Wang, A. Swaminathan, V. Jayasundara, B. He, K. Gupta,
+       and A. Shrivastava, “Chop & learn: Recognizing and generating object-
+       state compositions,” in IEEE/CVF ICCV, 2023, pp. 20 247–20 258.
+
+       X. Wang, A. Farhadi, and A. Gupta, “Actions˜ transformations,” in
+       IEEE/CVF CVPR, 2016, pp. 2658–2667.
+
+       K. Bacharidis and A. Argyros, “Repetition-aware image sequence
+       sampling for recognizing repetitive human actions,” in IEEE/CVF ICCV
+       (ICCV) Workshops, October 2023, pp. 1878–1887.
+       T. Soucˇek, J.-B. Alayrac, A. Miech, I. Laptev, and J. Sivic, “Look for
+       the change: Learning object states and state-modifying actions from
+       untrimmed web videos,” in IEEE/CVF CVPR, 2022, pp. 13 956–13 966.
+

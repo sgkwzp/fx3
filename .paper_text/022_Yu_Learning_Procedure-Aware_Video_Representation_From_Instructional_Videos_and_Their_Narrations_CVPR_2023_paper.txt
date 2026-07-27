@@ -1,0 +1,769 @@
+This CVPR paper is the Open Access version, provided by the Computer Vision Foundation.
+                 Except for this watermark, it is identical to the accepted version;
+
+          the final published version of the proceedings is available on IEEE Xplore.
+
+       Learning Procedure-aware Video Representation
+        from Instructional Videos and Their Narrations
+
+Yiwu Zhong1*, Licheng Yu2, Yang Bai2, Shangwen Li2, Xueting Yan2†, Yin Li1†
+                   1University of Wisconsin-Madison, 2Meta AI
+
+     yzhong52@wisc.edu, {lichengyu, yangbai, dylanwen, xyan18}@meta.com, yin.li@wisc.edu
+
+                        Abstract                                Video 1                        whisk eggs in bowl
+                                                                Video 2                                 cook eggs
+   The abundance of instructional videos and their narra-
+tions over the Internet offers an exciting avenue for un-                                      crack egg in pan
+derstanding procedural activities. In this work, we pro-                                                  add butter
+pose to learn video representation that encodes both ac-
+tion steps and their temporal ordering, based on a large-                                     Step Descriptions
+scale dataset of web instructional videos and their narra-
+tions, without using human annotations. Our method jointly                                           flatten dough
+learns a video representation to encode individual step con-
+cepts, and a deep probabilistic model to capture both tem-                Our   knead dough    Our   bake pizza
+poral dependencies and immense individual variations in                  Model                Model
+the step ordering. We empirically demonstrate that learn-
+ing temporal ordering not only enables new capabilities                  Step Classification                              bake cookies
+for procedure reasoning, but also reinforces the recognition                                  Step Forecasting
+of individual steps. Our model significantly advances the
+state-of-the-art results on step classification (+2.8%/+3.3%    Figure 1. Top: During training, our model learns from procedu-
+on COIN / EPIC-Kitchens) and step forecasting (+7.4%            ral videos and step descriptions to understand individual steps and
+on COIN). Moreover, our model attains promising re-             capture temporal ordering and variations among steps. Bottom:
+sults in zero-shot inference for step classification and fore-  Once trained, our model supports zero-shot step classification and
+casting, as well as in predicting diverse and plausible         forecasting, yielding multiple credible predictions.
+steps for incomplete procedures. Our code is available at
+https://github.com/facebookresearch/ProcedureVRL.               a future step. Such a model will be immensely useful for
+                                                                a wide range of applications including augmented reality,
+1. Introduction                                                 virtual personal assistant, and human-robot interaction.
+
+   Many of our daily activities (e.g. cooking or crafting)         Understanding complex procedural activities has been a
+are highly structured, comprising a set of action steps con-    long-standing challenge in the vision community [7, 18, 22,
+ducted in a certain ordering. Yet how these activities are      39, 41, 46]. While many prior approaches learn from anno-
+performed varies among individuals. Consider the exam-          tated videos following a fully supervised setting [13,27,69],
+ple of making scrambled eggs as shown in Fig. 1. While          this paradigm is difficult to scale to a plethora of activ-
+most people tend to whisk eggs in a bowl, melt butter in a      ities and their variants among individuals. A promising
+pan, and cook eggs under medium heat, expert chefs have         solution is offered by the exciting advances in vision-and-
+recommended to crack eggs into the pan, add butter, and         language pre-training, where models learn from visual data
+stir them under high heat. Imagine a vision model that can      (images or videos) and their paired text data (captions or
+account for the individual variations and reason about the      narrations) [30, 43, 54, 70] in order to recognize a variety of
+temporal ordering of action steps in a video, so as to infer    concepts. This idea has recently been explored to analyze
+prior missing steps, recognize the current step, and forecast   instructional videos [33, 37], yet existing methods are lim-
+                                                                ited to recognize single action steps in procedural activities.
+    *Work done while Yiwu Zhong was an intern at Meta.
+    †Co-corresponding authors.                                     In this paper, we present a first step towards modeling
+                                                                temporal ordering of action steps in procedural activities by
+                                                                learning from instructional videos and their narrations. Our
+                                                                key innovation lies in the joint learning of a video repre-
+                                                                sentation aiming to encode individual step concepts, and a
+                                                                deep probabilistic model designed to capture temporal de-
+                                                                pendencies and variations among steps. The video represen-
+                                                                tation, instantiated as a Transformer network, is learned by
+
+                                                                14825
+matching a video clip to its corresponding narration. The       temporal ordering of these steps, has been a central problem
+probabilistic model, built on a diffusion process, is tasked    in activity recognition. While early works model tempo-
+to predict the distribution of the video representation for a   ral ordering with stochastic grammars [7, 18, 22, 39, 41, 46],
+missing step, given steps in its vicinity. With the help of     more recent works consider supervised learning to local-
+a pre-trained vision-and-language model [43], our model is      ize steps and predict their ordering by learning from videos
+trained using only videos and their narrations from auto-       with human annotated action steps [8, 10, 13, 27, 55, 69, 71].
+matic speech recognition (ASR), and thus does not require       To alleviate the burden of costly video annotations, sev-
+any manual annotations.                                         eral works propose various forms of weakly supervised
+                                                                settings, with assumptions that the ordered list of steps is
+   Once learned, our model celebrates two unique bene-          given without their temporal boundaries [5, 6, 67, 71], or
+fits thanks to our model design and training framework.         that the key steps and their ordering remain fixed across all
+First, our model supports zero-shot inference given an input    videos [1, 12, 13, 17, 28, 49].
+video, including the recognition of single steps and fore-
+casting of future steps, and can be further fine-tuned on          Most of prior methods focus on the tasks of step classifi-
+downstream tasks. Second, our model allows sampling mul-        cation and localization [1,5,6,12,13,28,49,71]. Others have
+tiple video representations when predicting a missing action    considered the tasks of step forecasting [48], step verifica-
+step, with each presenting a possibly different hypothesis of   tion [42] and procedure planning [67]. Our work also seeks
+the step ordering. Instead of predicting a single represen-     to understand procedural activities. Different from these ap-
+tation with the highest probability, sampling from a proba-     proaches, our method focuses on learning video represen-
+bilistic model provides access to additional high-probability   tation from videos and their narrations without using hu-
+solutions that might be beneficial to prediction tasks with     man annotations. The resulting video representation can be
+high ambiguity or requiring user interactions.                  leveraged for step classification and step forecasting.
+
+   We train our models on a large-scale instructional video     Learning from Procedural Videos and Narrations. The
+dataset collected from YouTube (HowTo100M [38]), and            success of vision-and-language pre-training has fueled a
+evaluate them on two public benchmarks (COIN [55] and           new line of research that seeks to learn concepts of in-
+EPIC-Kitchens-100 [10]) covering a wide range of pro-           dividual steps from instructional videos and their narra-
+cedural videos and across the tasks of step classification      tions [19, 36, 50, 62]. For example, Miech et al. [37] pro-
+and step forecasting. Through extensive experiments, we         pose MIL-NCE to learn representations from instructional
+demonstrate that (1) our temporal model is highly effec-        videos [38] and their narrations extracted using ASR.
+tive in forecasting future steps, outperforming state-of-the-
+art methods by a large margin of +7.4% in top-1 accu-              The most relevant work is DistantSup [33], where they
+racy on COIN; (2) modeling temporal ordering reinforces         propose using distant supervision from a textual knowl-
+video representation learning, leading to improved clas-        edge base (wikiHow) [26] to denoise text narrations from
+sification results (+2.8%/+3.3% for step classification on      ASR. Specifically, DistantSup leverages a pre-trained lan-
+COIN/EPIC-Kitchens) when probing the learned represen-          guage model [52] to link step descriptions from wikiHow
+tations; (3) our training framework offers strong results for   to text narrations from video ASR results, and thus to cre-
+zero-shot step classification and forecasting; and (4) sam-     ate training labels for individual steps in videos. Differ-
+pling from our probabilistic model yields diverse and plau-     ent from [33], our method models the temporal ordering
+sible predictions of future steps.                              of steps in procedural activities, thus moves beyond rep-
+                                                                resentations of single steps to support temporal reasoning
+Contributions. Our work presents the first model that           in videos. Further, our method learns from videos and nar-
+leverages video-and-language pre-training to capture the        rations only, with the help of a pre-trained image-language
+temporal ordering of action steps in procedural activities.     model [43] yet without using a textual knowledge base.
+Our key technical innovation lies in the design of a deep
+probabilistic model using a diffusion process, in tandem        Video-and-Language Pre-Training. A relevant topic is
+with video-and-language representation learning. The re-        video-and-language pre-training, aiming at learning video
+sult is a model and a training framework that establish new     representation from videos and their paired natural language
+state-of-the-art results on both step classification and fore-  descriptions [3, 15, 16, 29, 31, 35, 54, 59, 63, 64, 66, 70], often
+casting tasks across the major benchmarks. Besides, our         generated from ASR outputs. Despite the latest develop-
+model is capable of generating diverse step predictions and     ment in ASR, automatically-transcribed speech from videos
+supports zero-shot inference.                                   can be rather noisy and lacks precise temporal alignment
+                                                                with the visual content. Several recent works seek to ad-
+2. Related Work                                                 dress this challenge. VideoCLIP [63] starts from the pre-
+                                                                trained MIL-NCE model and further improves the model
+Understanding Procedural Activities. Reasoning about            by retrieval augmented training with overlapped video-text
+procedural activities, including their action steps and the     pairs. Bain et al. [3] collect a less noisy dataset of video alt-
+
+                                                                14826
+                                     xT-1                                                                     (a). Pseudo label creation
+
+             T times                                 MSE loss & language matching loss
+
+                                           Reconstruct Video Embedding                                                                               stir egg
+                                                                                                                                                        jack the car
+Ordering                                                                                                                            CLIP
+                                                                                                                                    Model            carve pumpkin
+
+                                     Transformer based denoising model                                        Video clips                  Step description pool
+
+                                                                                                                           (b). Step classification
+
+                                                                                                                                    Matching
+
+             language matching loss        Sampled Gaussian Noise                                       Time  Video embedding from         Language embeddings
+                Video encoder                                           language matching loss                video encoder                from CLIP
+
+Recognition                          xT                                    Video encoder                                   (c). Step forecasting
+                                      Video encoder
+                                                             ……
+
+                                                                                                                           Matching
+
+                        …                      …             ……                    …
+             Frames of video clip 1  Frames of video clip 2             Frames of video clip N
+                                                                                                              Video embeddings from        Language embeddings
+                                                                                                              multiple sampled noises      from CLIP
+
+Figure 2. Overview of our approach. Left panel: Our model consists of (1) a video encoder that takes a video clip and encodes it
+into a video embedding; (2) a transformer-based denoising model that samples noises from Gaussian distribution and generates video
+embedddings conditioned on the embeddings of adjacent video clips. Right panel: We leverage trained image-language model CLIP to
+create pseudo labels for individual video clips (a). After training, our model supports step classification given an input video clip (b), and
+step forecasting given a video that records previous steps (c). Note that diverse embeddings can be generated by sampling various noises.
+
+text pairs and geared the model to match these pairs. Our               vi captures a potential action step in the input video, and
+work shares the key idea of learning from video and text                the time step i records the temporal ordering of these clips.
+data as prior work, and seeks to leverage external knowl-               The video clips {vi} can be either segmented by using
+edge from a pre-trained image-language model [43].                      the timestamps of ASR outputs (as we consider during
+                                                                        training), or densely sampled from a video following their
+   Another relevant work is MERLOT [66]. While both                     temporal ordering (as we use during inference). During
+MERLOT and our work seek to learn video representa-                     learning, we further assume that an ordered set of sen-
+tion, our method differs from MERLOT in two folds. Our                  tences {s1, s2, ..., sN } is associated with the video clips
+method models the sequence order of video clips for under-              {v1, v2, ..., vN }, with each si describing the action step in
+standing procedural activities. MERLOT learns binary rela-              video clip vi. These sentences {si} can be the output text
+tive order between two given video frames for multi-modal               from ASR, or given by matching the video clips to a text
+reasoning and does not directly support action forecasting.             corpus using an external vision language model [43].
+Both methods consider a masked prediction task, yet MER-
+LOT predicts the most likely text embeddings, while our                 Procedural-aware Video Representation. Our goal is to
+method estimates the distribution of video representations              learn video representation that encodes both action step
+using a deep probabilistic model.                                       concepts and their temporal dependencies across a range
+                                                                        of procedural activities. Our representation consists of (a)
+Diffusion Models. Diffusion models [51, 53] provide a                   a video encoder f that extracts a representation xi from
+powerful approach to characterize the probability density of            an input clip vi (i.e., xi = f (vi)); and (b) a probabilistic
+high dimensional signals, and have recently demonstrated                model that characterizes the conditional probability p(xj =
+impressive results on generating high fidelity visual data,             f (vj)|{xi = f (vi)}i̸=j) ∀j. This design is highly flexi-
+such as images [40,44,45,47], videos [21], and human body               ble and supports a number of procedural reasoning tasks.
+motion [57]. Our work adapts diffusion process to model                 f offers video representation suitable to classify individual
+the temporal ordering of steps in procedural videos. In do-             steps in a clip. p(xj|{xi}i̸=j) models the temporal depen-
+ing so, our method not only facilities the learning of ex-              dencies among steps, and can be used to predict the video
+pressive video representations for individual steps, but also           representation of missing steps and further infer their labels.
+enables the anticipation of future action steps.
+                                                                        Method Overview. To learn our representation, we lever-
+3. Method                                                               age a pre-trained text encoder g that remains fixed dur-
+                                                                        ing learning, and extend the idea of masked token mod-
+   We consider the problem of learning video representa-                eling, populated in natural language processing [24]. For
+tion for understanding procedural activities from instruc-              each input video and its narrations at training time, we ran-
+tional videos and their narrations. An input video is rep-              domly sample a clip vj from {v1, v2, ..., vN } and mask it
+resented as a sequence of N clips {v1, v2, ..., vN }. Each
+
+                                                                   14827
+out. We then train our model to predict the distribution of      where αt are constant hyper-parameters. The reverse diffu-
+xj = f (vj) from {xi = f (vi)}i̸=j (i.e., p(xj|{xi}i̸=j)),       sion (denoising) process is parameterized with
+align the expectation of the predicted distribution E(xj)
+with the corresponding text embedding yj = g(sj), and               p(x0:T j |{xi}i̸=j ) = p(xTj |{xi}i̸=j ) t=1 T pθ(xjt−1|xjt , {xi}i̸=j ). (3)
+match all other video representations {xi = f (vi)}i̸=j to
+their text embeddings {yi = g(si)}i̸=j.                          With sufficiently large T , p(xTj |{xi}i̸=j) ∼ N (0, I), i.e. a
+                                                                 standard Gaussian noise that is independent of {xi}i̸=j. The
+   Despite the conceptual similarity, our learning is fun-       denoising process is approximated by pθ(xjt−1|xtj, {xi}i̸=j)
+damentally different from masked token prediction. Our           using a neural network with parameters θ such that
+method seeks to characterize the distribution of xj instead
+of predicting the most likely xj, resulting in a more princi-       pθ(xtj−1|xtj , {xi}i̸=j ) = N (µθ(xtj , {xi}i̸=j ), Σθ(xtj , {xi}i̸=j )) (4)
+pled approach to capture the temporal dependencies among
+steps, as well as the new capability of sampling multiple        In practice, we follow Ho et al. [20] and Tevet et al. [57]
+high-probability solutions for xj. Our method is illustrated     to directly predict x0j by using a denoising model h. With
+in Fig. 2. In what follows, we lay out the formulation of our    slight abuse of the symbols, we denote
+model, and describe its training and inference schemes.
+                                                                                          xˆj0 = h(xjt , {xi}i̸=j , t). (5)
+3.1. Modeling Action Steps and Their Ordering
+                                                                 h is realized using a Transformer network with the embed-
+   Formally, given an input video with its clips                 ding of step t as part of its inputs. Once learned, one can
+{v1, v2, ..., vN } and their narrations {s1, s2, ..., sN }, our  sample from N (0, I) and apply h through the denoising
+method assumes a factorization of p(Y = {yi}|X = {xi})           process to predict xj based on {xi}i̸=j.
+with video representation xi = f (vi) (learnable) and text
+embedding yi = f (si) (pre-trained and fixed).                   3.2. Learning from Videos and Their Narrations
+
+p(Y |X) = p(yj |xj ) · p(xj |{xi}i̸=j ) · i p(yi|xi) ∀j. (1)        Our training approximately maximizes the likelihood of
+                                                                 Eq. 1 given a set of training videos and their narrations.
+p(yi|xi) measures the alignment between a video represen-
+tation xi and a text embedding yi. p(xj|{xi}i̸=j) charac-        Pseudo Labels from CLIP. It is straightforward to directly
+terizes the distribution of a video representation for a miss-   align video representations to the embeddings of their corre-
+ing step given the representations of all other steps, thereby   sponding ASR text. Doing so, however, faces the challenges
+modeling the temporal ordering of steps. Note that our           of low-quality ASR text and imprecise alignment between
+model is not limited to single step prediction and can be        video and ASR sentences. To address these challenges, we
+readily extended to predict multiple missing steps.              propose to create pseudo labels by leveraging a pre-trained
+                                                                 image-language model (e.g., CLIP [43]).
+Matching Image and Text Representations. Our model
+matches the video representation xi and text embedding yi           Specifically, we first create a pool of step descriptions in
+in a learned vector space, such that the alignment between       the form of verb phrases (e.g., “add water”, “wear gloves”)
+them can be measured by cosine similarity. We will later in-     parsed from ASR sentences [50], with their embeddings as
+stantiate this definition into a more tractable form for learn-  {y1:K }. Then a trained CLIP model is applied to link each
+ing. Yet it suffices to notice that p(yj|xj) does not involve    video clip with verb phrases, by matching the averaged vi-
+additional learnable parameters given xi and yi.                 sual features across frames with the language embeddings
+                                                                 of verb phrases. The resulting matching scores are used as
+Modeling Step Ordering with Diffusion Process. The               our training target.
+key challenge lies in the modeling of p(xj|{xi}i̸=j), as the
+video representation xi is at least of a few hundred dimen-         Our pseudo labeling instantiates the matching p(yi|xi)
+sions. To this end, we propose to model p(xj|{xi}i̸=j)           between video representation and text embedding using
+using a diffusion process [51, 53] conditioned on observed
+video representations {xi}i̸=j. Here we briefly describe dif-                     p(y xT i|xi) = softmax i yi , (6)
+fusion process in the context of our model, and refer the                                                     τ ∥xi∥|yi∥
+readers to recent surveys for more technical details [9, 65].
+                                                                 where yi is selected from pool of verb phrases, i.e. yi ∈
+   Specifically, we assume a diffusion process that gradu-       {y1:K }, and τ is the pre-defined temperature. The matching
+ally adds noise to the input xj over t ∈ [0, 1, ..., T ] steps.  problem thus is converted into a “classification” problem,
+                                                                 making the training feasible.
+T
+                                                                 Learning Objective and Training Loss. Our training min-
+p(xj1:T |x0) = p(xjt |xjt−1),                  (2)               imizes an evidence upper bound of the negative log like-
+                                                                 lihood − log p(Y |X) in Eq. 1. The detailed derivation of
+t=1
+p(xjt |xjt−1) = N (√αtxjt−1, (1 − αt)I).
+
+                                                                 14828
+evidence upper bound is described in the Supplement. Our                                      classifier can be attached on top of f and further fine-tuned
+objective function constitutes three loss terms:                                              to recognize the action step in input clip.
+
+                                 L = LXE + LMSE + LMC .                                  (7)  Step Forecasting. A future video clip feature xj can be
+                                                                                              sampled from the diffusion model by drawing from a Gaus-
+   The first term LXE seeks to match observed video repre-                                    sian distribution and denoising using h(·). The predicted xj
+sentation {xi} to their text embeddings {yi}, given by                                        can be further classified into action steps. This prediction
+                                                                                              can be done using again Monte Carlo estimation given by
+                     LXE = N−1 1 i H (p′i, p(yi|xi)) ,                                   (8)
+
+where H(·, ·) is the cross entropy, and p′i are soft targets                                                      Exj ∼p(xj |{xi}i̸=j ) [p(yj |xj )] .  (11)
+given by CLIP matching scores. p(yi|xi) defined in Eq. 6
+measures the similarity between xi and yi.                                                    Specifically, a noise xT is first sampled from Gaussian dis-
+
+   The second term LMSE comes from the Kull-                                                  tribution and our denoising model gradually denoises it. At
+back–Leibler (KL) divergence within our diffusion model,
+                                                                                              each step t, the denoising model h takes a noisy xtj, predicts
+and is computed as
+                                                                                              clip feature xˆ0j , and diffuses it to xjt−1 based on the sampled
+
+                                                                                              noise  x  T  ,  as  demonstrated  in  Eq.  2.  After  T   iterations,  the
+                                                                                                        j
+          LMSE = Ex0j ∼p(x0j |{xi}i̸=j ), t∼[1,T ] ∥xj0 − xˆj0∥22 . (9)
+                                                                                              predicted clip feature at t = 0 is used to match text em-
+
+                                                                                              beddings. By sampling noises for multiple times, we can
+
+Note that unlike a standard diffusion model, our model di-                                    estimate the most likely yj.
+
+rectly predicts xˆ0j . This term is applied at each step t.                                          However, sampling can be costly. In practice, to obtain
+   The third term LMC is derived from matching the pre-
+                                                                                              top-1 prediction for missing steps, we adopt approximate
+dicted video representation xˆ0j to its text embedding yj.
+                                                                                              inference, where the sampled noise is replaced with a fixed
+
+   LMC = Ex0j ∼p(x0j |{xi}i̸=j ), t∼[1,T ] H pj′ , p(yj |xˆj0) , (10)                         zero vector, corresponding to peak in the Gaussian distribu-
+
+                                                                                              tion. Our empirical results validate that approximate infer-
+
+where p′j are again soft targets given by CLIP model, and                                     ence achieves a very close performance as the expectation
+
+xˆ0j is denoised from a sampled noise. During training, we                                    over multiple sampled noises.
+
+adopt Monte Carlo estimation for Ep                        −  log  p(y  j  |xˆ  0  )  ,  by   4. Experiments and Results
+                                                                                j
+                                                                                                 In this section, we first introduce datasets, evaluation
+minimizing − log p(yj|xˆ0j ) for each sampled xˆ0j . We attach                                protocols and implementation details. Then we demonstrate
+                                                                                              our results on step forecasting and step classification bench-
+this term at each step t.                                                                     marks. Finally, we show our qualitative results and conduct
+                                                                                              ablations to study our model components.
+   A critical design choice lies in p(yj|xˆ0j ). p(yj|xˆ0j ) is
+                                                                                              Datasets. For pre-training, we consider HowTo100M
+simplified into a score function between a video repre-                                       dataset [38] with 130K hours of YouTube tutorial videos.
+                                                                                              The videos cover various daily tasks, such as foods, house-
+sentation and a finite set of text embeddings (defined us-                                    work, vehicles, etc. We use a language parser [50] to ex-
+                                                                                              tract the verb phrases from ASR sentences of these videos
+ing verb phrases). This allows us to reach our loss terms                                     and keep 9,871 most frequent verb phrases. For fine-tuning,
+                                                                                              we train our model on COIN dataset [55, 56] and EPIC-
+without worrying about global normalization constant as                                       Kitchens-100 dataset [10], respectively. COIN has 476
+                                                                                              hours of YouTube videos covering 180 tasks, such as dishes,
+commonly encountered in energy-based models. Indeed,                                          vehicles, housework, etc. Human annotators summarize
+                                                                                              778 unique steps in total (e.g., “stir the egg”), and anno-
+H  (p  ′  ,  p(y  j  |xˆ  0  ))  can  be  interpreted  as  providing       guidance           tate the temporal boundary and the category of each step in
+       j                  j                                                                   all videos. EPIC-Kitchens-100 dataset [10] has 100 hours
+                                                                                              of egocentric videos, capturing daily activities in kitchen.
+by matching video to text embeddings. This term thus                                          Each action in the videos is annotated with an action label
+                                                                                              and a noun label. There are 97/300 unique actions/nouns in
+resembles the key idea of classifier guidance, which has                                      total. We use the human annotations in COIN and EPIC-
+                                                                                              Kitchens-100 to evaluate the model performance.
+shown to be helpful for learning diffusion models [11].
+                                                                                              Evaluation Protocols. Our evaluation considers zero-shot
+3.3. Model Inference                                                                          and fine-tuning settings for step classification and step fore-
+
+   Once trained, our model offers a procedure-aware rep-
+resentation with two key components. First, the video en-
+coder f (·) serves as a feature extractor for any input video
+clips. Second, the diffusion model, represented as its de-
+noising model h(·), captures the temporal dependencies
+among steps. Our representation naturally supports a num-
+ber of tasks. Here we demonstrate how our model can be
+used for step classification and step forecasting.
+
+Step Classification. An input video clip v can be encoded
+using f (·). The video representation x = f (v) can be di-
+rectly compared to the text embeddings [43], so as to sup-
+port zero-shot step classification. Alternative, an additional
+
+                                                                                              14829
+Model                                Pretraining                                      Top-1 Acc. (%)
+                                                                                 Zero-shot Fine-tuning
+                Supervision                                             Dataset
+
+1 SlowFast [14] Supervised: action labels                               Kinetics –    25.6
+
+2 TimeSformer [4] Supervised: action labels                             Kinetics –    34.7
+
+3 S3D [61]      Unsupervised: ASR w. MIL-NCE [37] HT100M –                            28.1
+
+4 TimeSformer [4] Unsupervised: ASR w. MIL-NCE [37] HT100M –                          34.0
+
+5 DistantSup [33] Unsupervised: ASR + wikiHow                           HT100M –      39.4
+
+6 Random Guess  –                                                       –        0.1  –
+7 CLIP [43]     Unsupervised: captions
+8 Ours          Unsupervised: ASR                                       CLIP400M 9.4  –
+
+                                                                        HT100M 11.3   46.8
+
+9 Ours (oracle-5) Unsupervised: ASR                                     HT100M 14.7   51.8
+
+Table 1. Step forecasting on COIN dataset. We compare to a set of strong baselines and a oracle protocol built on our method.
+
+casting on COIN and EPIC-Kitchens-100 datasets. Zero-            to match the input video with the descriptions of all step
+shot setting indicates that no human annotation is used dur-     candidates. Comparing L7 and L8, our model outperforms
+ing pre-training. The pre-trained model is directly tested on    this variant of CLIP by a clear margin (11.3% vs. 9.4%).
+the evaluation dataset. Fine-tuning setting further fine-tunes
+the pre-trained model using human annotations of action             A unique property of our model is its ability to output
+steps. For a fair comparison, we follow the same fine-tuning     multiple, potentially different predictions. We further eval-
+schemes as previous work in respective benchmarks.               uate the upper bound of our results by assuming an oracle
+                                                                 ranking function that always selects the correction predic-
+Implementation Details. We adopted TimeSformer [4]               tion from 5 outputs sampled from our model (Ours (oracle-
+as our video encoder, and used the Transformer [58] from         5)). This oracle further improves the top-1 accuracy from
+CLIP’s text encoder as denoising model. We set the max-          11.3% to 14.7% in L9, suggesting that our model is able to
+imum step T to 4, maximum length of video sequence as            produce diverse predictions for step forecasting.
+9, and the number of Transformer layers as 4. We used
+a trained CLIP model (ViT-B/16) to create pseudo labels          4.2. Step Classification
+and encode step descriptions. Following DistantSup [33],
+for pre-training we used SGD for 5 epochs and then               Setup. Besides step ordering, we also evaluate step classi-
+AdamW [34] for 25 epochs with 128 videos in a batch. For         fication on COIN and EPIC-Kitchens-100 datasets, where a
+fine-tuning, we used AdamW for 15 epochs with batch size         model is tasked to classify a trimmed video clip into one of
+of 64. Temperature τ was set to 0.02. Additional imple-          the step categories. For COIN, we follow DistantSup [33] to
+mentation details can be found in Supplement.                    only fine-tune the additional linear layer on top of the pre-
+                                                                 trained video encoder. For EPIC-Kitchens-100, we fully
+4.1. Step Forecasting                                            fine-tune the video encoder, following [2, 25, 33]. We re-
+                                                                 port the accuracy of step classification on COIN, and that of
+Setup. We follow the benchmark in DistantSup [33] to eval-       verb, noun, and action on EPIC-Kitchens-100.
+uate step forecasting on COIN, where top-1 accuracy is re-
+ported. Given a video with previous steps, the model antic-      Results. Table. 2 summarizes the results on COIN. We con-
+ipates the category of next single step (e.g., “stir the egg”).  sider baselines as in DistantSup from L1 to L8 (e.g., Slow-
+This task thus requires explicit modeling of the temporal or-    Fast [14], VideoCLIP [63]), where models are trained using
+dering among steps. We only fine-tune the diffusion model        either action labels or video ASR text. To support zero-shot
+while keeping the video encoder frozen.                          inference, we re-implement a model variant (DistantSup†)
+                                                                 described in [33]. This model is pre-trained to match video
+Results. Table 1 compares results of our method with a se-       embeddings with language embeddings and thus supports
+ries of baselines. The closest competitor is DistantSup [33]     recognizing arbitrary step descriptions in L9. We also report
+in L5, which learns from ASR text and an external tex-           the results of CLIP [43], which creates the pseudo labels for
+tual knowledge base [26] using the same video backbone           our pre-training in L10. As shown, our model consistently
+(TimeSformer [4]). We also include other baselines re-           outperforms all the other methods by a clear margin under
+ported in DistantSup, e.g., SlowFast [14], TimeSformer [4],      different settings. For example, ours outperforms CLIP by
+and S3D [61] from L1 to L4, where models are super-              1.8% in zero-shot setting (16.6% in L11 vs. 14.8% in L10),
+vised using human-annotated action labels or video ASR           and outperforms DistantSup by 2.8% (56.9% in L11 vs.
+text. Our model significantly outperforms all baselines by       54.1% in L8) in fine-tuning setting.
+at least 7.4% for the fine-tuning setting (e.g., 46.8% in L8
+vs. 39.4% in L5). Further, we consider a strong baseline            Table. 3 presents our results on EPIC-Kitchens-100.
+for the zero-shot setting by re-purposing CLIP model [43]        While TimeSformer [4] in L8 and DistantSup [33] in L9
+                                                                 use the same video encoder architecture as ours, our model
+
+                                                                 14830
+Model                                        Pretraining                                        Top-1 Acc. (%)
+                                                                                           Zero-shot Fine-tuning
+                    Supervision                                            Dataset
+
+1 TSN (RGB+Flow) [55] Supervised: action labels                            Kinetics        –  36.5*
+                                                                                              37.5*
+2 S3D [61]          Unsupervised: ASR w. MIL-NCE [37] HT100M –
+
+3 SlowFast [14]     Supervised: action labels                              Kinetics        –  32.9
+4 TimeSformer [4]
+5 ClipBERT [29]     Supervised: action labels                              Kinetics        –  48.3
+6 VideoCLIP [63]
+7 TimeSformer [4]   Supervised: captions                                   COCO+VG –          30.8
+8 DistantSup [33]
+9 DistantSup† [33]  Unsupervised: ASR                                      HT100M –           39.4
+10 CLIP [43]
+11 Ours             Unsupervised: ASR w. MIL-NCE [37] HT100M –                                46.5
+
+                    Unsupervised: ASR + wikiHow                            HT100M –           54.1
+
+                    Unsupervised: ASR + wikiHow                            HT100M 10.2        46.6
+
+                    Unsupervised: captions                                 CLIP400M 14.8      45.9
+
+                    Unsupervised: ASR                                      HT100M 16.6        56.9
+
+Table 2. Step classification on COIN dataset. DistantSup† is re-implemented based on their official code base. It is a variant reported in
+their paper that pre-trains the model to match language embeddings. * indicates the model is fully fine-tuned on COIN dataset.
+
+Model          Pretraining Supervision                           Pretraining Dataset Action (%) Verb (%) Noun (%)
+
+1 TSN [60]     –                                                 –                   33.2     60.2   46.0
+
+2 TRN [68]     –                                                 –                   35.3     65.9   45.4
+
+3 TBN [23]     –                                                 –                   36.7     66.0   47.2
+
+4 MoViNet [25] –                                                 –                   47.7     72.2   57.3
+
+5 TSM [32]     Supervised: action labels                         Kinetics            38.3     67.9   49.0
+
+6 SlowFast [14] Supervised: action labels                        Kinetics            38.5     65.6   50.0
+
+7 ViViT-L [2]  Supervised: action labels                         Kinetics            44.0     66.4   56.8
+
+8 TimeSformer [4] Supervised: action labels                      Kinetics            42.3     66.6   54.4
+
+9 DistantSup [33] Unsupervised: ASR + wikiHow HT100M                                 44.4     67.1   58.1
+
+10 Ours        Unsupervised: ASR                                 HT100M              47.7     69.5   60.3
+
+Table 3. Step classification on EPIC-Kitchens-100 dataset with fine-tuning setting. Our method outperforms the close competitors (TimeS-
+former, DistantSup), with results on par with even stronger backbone models (MoViNet).
+
+in L10 achieves a clear gain over them, e.g., +3.3%/2.2%               As shown in Fig. 3, our model is capable of forecasting
+for action/noun. The only exception is the lower accuracy           multiple, reasonable next steps (e.g., “flatten the dough”,
+(-2.7%) on verb when compared with MoViNet (MoViNet-                “bake pizza”), based on which credible future frames can
+A6) in L4, a heavily optimized video backbone.                      be generated. These results suggest that our model not
+                                                                    only predicts meaningful video representations of individ-
+4.3. Predicting Diverse Future Steps                                ual steps, but also captures the variations in step ordering
+
+   One of the defining characteristics of our model is that it      4.4. Ablation Studies
+allows us to sample multiple predictions of video represen-
+tation corresponding to a future step. This leads to an inter-         We conduct ablation study on COIN, including step
+esting question about the diversity of the predictions, as par-     classification/forecasting with zero-shot/fine-tuning setting.
+tially evaluated in our prior experiments. Here we present          Additional ablation results can be found in Supplement.
+further demonstration of this capability by visualizing the
+step forecasting results, and more interestingly, using these       Does modeling of temporal order help? In Table 4, we
+results to generate future video frames.                            conduct a comparison on two different pre-training tasks:
+                                                                    (1) pre-training by only matching video representations to
+   Fig. 3 presents the visualization for zero-shot step fore-       text embeddings of the verb phrases; and (2) pre-training
+casting and key frame generation. In this setting, our model        by our method that combines matching and temporal order
+is pre-trained without any human annotation and is directly         modeling. In comparison to pre-training using matching
+tested for step forecasting. We show multiple predictions           only, our method significantly improves the performance
+sampled from our diffusion model. Further, we demonstrate           for both zero-shot and fine-tuning settings and across step
+that the text description of predicted step can be used to          classification and step forecasting tasks. For example, zero-
+generate the key frames by leveraging the stable diffusion          shot step classification is improved from 13.7% to 16.6%.
+model [45]. To keep the generated images visually consis-           Our results after fine-tuning attains a major gain of +3.6%
+tent with the input video, we let stable diffusion model take       and +1.8% for step classification and step forecasting, re-
+one input video frame and the description of predicted step         spectively. Importantly, our method also enables zero-shot
+as input and generate an image.                                     step forecasting by predicting future video representations.
+
+                                                                 14831
+       Model input: videos                                        Diverse predictions and generated key frames for next step
+
+                                                                  flatten the dough            bake pizza      bake cookies
+
+                                                                  pour some salt to  put the ingredients   prepare seasonings
+                                                                      the garlics       into the bowl        and side dishes
+
+Figure 3. Visualization of zero-shot step forecasting and key frame generation. Without using any human annotation during training, our
+trained model is directly evaluated on COIN dataset [56]. Given a video recording previous steps (left), our model is capable of forecasting
+multiple reasonable predictions and each predicted step is further used for key frame generation (right). We adopt stable diffusion [45] for
+key frame generation, taking inputs as a text description of step and a sampled frame from input video.
+
+Model    Pre-training task  Order modeling           Zero-shot (top-1 acc. %)                        Fine-tuning (top-1 acc. %)
+                                            Step classification Step forecasting               Step classification Step forecasting
+ Ours         Matching              –
+ Ours  Matching + Ordering        Mask      13.7                         No zero-shot ability     52.8         41.6
+ Ours  Matching + Ordering     Diffusion
+                                            16.9                         10.6                     56.4         43.2
+
+                                            16.6                         11.3                     56.9         46.8
+
+Table 4. Ablation study of pre-training tasks and order modeling. Our proposed order pre-training not only enables zero-shot forecasting,
+but also significantly improves zero-shot step classification and the fine-tuning results across evaluation tasks. Our diffusion models further
+improves mask modeling, especially on fine-tuning step forecasting.
+
+These results suggest that our procedure-aware pre-training                          Model Inference Type Top-1 Acc. (%)
+can effectively facilitate the learning for both video repre-
+sentation and step ordering in procedure activities.                                 Ours Approximation 11.33
+
+Masked Prediction vs. Diffusion Model. We explore a                                  Ours Expectation      11.34 ± 0.03
+model variant using the mask prediction, sharing similar
+spirit as the well-known Masked Language Modeling in                                 Ours Oracle           14.73 ± 0.13
+BERT [24]. Specifically, this variant is trained to recover
+the video embeddings of masked video clips so that it can         Table 5. Ablation study of inference schemes. “Approximation”
+match to the assigned verb phrases. Our diffusion model           uses a zero-vector as noise, “Expectation” adopts Monte Carlo es-
+largely outperforms the results of this variant, especially on    timation, and “Oracle” further assumes an oracle ranking function
+the step forecasting (+0.7% and +3.6% for zero-shot and           to pick the correct prediction derived from multiple noises.
+fine-tuning, respectively, as in Table 4). This result indicates
+that our diffusion model is a more suitable way to capture        5. Conclusion
+the variation inside the step ordering.
+                                                                     In this work, we presented a model and a training frame
+Approximate Inference. In Table 5, we validate that our           work for learning procedure-aware video representation
+approximate inference with a single zero-vector can achieve       from a large-scale dataset of instructional videos and their
+close empirical results as the Monte Carlo estimation (e.g.,      narrations, without the need for human annotations. The
+within 0.1% difference). Monte Carlo estimation computes          key strength of our model lies in the joint learning of a
+the weighted average of multiple sampled predictions (e.g.,       video encoder capturing concepts of action steps, as well
+from 5 sampled noises). We run the experiment for 5 times         as a diffusion model reasoning about the temporal depen-
+and the variation is small (e.g., ±0.03%). Further, if we         dencies among steps. We demonstrated that our model
+assume an oracle ranking function to pick the correct one         achieves strong results on step classification and forecasting
+from sampled predictions, our results can be further boosted      in both zero-shot and fine-tuning settings and across COIN
+by 3.4% on average, suggesting diverse predictions from           and EPIC-Kitchens-100 datasets. We believe our work pro-
+our model and ample room to improve.                              vides a solid step towards understanding procedural activi-
+                                                                  ties. We hope that our work will shed light on the broader
+                                                                  problem of video-language pre-training.
+
+                                                                  14832
+References                                                                  the IEEE/CVF International Conference on Computer Vision
+                                                                            (ICCV), October 2019. 1, 2
+ [1] Jean-Baptiste Alayrac, Piotr Bojanowski, Nishant Agrawal,
+      Josef Sivic, Ivan Laptev, and Simon Lacoste-Julien. Unsu-       [14] Christoph Feichtenhofer, Haoqi Fan, Jitendra Malik, and
+      pervised learning from narrated instruction videos. In Pro-           Kaiming He. SlowFast networks for video recognition. In
+      ceedings of the IEEE Conference on Computer Vision and                Proceedings of the IEEE/CVF International Conference on
+      Pattern Recognition, pages 4575–4583, 2016. 2                         Computer Vision (ICCV), October 2019. 6, 7
+
+ [2] Anurag Arnab, Mostafa Dehghani, Georg Heigold, Chen              [15] Tsu-Jui Fu, Linjie Li, Zhe Gan, Kevin Lin, William Yang
+      Sun, Mario Lucˇic´, and Cordelia Schmid. Vivit: A video               Wang, Lijuan Wang, and Zicheng Liu. VIOLET: End-to-
+      vision transformer. In Proceedings of the IEEE/CVF Inter-             end video-language transformers with masked visual-token
+      national Conference on Computer Vision, pages 6836–6846,              modeling. arXiv preprint arXiv:2111.12681, 2021. 2
+      2021. 6, 7
+                                                                      [16] Deepti Ghadiyaram, Du Tran, and Dhruv Mahajan. Large-
+ [3] Max Bain, Arsha Nagrani, Gu¨l Varol, and Andrew Zisser-                scale weakly-supervised pre-training for video action recog-
+      man. Frozen in time: A joint video and image encoder for              nition. In Proceedings of the IEEE/CVF conference on com-
+      end-to-end retrieval. In Proceedings of the IEEE/CVF Inter-           puter vision and pattern recognition, pages 12046–12055,
+      national Conference on Computer Vision, pages 1728–1738,              2019. 2
+      2021. 2
+                                                                      [17] Karan Goel and Emma Brunskill. Learning procedural ab-
+ [4] Gedas Bertasius, Heng Wang, and Lorenzo Torresani. Is                  stractions and evaluating discrete latent temporal structure.
+      space-time attention all you need for video understanding?            In International Conference on Learning Representations,
+      In Proceedings of the International Conference on Machine             2019. 2
+      Learning (ICML), July 2021. 6, 7
+                                                                      [18] Abhinav Gupta, Praveen Srinivasan, Jianbo Shi, and Larry S.
+ [5] Piotr Bojanowski, Re´mi Lajugie, Francis Bach, Ivan Laptev,            Davis. Understanding videos, constructing plots learning a
+      Jean Ponce, Cordelia Schmid, and Josef Sivic. Weakly super-           visually grounded storyline model from annotated videos.
+      vised action labeling in videos under ordering constraints. In        In 2009 IEEE Conference on Computer Vision and Pattern
+      European Conference on Computer Vision, pages 628–643.                Recognition, pages 2012–2019, 2009. 1, 2
+      Springer, 2014. 2
+                                                                      [19] Tengda Han, Weidi Xie, and Andrew Zisserman. Temporal
+ [6] Piotr Bojanowski, Re´mi Lajugie, Edouard Grave, Fran-                  alignment networks for long-term video. In Proceedings of
+      cis Bach, Ivan Laptev, Jean Ponce, and Cordelia Schmid.               the IEEE/CVF Conference on Computer Vision and Pattern
+      Weakly-supervised alignment of video with text. In Pro-               Recognition, pages 2906–2916, 2022. 2
+      ceedings of the IEEE international conference on computer
+      vision, pages 4462–4470, 2015. 2                                [20] Jonathan Ho, Ajay Jain, and Pieter Abbeel. Denoising diffu-
+                                                                            sion probabilistic models. Advances in Neural Information
+ [7] M. Brand, N. Oliver, and A. Pentland. Coupled hidden                   Processing Systems, 33:6840–6851, 2020. 4
+      markov models for complex action recognition. In Proceed-
+      ings of IEEE Computer Society Conference on Computer Vi-        [21] Jonathan Ho, Tim Salimans, Alexey A Gritsenko, William
+      sion and Pattern Recognition, pages 994–999, 1997. 1, 2               Chan, Mohammad Norouzi, and David J Fleet. Video diffu-
+                                                                            sion models. In Advances in Neural Information Processing
+ [8] Chien-Yi Chang, De-An Huang, Danfei Xu, Ehsan Adeli,                   Systems, 2022. 3
+      Li Fei-Fei, and Juan Carlos Niebles. Procedure planning in
+      instructional videos. In European Conference on Computer        [22] Y.A. Ivanov and A.F. Bobick. Recognition of visual activities
+      Vision, pages 334–350. Springer, 2020. 2                              and interactions by stochastic parsing. IEEE Transactions on
+                                                                            Pattern Analysis and Machine Intelligence, 22(8):852–872,
+ [9] Florinel-Alin Croitoru, Vlad Hondru, Radu Tudor Ionescu,               2000. 1, 2
+      and Mubarak Shah. Diffusion models in vision: A survey.
+      arXiv preprint arXiv:2209.04747, 2022. 4                        [23] Evangelos Kazakos, Arsha Nagrani, Andrew Zisserman, and
+                                                                            Dima Damen. EPIC-fusion: Audio-visual temporal bind-
+[10] Dima Damen, Hazel Doughty, Giovanni Maria Farinella,                   ing for egocentric action recognition. In Proceedings of the
+      Sanja Fidler, Antonino Furnari, Evangelos Kazakos, Davide             IEEE/CVF International Conference on Computer Vision,
+      Moltisanti, Jonathan Munro, Toby Perrett, Will Price, and             pages 5492–5501, 2019. 7
+      Michael Wray. The EPIC-KITCHENS dataset: Collection,
+      challenges and baselines. IEEE Transactions on Pattern          [24] Jacob Devlin Ming-Wei Chang Kenton and Lee Kristina
+      Analysis and Machine Intelligence (TPAMI), 43(11):4125–               Toutanova. BERT: Pre-training of deep bidirectional trans-
+      4141, 2021. 2, 5                                                      formers for language understanding. In Proceedings of
+                                                                            NAACL-HLT, pages 4171–4186, 2019. 3, 8
+[11] Prafulla Dhariwal and Alexander Nichol. Diffusion models
+      beat GANs on image synthesis. Advances in Neural Infor-         [25] Dan Kondratyuk, Liangzhe Yuan, Yandong Li, Li Zhang,
+      mation Processing Systems, 34:8780–8794, 2021. 5                      Mingxing Tan, Matthew Brown, and Boqing Gong.
+                                                                            MoViNets: Mobile video networks for efficient video recog-
+[12] E. Elhamifar and D. Huynh. Self-supervised multi-task pro-             nition. In Proceedings of the IEEE/CVF Conference on Com-
+      cedure learning from instructional videos. European Confer-           puter Vision and Pattern Recognition, pages 16020–16030,
+      ence on Computer Vision, 2020. 2                                      2021. 6, 7
+
+[13] Ehsan Elhamifar and Zwe Naing. Unsupervised procedure            [26] Mahnaz Koupaee and William Yang Wang. WikiHow:
+      learning via joint dynamic summarization. In Proceedings of           A large scale text summarization dataset. arXiv preprint
+                                                                            arXiv:1810.09305, 2018. 2, 6
+
+                                                                      14833
+[27] Hilde Kuehne, Ali Arslan, and Thomas Serre. The lan-                    HowTo100M: Learning a text-video embedding by watching
+      guage of actions: Recovering the syntax and semantics of               hundred million narrated video clips. In Proceedings of the
+      goal-directed human activities. In Proceedings of the IEEE             IEEE/CVF International Conference on Computer Vision,
+      Conference on Computer Vision and Pattern Recognition                  pages 2630–2640, 2019. 2, 5
+      (CVPR), June 2014. 1, 2
+                                                                       [39] Ram Nevatia, Tao Zhao, and Somboon Hongeng. Hierarchi-
+[28] Anna Kukleva, Hilde Kuehne, Fadime Sener, and Jurgen                    cal language-based representation of events in video streams.
+      Gall. Unsupervised learning of action classes with contin-             In 2003 Conference on Computer Vision and Pattern Recog-
+      uous temporal embedding. In Proceedings of the IEEE/CVF                nition Workshop, volume 4, pages 39–39, 2003. 1, 2
+      Conference on Computer Vision and Pattern Recognition,
+      pages 12066–12074, 2019. 2                                       [40] Alexander Quinn Nichol, Prafulla Dhariwal, Aditya Ramesh,
+                                                                             Pranav Shyam, Pamela Mishkin, Bob Mcgrew, Ilya
+[29] Jie Lei, Linjie Li, Luowei Zhou, Zhe Gan, Tamara L. Berg,               Sutskever, and Mark Chen. GLIDE: Towards photorealis-
+      Mohit Bansal, and Jingjing Liu. Less is more: Clipbert for             tic image generation and editing with text-guided diffusion
+      video-and-language learning via sparse sampling. In Pro-               models. In International Conference on Machine Learning,
+      ceedings of the IEEE/CVF Conference on Computer Vision                 pages 16784–16804. PMLR, 2022. 3
+      and Pattern Recognition (CVPR), pages 7331–7341, June
+      2021. 2, 7                                                       [41] Mingtao Pei, Yunde Jia, and Song-Chun Zhu. Parsing video
+                                                                             events with goal inference and intent prediction. In 2011
+[30] Junnan Li, Ramprasaath R Selvaraju, Akhilesh Deepak Got-                International Conference on Computer Vision, pages 487–
+      mare, Shafiq Joty, Caiming Xiong, and Steven Hoi. Align be-            494, 2011. 1, 2
+      fore fuse: Vision and language representation learning with
+      momentum distillation. arXiv preprint arXiv:2107.07651,          [42] Yicheng Qian, Weixin Luo, Dongze Lian, Xu Tang, Peilin
+      2021. 1                                                                Zhao, and Shenghua Gao. SVIP: Sequence verification for
+                                                                             procedures in videos. In Proceedings of the IEEE/CVF Con-
+[31] Linjie Li, Yen-Chun Chen, Yu Cheng, Zhe Gan, Licheng                    ference on Computer Vision and Pattern Recognition, pages
+      Yu, and Jingjing Liu. HERO: Hierarchical encoder for                   19890–19902, 2022. 2
+      Video+Language omni-representation pre-training. In Pro-
+      ceedings of the 2020 Conference on Empirical Methods in          [43] Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya
+      Natural Language Processing (EMNLP), pages 2046–2065,                  Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry,
+      Online, Nov. 2020. Association for Computational Linguis-              Amanda Askell, Pamela Mishkin, Jack Clark, et al. Learn-
+      tics. 2                                                                ing transferable visual models from natural language super-
+                                                                             vision. In International Conference on Machine Learning
+[32] Ji Lin, Chuang Gan, and Song Han. TSM: Temporal shift                   (ICML), 2021. 1, 2, 3, 4, 5, 6, 7
+      module for efficient video understanding. In Proceedings
+      of the IEEE/CVF International Conference on Computer Vi-         [44] Aditya Ramesh, Prafulla Dhariwal, Alex Nichol, Casey Chu,
+      sion, pages 7083–7093, 2019. 7                                         and Mark Chen. Hierarchical text-conditional image gener-
+                                                                             ation with CLIP latents. arXiv preprint arXiv:2204.06125,
+[33] Xudong Lin, Fabio Petroni, Gedas Bertasius, Marcus                      2022. 3
+      Rohrbach, Shih-Fu Chang, and Lorenzo Torresani. Learning
+      to recognize procedural activities with distant supervision. In  [45] Robin Rombach, Andreas Blattmann, Dominik Lorenz,
+      Proceedings of the IEEE/CVF Conference on Computer Vi-                 Patrick Esser, and Bjo¨rn Ommer. High-resolution image
+      sion and Pattern Recognition, pages 13853–13863, 2022. 1,              synthesis with latent diffusion models. In Proceedings of
+      2, 6, 7                                                                the IEEE/CVF Conference on Computer Vision and Pattern
+                                                                             Recognition, pages 10684–10695, 2022. 3, 7, 8
+[34] Ilya Loshchilov and Frank Hutter. Decoupled weight de-
+      cay regularization. In International Conference on Learning      [46] M.S. Ryoo and J.K. Aggarwal. Recognition of composite
+      Representations, 2018. 6                                               human activities through context-free grammar based repre-
+                                                                             sentation. In 2006 IEEE Computer Society Conference on
+[35] Huaishao Luo, Lei Ji, Botian Shi, Haoyang Huang, Nan                    Computer Vision and Pattern Recognition (CVPR’06), vol-
+      Duan, Tianrui Li, Jason Li, Taroon Bharti, and Ming Zhou.              ume 2, pages 1709–1718, 2006. 1, 2
+      Univl: A unified video and language pre-training model for
+      multimodal understanding and generation. arXiv preprint          [47] Chitwan Saharia, William Chan, Saurabh Saxena, Lala
+      arXiv:2002.06353, 2020. 2                                              Li, Jay Whang, Emily Denton, Seyed Kamyar Seyed
+                                                                             Ghasemipour, Burcu Karagol Ayan, S Sara Mahdavi,
+[36] Jonathan Malmaud, Jonathan Huang, Vivek Rathod, Nick                    Rapha Gontijo Lopes, et al. Photorealistic text-to-image
+      Johnston, Andrew Rabinovich, and Kevin Murphy. What’s                  diffusion models with deep language understanding. arXiv
+      cookin’? interpreting cooking videos using text, speech and            preprint arXiv:2205.11487, 2022. 3
+      vision. arXiv preprint arXiv:1503.01558, 2015. 2
+                                                                       [48] Fadime Sener and Angela Yao. Zero-shot anticipation for
+[37] Antoine Miech, Jean-Baptiste Alayrac, Lucas Smaira, Ivan                instructional activities. In Proceedings of the IEEE/CVF In-
+      Laptev, Josef Sivic, and Andrew Zisserman. End-to-end                  ternational Conference on Computer Vision, pages 862–871,
+      learning of visual representations from uncurated instruc-             2019. 2
+      tional videos. In Proceedings of the IEEE/CVF Conference
+      on Computer Vision and Pattern Recognition, pages 9879–          [49] Ozan Sener, Amir R Zamir, Silvio Savarese, and Ashutosh
+      9889, 2020. 1, 2, 6, 7                                                 Saxena. Unsupervised semantic parsing of video collec-
+                                                                             tions. In Proceedings of the IEEE International conference
+[38] Antoine Miech, Dimitri Zhukov, Jean-Baptiste Alayrac,                   on Computer Vision, pages 4480–4488, 2015. 2
+      Makarand Tapaswi, Ivan Laptev, and Josef Sivic.
+
+                                                                       14834
+[50] Yuhan Shen, Lu Wang, and Ehsan Elhamifar. Learning to               procedural knowledge extraction from cooking videos. In
+      segment actions from visual and language instructions via          Proceedings of the First International Workshop on Natu-
+      differentiable weak sequence alignment. In Proceedings of          ral Language Processing Beyond Text, pages 30–40, Online,
+      the IEEE/CVF Conference on Computer Vision and Pattern             Nov. 2020. Association for Computational Linguistics. 2
+      Recognition (CVPR), pages 10156–10165, June 2021. 2, 4,
+      5                                                            [63] Hu Xu, Gargi Ghosh, Po-Yao Huang, Dmytro Okhonko,
+                                                                         Armen Aghajanyan, Florian Metze, Luke Zettlemoyer, and
+[51] Jascha Sohl-Dickstein, Eric Weiss, Niru Maheswaranathan,            Christoph Feichtenhofer. VideoCLIP: Contrastive pre-
+      and Surya Ganguli. Deep unsupervised learning using                training for zero-shot video-text understanding. arXiv
+      nonequilibrium thermodynamics. In International Confer-            preprint arXiv:2109.14084, 2021. 2, 6, 7
+      ence on Machine Learning, pages 2256–2265. PMLR, 2015.
+      3, 4                                                         [64] Jianwei Yang, Yonatan Bisk, and Jianfeng Gao. TACo:
+                                                                         Token-aware cascade contrastive learning for video-text
+[52] Kaitao Song, Xu Tan, Tao Qin, Jianfeng Lu, and Tie-Yan              alignment. In Proceedings of the IEEE/CVF International
+      Liu. MPNet: Masked and permuted pre-training for lan-              Conference on Computer Vision, pages 11562–11572, 2021.
+      guage understanding. Advances in Neural Information Pro-           2
+      cessing Systems, 33:16857–16867, 2020. 2
+                                                                   [65] Ling Yang, Zhilong Zhang, Yang Song, Shenda Hong, Run-
+[53] Yang Song and Stefano Ermon. Improved techniques for                sheng Xu, Yue Zhao, Yingxia Shao, Wentao Zhang, Bin
+      training score-based generative models. Advances in neural         Cui, and Ming-Hsuan Yang. Diffusion models: A compre-
+      information processing systems, 33:12438–12448, 2020. 3,           hensive survey of methods and applications. arXiv preprint
+      4                                                                  arXiv:2209.00796, 2022. 4
+
+[54] Chen Sun, Austin Myers, Carl Vondrick, Kevin Murphy,          [66] Rowan Zellers, Ximing Lu, Jack Hessel, Youngjae Yu,
+      and Cordelia Schmid. VideoBERT: A joint model for video            Jae Sung Park, Jize Cao, Ali Farhadi, and Yejin Choi. MER-
+      and language representation learning. In Proceedings of the        LOT: Multimodal neural script knowledge models. Advances
+      IEEE/CVF International Conference on Computer Vision,              in Neural Information Processing Systems, 34:23634–23651,
+      pages 7464–7473, 2019. 1, 2                                        2021. 2, 3
+
+[55] Yansong Tang, Dajun Ding, Yongming Rao, Yu Zheng,             [67] Henghui Zhao, Isma Hadji, Nikita Dvornik, Konstantinos G.
+      Danyang Zhang, Lili Zhao, Jiwen Lu, and Jie Zhou. COIN:            Derpanis, Richard P. Wildes, and Allan D. Jepson. P3IV:
+      A large-scale dataset for comprehensive instructional video        Probabilistic procedure planning from instructional videos
+      analysis. In Proceedings of the IEEE/CVF Conference                with weak supervision. 2022 IEEE/CVF Conference on
+      on Computer Vision and Pattern Recognition, pages 1207–            Computer Vision and Pattern Recognition (CVPR), pages
+      1216, 2019. 2, 5, 7                                                2928–2938, 2022. 2
+
+[56] Yansong Tang, Jiwen Lu, and Jie Zhou. Comprehensive           [68] Bolei Zhou, Alex Andonian, Aude Oliva, and Antonio Tor-
+      instructional video analysis: The COIN dataset and perfor-         ralba. Temporal relational reasoning in videos. In Proceed-
+      mance evaluation. TPAMI, 2020. 5, 8                                ings of the European conference on computer vision (ECCV),
+                                                                         pages 803–818, 2018. 7
+[57] Guy Tevet, Sigal Raab, Brian Gordon, Yonatan Shafir,
+      Daniel Cohen-Or, and Amit H Bermano. Human motion            [69] Luowei Zhou, Chenliang Xu, and Jason J Corso. Towards
+      diffusion model. In International Conference on Learning           automatic learning of procedures from web instructional
+      Representations, 2023. 3, 4                                        videos. In Thirty-Second AAAI Conference on Artificial In-
+                                                                         telligence, 2018. 1, 2
+[58] Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszko-
+      reit, Llion Jones, Aidan N Gomez, Łukasz Kaiser, and Illia   [70] Linchao Zhu and Yi Yang. ActBERT: Learning global-local
+      Polosukhin. Attention is all you need. Advances in neural          video-text representations. In Proceedings of the IEEE/CVF
+      information processing systems, 30, 2017. 6                        conference on computer vision and pattern recognition,
+                                                                         pages 8746–8755, 2020. 1, 2
+[59] Alex Jinpeng Wang, Yixiao Ge, Rui Yan, Yuying Ge,
+      Xudong Lin, Guanyu Cai, Jianping Wu, Ying Shan, Xi-          [71] Dimitri Zhukov, Jean-Baptiste Alayrac, Ramazan Gokberk
+      aohu Qie, and Mike Zheng Shou. All in one: Explor-                 Cinbis, David Fouhey, Ivan Laptev, and Josef Sivic. Cross-
+      ing unified video-language pre-training. arXiv preprint            task weakly supervised learning from instructional videos.
+      arXiv:2203.07303, 2022. 2                                          In Proceedings of the IEEE/CVF Conference on Computer
+                                                                         Vision and Pattern Recognition, pages 3537–3545, 2019. 2
+[60] Limin Wang, Yuanjun Xiong, Zhe Wang, Yu Qiao, Dahua
+      Lin, Xiaoou Tang, and Luc Van Gool. Temporal segment net-
+      works: Towards good practices for deep action recognition.
+      In European conference on computer vision, pages 20–36.
+      Springer, 2016. 7
+
+[61] Saining Xie, Chen Sun, Jonathan Huang, Zhuowen Tu, and
+      Kevin Murphy. Rethinking spatiotemporal feature learn-
+      ing: Speed-accuracy trade-offs in video classification. In
+      Proceedings of the European conference on computer vision
+      (ECCV), pages 305–321, 2018. 6, 7
+
+[62] Frank F. Xu, Lei Ji, Botian Shi, Junyi Du, Graham Neubig,
+      Yonatan Bisk, and Nan Duan. A benchmark for structured
+
+                                                                   14835
+

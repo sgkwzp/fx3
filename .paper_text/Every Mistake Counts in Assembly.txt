@@ -1,0 +1,652 @@
+arXiv:2307.16453v1 [cs.AI] 31 Jul 2023              Every Mistake Counts in Assembly
+
+                                                         Guodong Ding 1 Fadime Sener 2 Shugao Ma 2 Angela Yao 1
+                                                           1National University of Singapore 2Meta Reality Labs Research
+
+                                                   {dinggd, ayao}@comp.nus.edu.sg {famesener, shugao}@meta.com
+
+                                                                                    Abstract
+
+                                                   One promising use case of AI assistants is to help with complex procedures like
+                                                   cooking, home repair, and assembly tasks. Can we teach the assistant to interject
+                                                   after the user makes a mistake? This paper targets the problem of identifying
+                                                   ordering mistakes in assembly procedures. We propose a system that can detect
+                                                   ordering mistakes by utilizing a learned knowledge base. Our framework constructs
+                                                   a knowledge base with spatial and temporal beliefs based on observed mistakes.
+                                                   Spatial beliefs depict the topological relationship of the assembling components,
+                                                  while temporal beliefs aggregate prerequisite actions as ordering constraints. With
+                                                   an episodic memory design, our algorithm can dynamically update and construct
+                                                   the belief sets as more actions are observed, all in an online fashion. We demon-
+                                                   strate experimentally that our inferred spatial and temporal beliefs are capable of
+                                                   identifying incorrect orderings in real-world action sequences. To construct the spa-
+                                                   tial beliefs, we collect a new set of coarse-level action annotations for Assembly101
+                                                   based on the positioning of the toy parts. Finally, we demonstrate the superior
+                                                   performance of our belief inference algorithm in detecting ordering mistakes on
+                                                   the Assembly101 dataset.
+
+                                        1 Introduction
+
+                                        We all know the pains of assembling furniture1, not to mention making mistakes during the procedure.
+                                        Imagine now an AI assistant to support complex procedural activities like furniture assembly, cooking,
+                                        or home repair. An intelligent assistant should be able to learn from the mistakes and detect
+                                        them in the future. Mistake detection can be considered a procedural activity understanding task.
+                                        Procedural activities are well explored in video understanding, and typical tasks include temporal
+                                        action segmentation [5, 7], action anticipation [1, 17, 15]. Making mistakes is a natural and common
+                                        part of performing procedures in real-world settings. In the video dataset Assembly101 [14], adult
+                                        participants were asked to assemble and disassemble a children’s toy vehicle designed for 4- to
+                                        6-year-olds, however, nearly 60% of the sequences contained at least one mistake. 27.4% of these
+                                        were action ordered incorrectly. For example, as shown in Fig. 3(a), if the roof is placed on the cabin
+                                        before the speaker and the light, it will be impossible to position them afterwards. In developing an
+                                        AI assistant, it is natural to consider support in the form of assessment and mistake detection.
+                                        As a procedural activity, toy assembly distinguishes itself from similar activities in a number of ways.
+                                        Firstly, assembling a toy involves a fixed set of steps based on the predetermined structure of the
+                                        parts. Secondly, toy assembly is a sequential process, where each step builds upon the previous one.
+                                        It is therefore necessary to follow some ordering of actions to complete the toy. Lastly, assemblers
+                                        may encounter situations requiring problem-solving skills, such as identifying mistakes, locating
+                                        alternative solutions, and resolving problems. The closest related tasks to the notion of mistakes in
+                                        the video domain are anomaly detection [19] and unintentional action detection [6]. These tasks
+
+                                            1A quick online search leads to dozens of articles with titles like “31 Pieces of Furniture You Won’t Have a
+                                        Hard Time Assembling” and “The Secret to Assembling IKEA Furniture Without Losing Your Sanity”
+                                        Preprint. Under review.
+                 ASSEMBLY EPISODE
+
+            ...                         ...
+
+                                   ...
+
+                 SPATIAL                   TEMPORAL
+                          KNOWLEDGE BASE
+INFERENCER
+
+            ...                         ...
+
+                 STEP LABELS
+
+Figure 1: Overview of our mistake detection system. Each colored circle denotes a toy part to
+be assembled. The INFERENCER takes as input an assembly sequence incrementally, consults the
+Knowledge base at each step to make predictions on the action of interest. Faces in the sequence
+they appear denote ‘correct’,‘order mistake’,‘correction’ and ‘unnecessary detach’. The knowledge
+base summarizes two type of belief sets, spatial and temporal. Spatial beliefs reveals the topology of
+objects while temporal beliefs denotes the ordering constraints.
+
+share the same spirit of detecting deviations from expected behaviour. For example, a car accident
+is an anomaly, whereas knocking over a vase is unintentional. However, it is important to note that
+anomalies or unintentional actions are inherently defined by their semantics, i.e., observing the acts
+stand-alone is sufficient to determine that they are atypical. The same cannot be said for ordering
+mistake actions in assembly sequences because a given action can be correct or incorrect depending
+on the temporal context in which it is being performed, e.g., it is physically possible to attach the
+cabin before or after attaching the seats. However, ‘attaching cabin’ will only be a correct action
+when seats are already placed.
+Knowledge representation and reasoning (KRR) is a fundamental area of study in artificial intelligence
+(AI). Knowledge representation models explicit and implicit knowledge in a domain, ranging from
+factual data to complex relationships and rules. Reasoning, on the other hand, refers to the ability of
+AI systems to derive new information or make intelligent inferences based on available knowledge. In
+this paper, our goal is to develop an intelligent system that can detect ordering mistakes in assembly
+sequences in the presence of a knowledge base, as depicted in Fig. 1. Specifically, two types of
+beliefs are formed in the knowledge base, i.e., spatial beliefs and temporal beliefs. We define spatial
+beliefs to accumulate the topological relationships of the toy parts. For example, the ‘wheel’ attaches
+to the ‘chassis’; attaching ‘wheel’ to ‘cabin’ is not allowed and should therefore be identified as a
+mistake. Spatial beliefs are agnostic of the action order, e.g., ‘wheel’ and ‘cabin’ are both attached to
+the ‘chassis, but the order in which they are attached is not implied. We therefore introduce temporal
+beliefs to keep track of the ordering constraints in the action sequences.
+To the best of our knowledge, Sener et. al [14] are the first to advocate for the mistake detection task
+and their Assembly101 is the only real-world dataset with mistake annotations in action orderings.
+However, the annotated actions are ambiguous, as they reference only a single component. An
+assembly action, however, involves at least two working objects, and the other object must be
+provided to reveal the structural information. To this end, we provide a new annotations set that
+includes both interacting parts.
+To summarize, our main contributions are threefold: 1) We formulate the ordering mistake detection
+problem as a knowledge representation and reasoning problem. To this end, we propose a novel
+mistake detection framework consisting of a BELIEFBUILDER and an INFERENCER to work with an
+assembly knowledge base. The BELIEFBUILDER constructs the knowledge base in an online fashion
+
+                                                           2
+and the INFERENCER consults the knowledge base when making predictions. 2) We design two types
+of beliefs in the knowledge base, i.e., spatial and temporal beliefs, both in the format of logic rules.
+Spatial beliefs define the toy topology, while temporal beliefs encompass the ordering constraints.
+Additionally, we offer a graph interpretation for each type of belief. 3) We enrich the Assembly101
+dataset with information about the mistake type and the explicit part-to-part connection details to
+facilitate the mistake detection task. We evaluate our method on Assembly101 and demonstrate its
+superior capability for mistake detection.
+
+2 Related Work
+
+Procedural Activity Understanding. Procedural knowledge is an important aspect of cognitive
+psychology and educational research. It has been studied in computer vision under the context of
+procedural planning [3], step forecasting [17, 10] and temporal action segmentation [5]. Common
+investigated procedural activities by the research community are from the cooking [4, 11, 20, 21] or
+assembly [14, 12, 2]. Procedural knowledge can be classified according to how they are sourced, i.e.,
+explicit and implicit knowledge. Explicit knowledge assumes external providers, e.g., in the form of
+recipes [13] or instruction manuals [9], while implicit knowledge indicates learning from data with
+no supervision [17, 15] or distant supervision [10]. Our approach falls into the second category as we
+learn to construct our beliefs from the training data.
+
+Mistake Detection. Our approach is the first to study ordering mistakes in procedural activities that
+can handle the flexibility of action order and the variation in approaches of the participants. [18] tried
+to detect missing actions for making lattes. In their dataset, 18 of the 41 videos has a purposefully
+omitted action, e.g.‘steaming milk’. [18] model the dependencies of latte-making actions with a
+directed graph and learn the graph from the complete sequences. Missing actions, however, are
+not identified until the entire sequence is completed. This method is not generalizable to detect the
+assembly ordering mistakes in Assembly101 since it can only identify the missing steps in a fixed
+order.
+Anomaly Detection. Detecting anomalies, especially in temporal sequences and unintentional
+actions [6, 19] are tasks similar to ours in spirit. These differ from procedural mistakes because
+the unintended actions are identifiable by their inherent semantics. An example would be a person
+walking suddenly falling to the ground. The unintionality is defined by the semantics of falling to the
+ground. On the contrary, the mistakes in an assembly task are usually irrelevant to semantics and
+more dependent on the temporal context it locates. This makes mistake detection in assembly tasks a
+suitable case for modeling the temporal logic of action sequences.
+
+3 The Approach
+
+3.1 Preliminaries
+
+Study on mistakes. We first survey all the mistakes made by participants in Assembly101 and list
+them in Table 1. Coarsely speaking, there are three classes for the mistake detection task: ‘correct’,
+‘mistake’ and ‘correction’, where the latter is a step made to rectify the mistake. The mistakes can be
+further classified into four types according to their root cause. The most straightforward type is the
+generic ordering mistake. Accumulated mistakes happen after generic order mistakes. Misorientation
+mistakes occur to the placement of a part in an incorrect orientation, e.g., a reversed cabin. The last
+type of mistake is the unnecessary detachment of correctly assembled parts. Detecting misorientation
+mistakes requires 3D perception and a model of the toy parts, which extends beyond the scope of this
+work. We aim to build a system to identify assembly sequences’ ordering mistakes.
+
+Definitions. Consider a collection of N assembly sequences S = {sn}Nn=1 and its corresponding
+label  set  Y  .  Each  sequence  s  =  {(  v  ,  i,  j  )t  }T     has  T  steps,  where  v  ∈  {attach, detach}  denotes  the
+
+                                                               t=1
+‘verb’, while (i, j) are toy part indices. The step-wise mistake label is denoted as yt. The (i, j) part
+notations are generally considered commutable in our work, i.e., (i, j) ≡ (j, i).
+
+The objective of the mistake detection system is to learn from the existing mistakes in action
+sequences such that it can be used to detect mistakes in future unseen sequences. To do so, we
+build a knowledge base K = {S, T } that maintains spatial beliefs S and temporal beliefs T . We
+
+                                                                    3
+Table 1: Six types of mistakes in Assembly101. Misorientation shown in grey as it is beyond the
+scope of our work.
+
+Verb Coarse # of samples Remark                                    Fine # of samples
+
+        correct           2914                       correct step  A      2914
+
+attach                                               generic order B      153
+        mistake 355 accumulated C 46
+
+                                                     misorientation D     156
+
+detach mistake 371 unnecessary F 371
+        correction        348                        correction    E      348
+
+propose a BELIEFBUILDER and an INFERENCER to interact with the knowledge base accordingly.
+OurBELIEFBUILDER algorithm are carefully designed to deal with streaming action sequences. As
+mentioned, the ordering mistake actions are context-dependent. Temporal context is important in
+both belief building and inference stages. To that end, we define an episodic memory M to form a
+collective temporal context for the algorithms.
+
+3.2 Spatial Beliefs S.
+
+In the context of toys, the spatial topology is pre-defined, e.g., the ‘roof’ is attached to the ‘cabin’
+and the ‘wheels’ to the ‘chassis’. Following this logic, we define a spatial belief set, S, which
+encompasses pairs of connecting toy parts, see Fig. 2 (i, j) pairs. The spatial beliefs serve two
+purposes. To start with, they can be employed to confirm the feasibility of attaching the parts, i and j,
+with the following rule:
+SPATIAL(i, j) → yˆ :
+
+                          (i, j) ∈ S ⇐⇒ Aij.                                           (1)
+
+In practice, if any pair is incompatible with the       SPATIAL BELIEFS:  RULE GRAPH:
+spatial beliefs, attempting to attach them would
+be a mistake, as they would not fit geometrically.      (i ,j ) i j
+In addition, the belief set, S, can verify the com-     ( , )( , )
+pletion of the assembly sequence and indicate           ( , )( , )
+any unperformed or missing actions.                     ( , )( , )
+COMPLETED(M ) :
+
+∀(i,j)∈S Aij ∈ M ⇐⇒ TRUE        (2) Figure 2: Spatial beliefs as a set of part pairs (left)
+                                      and a rule graph (right).
+
+Graph Interpretation. One can represent the
+spatial belief set as a graph, where each toy part
+is depicted as a node, and the edges denote the feasibility of attaching them. An edge between two
+nodes indicates feasibility, and completion is achieved when the graph has been fully traversed by the
+episodic memory M . Fig. 2 visualizes the graph representation of spatial beliefs.
+
+3.3 Temporal Beliefs T .
+
+Spatial beliefs do not imply any ordering constraints in attaching the toy parts. The ordering mistakes
+are determined by the temporal context in which the action is being observed. We determine ordering
+constraints from the mistake instances during training to establish the temporal beliefs T . A temporal
+belief Tij for its anchor pair (i, j) provides the following rule:
+TEMPORAL(M, i, j) → yˆ :
+
+                          ∀(i′,j′)∈Dij Ai′j′ ∈ M ⇐⇒ Aij                                (3)
+
+                                                     4
+PART GEOMETRY:       RULE GRAPH:  PART GEOMETRY: RULE GRAPH:
+                           r=1
+              ROOF                          CABIN                 r=2
+    LIGHT SPEAKER
+                                           INTERIOR BASE
+              CABIN                               CHASSIS
+
+                 (a) Transitive                                   (b) Intransitive
+
+Figure 3: Transitivity of temporal beliefs. Part geometry implies the ordering constraints (left) and
+its graph representation (right). Anchor action (the red edge) is reliant on the completion of the rest
+(back edges in grey group). Transitive and intransitive rules differ in the radius r of their graphs. For
+transitive rules (r = 1), any actions from the dependency set (black edges) will be mistakes after
+anchor action is performed. While, for intransitive rules (r > 1), only the last action in black edges
+that completes the rule graph will be considered mistake.
+
+where Dij ⊂ Tij corresponds to a list of part pairs (i′, j′), which we refer to as dependent for
+the correct execution of Aij. In Fig. 3(a), with anchor (roof,cabin), Dij consists of (light,cabin)
+and (speaker,cabin). The above rule indicates that the anchor action is only possible when all its
+dependents have been correctly assembled.
+
+Error Accumulation. The TEMPORAL rule considers and predicts only for the anchor action.
+However, it is necessary to consider the dependents because an error anchor action in context
+(¬Aij ∈ M ) would turn its dependent actions from Dij that are yet to happen into accumulated
+errors. To that end, we define the transitivity on Tij to correspond to two different cases of error
+accumulation, i.e., transitive (written as Tij) and intransitive (written as ¬Tij). A transitive (Fig. 3(a))
+rule indicates that executing any dependent after the anchor is a mistake. With a slight abuse of
+notation, we define the following inference rule Tij(M ):
+
+Tij(M ) → yˆ :
+
+                                 ∀(i′,j′)∈Dij ∃¬Aij ∈ M → ¬Ai′j′                    (4)
+
+which indicates that with (roof,cabin) attached, attaching (light,cabin) and (speaker,cabin) will be
+mistakes. In contrast, an intransitive (Fig. 3(b)) rule would consider executing any dependent to
+be correct except for the last dependent pair. Consider (base,chassis) attached as the wrong anchor
+action in context, attaching (cabin,interior) is correct, while further attachment of (interior,chassis) is
+considered a mistake. The predictions will be the opposite if one first attaches (interior, chassis) and
+then (cabin,interior), which is implied by the following rule:
+
+¬Tij(M ) → yˆ :
+
+                 ∃¬Aij ∈ M ∧ (∀(i′′,j′′)̸=(i′,j′)∈Dij Ai′′j′′ ∈ M ) ⇐⇒ ¬Ai′j′       (5)
+
+We define T ′ij := Tkl|(i, j) ∈ Dkl the temporal rule that has (i, j) in its dependent set. Combining
+both transitive and intransitive rule, we have the following to make inference:
+
+                 DEPENDENT(M, i, j) → (Ti′j (M ) ∧ Tij′ ) ∨ (¬Ti′j (M ) ∧ ¬Ti′j )   (6)
+
+Graph Interpretation. Similar to the spatial rule, we show that our temporal rules can be represented
+as graphs. In its graph form, the transitivity of the rule is determined by its radius. Conventionally,
+the radius of a graph is defined as:
+
+                                 r = min max d(u, v)                                (7)
+                                  u∈V v∈V
+
+where d(u, v) is the geodesic distance or shortest-path distance between two nodes u and v in graph
+V . Transitive rule graphs have the precise radius with r = 1 while intransitive rule graphs are those
+with larger radius (r > 1). An illustration is shown in Fig. 3. The anchor action (edge in red) is only
+correct when the dark edges are traversed. It is possible to consider a hybrid version of these two
+cases; more details on this case are left to the Supplementary.
+
+                                  5
+3.4 Belief Building and Inference
+We next focus on the construction and inference procedures of the above belief sets by introducing
+BELIEFBUILDER and INFERENCER. BELIEFBUILDER illustrates the process of managing the
+knowledge base K to take into account of a new piece of information that is observed incrementally.
+As the name suggests, the INFERENECER, consults the knowledge base K, and makes prediction on
+the action being observed.
+
+Algorithm 1 Belief building Step
+
+1: procedure BELIEFBUILDER(M, i, j, y, C)
+2: switch y do
+
+3:   case Aij
+
+4:              S ← S ∪ (i, j)
+                Cij ← [Cij ] ∩ PRECEDES(M, i, j)                       ▷ Eq. 9
+5:                                                                    ▷ Eq. 10
+                                                                      ▷ Eq. 11
+6:              if Dij ∈ M then
+                Dij ← [Dij] ∩ [CONTEXT(M, i, j)] ∩ [Cij]              ▷ Eq. 12
+7:              Tij ← CONNECT(Tij , M, S)
+
+8:              POP(M, ¬Aij ), POP(M, Dij )
+
+9:
+
+10:             end if
+                PUSH(M, y)
+11:
+
+12:  case ¬Aij
+                if ACCUMULATED(¬Aij ) then
+13:
+
+14:             for ¬Ai′j′ ∈ M, S do
+
+15:                     Di′j′ ← Di′j′ ∪ (i, j)
+
+16:             end for
+
+17:             end if
+
+18:             PUSH(M, y)
+
+19:  case ¬Dij
+
+20:             POP(M, Aij )
+
+21:  case Dij
+
+22:             PUSH(M, y)
+
+23: end procedure
+
+BELIEFBUILDER. The knowledge base of spatial beliefs (see Sec. 3.2) and temporal beliefs (see
+Sec. 3.3) is initialized as empty at the beginning, i.e., S = ∅, T = ∅. This indicates that the
+knowledge base is completely agnostic of the toy being assembled. The BELIEFBUILDER is aimed to
+build and update both of them as more assembly sequences are provided in an incremental manner.
+Every mistake counts in assembly sequences, and any ordering mistake always reveals a temporal
+belief. For the mistakes (¬Aij), the mistake context CONTEXT(M, i, j) invariably contains its
+dependents. The mistake context is the set of correct actions between the mistake fix (Dij) and its
+correct execution (Aij ), i.e., CONTEXT(M, i, j) = {(i′, j′)|tDij < tAi′j′ < tAij , Ai′j′ ∈ M }. Dij
+is updated with the following:
+
+                                Dij ← [Dij] ∩ [CONTEXT(M, i, j)],     (8)
+
+where [·] will only be a valid term if (·) is not an empty set. Although observing the ordering
+mistakes in the sequences is an obvious and strong cue for the builder to update the temporal
+beliefs, there is also implicit temporal logic hidden behind a fully correct assembly. For example, an
+action Aij is not temporally dependent on its subsequent actions. In reverse, its preceding actions
+PRECEDES(M, i, j) = {(i′, j′)|Ai′j′ ∈ M } would form a candidate set Cij and any dependents in
+Tij fall within that set, i.e., Dij ⊂ Cij. In the online setting, we continuously narrow down Cij with
+the following:
+                                Cij ← [Cij ] ∩ PRECEDES(M, i, j)      (9)
+
+Note that the preceding actions depend on M and may change between different episodes, while Cij
+are shared across episodes. Taking C into consideration, Eq. 8 becomes:
+
+                            Dij ← [Dij] ∩ [CONTEXT(M, i, j)] ∩ [Cij]  (10)
+
+                                                6
+It is possible (as shown in Fig. 5) that the algorithm may miss dependents in intransitive temporal
+beliefs, due to the flexibility of labels for the dependents as discussed in Rule (5). Missing dependents
+cause the intransitive temporal rule graph (Fig 3(b)) to be disjoint. To mitigate this situation, we
+leverage the spatial belief S to find the minimum number of actions present in the episodic memory
+M to connect any sub-graphs. Specifically,
+
+     CONNECT(Tij , M, S) ← Dij ∪ {(i′j′)|(i′, j′) ∈ PATH(S, Tij ) ∧ Ai′j′ ∈ M },  (11)
+
+where PATH(S, T ) finds the shortest path in S that completes the rule graph of T . To deal with
+accumulated mistake ¬Aij, we would add them into the dependent set of any ongoing order mistakes
+in context, i.e.,
+                                                                                  (12)
+                               Di′j′ ← Di′j′ ∪ (i, j)|¬Ai′j′ ∈ M.
+
+The BELIEFBUILDER (Alg. 1) is repeated for each step in the episodes. We show the overall algorithm
+in the Supplementary.
+
+Algorithm 2 Inference Step
+
+1: procedure INFERENCER(M, v, i, j)
+2: switch v do
+     case ‘attach’
+3:                 yˆ ← ATTACH(M, i, j)                                           ▷ Eq. 13
+                                                                                  ▷ Eq. 14
+4:
+
+5:                 PUSH(M, y)
+
+6:   case ‘detach’
+                   yˆ ← DETACH(M, i, j)
+7:
+
+8:                 if yˆ == Dij then
+                   POP(M, ¬Aij )
+9:
+
+10:                elsePOP(M, Aij )
+
+11:
+
+12:                end if
+
+13: return yˆ
+
+14: end procedure
+
+INFERENCER. The INFERENCER is also recurrent and makes predictions based on the belief sets
+and the previous decisions. Alg. 2 summarizes the INFERENCER step. At each time step (M, v, i, j),
+the INFERENCER estimates for the tuple (v, i, j) the mistake label based on the episodic memory M ,
+which has historical action labels up to the current step. When the action is to attach, i.e., v =‘attach’,
+multiple inference rules from both spatial and temporal beliefs, SPATIAL (Rule. 1), TEMPORAL
+(Rule. 3) and DEPENDENT (Rule. 6) will be applied jointly to decide on its label yˆ. While for a detach
+action that is being perceived at the moment, its label will depend on the episodic memory M . If the
+attachment of the same object pairs exists as a mistake in the memory, this action would be regarded
+as a ‘correction’, and otherwise it is a mistake of ‘unnecessary detach’. Overall, the INFERENCER
+makes predictions with the following rule:
+
+ATTACH(M, i, j) → yˆ :
+
+     SPATIAL(i, j) ∧ TEMPORAL(M, i, j) ∧ DEPENDENT(M, i, j) ⇐⇒ Aij                (13)
+
+DETACH(M, i, j) → yˆ :
+
+                                         ∃¬Aij ∈ M ⇐⇒ Dij                         (14)
+
+4 Dataset and Experiments
+
+4.1 Dataset.
+Assembly101 [14] is the first to propose the mistake detection task in assembly sequences. The action
+labels in the dataset are ‘(verb, noun)’, e.g., ‘attach arm_connector’. However, such annotations
+without mentioning the other interacting part in context introduce inconsistency and ambiguity.
+For example, two distinct actions attaching ‘arm_connector’ to ‘chassis’ or ‘boom’ would share
+
+                                         7
+       Table 2: Performance comparison with coarse mistake labels.
+
+       mistake  correction  correct Acc                              F1
+
+       recall precision recall precision recall precision           59.9
+                                                                    61.3
+TempAgg [16] 36.6 54.0 49.3 43.4 93.2 79.7 78.8                     71.8
+LSTM   35.2 58.7 43.7 49.9 99.0 88.5 82.3                           +10.5
+Ours   70.6 63.7 40.8 87.2 92.7 93.1 86.0
+
+Gains  +35.4 +5.0 -2.9 +37.3 -6.3 +4.6 +3.7
+
+the identical action label. Therefore, such annotations are not informative enough for the mistake
+detection task where spatial connectivity matters. To that end, for the assembly sequences, we create
+a new set of part-to-part annotations which includes both interacting objects, denoted in the form of
+(verb, this, that). Due to the nature of our approach, which focuses on logical reasoning, we only
+consider two types of verbs, i.e., attach and detach. We hope that such explicit part annotations
+on Assembly101 [14] encourage more investigation on the task.
+Self-looped and repetitive actions. Certain toy parts from Assembly101 can be further split into
+two halves, e.g., ‘chassis part’ and ‘water tank part’, as illustrated in supplementary. For simplicity,
+we keep a consistent level of annotation and do not consider the subpart level and annotate them as
+‘attach chassis and chassis’. In this sense, any composition of subparts is a self-looped action. Due
+to the geometric symmetry of the toys, it is common for assembly sequences to involve repetitive
+steps. For example, four wheels can be attached at different sequential locations; they are annotated
+whenever they occur, regardless of their number of occurrences.
+Splits. There are 328 unique action sequences for assembling 101 toys in the Assembly101 dataset.
+To create our splits, we randomly sample one action sequence as the test set and use the remaining
+sequences as the training data for each toy. This process is repeated four times to obtain four different
+splits, and we report the results as the average over the four splits.
+Evaluation metric. We propose the following evaluation metrics to assess the mistake detection
+performance comprehensively. We report per class recall and precision, while Acc and mean F1
+scores are reported over all classes.
+
+4.2 Experiments
+
+Baselines. Following [14], we adopt the long-range temporal model TempAgg [16] as the mistake
+detection model, train with our part-to-part annotation for 15 epochs. In essence, the mistake detection
+problem can also be modeled using a recurrent neural network (RNNs) by treating it as a sequence-
+to-sequence task. As another baseline model to compare, we design an LSTM [8] comprising four
+hidden layers, and each hidden layer size is set to 256. We feed the one-hot action feature vector as
+input for each step and the action sequences are truncated or padded to a fixed length of 60. We train
+the LSTM on the training data with a learning rate of 1e−3 for 100 epochs.
+Coarse mistake detection. We report the results on Assembly101 dataset trained and evaluated
+on the coarse mistake labels for different approaches in Table. 2. Both TempAgg [16] and LSTM
+take the one-hot encoded feature vector as input. LSTM slightly outperforms TempAgg at the Acc
+(+3.5%) and F1 (+1.4%) scores. Such a performance gap mainly results from LSTM’s boost in
+‘correct’ class. Our method achieves a high recall of 70.6% on the mistake class, which doubles that
+(35.2%) of the LSTM. In the meantime, ours is by 5% and 9.7% higher in mistake precision than
+LSTM and TempAgg, respectively. While for both ‘correction’ and ‘correct’ classes, our approach
+achieves lower recall values but has a high precision value. This indicates that our approach has a
+high confidence in the accuracy of instances from these classes. When evaluated across the classes,
+ours is the best in both Acc (86.0%) and F1 (71.8%), showing its strong ability to capture the ordering
+dynamics in assembly sequences.
+Fine mistake detection. We then compare the performance between our approach and LSTM on the
+fine mistake labels. The confusion matrix for each approach is plotted in Fig 4. As it is shown in
+Fig 4(a), the the LSTM model practically missed all ordering mistakes (on B, C, and D) and predicted
+them as correct. This is likely due to the significant imbalance ratio between each fine mistake class
+and the correct class (see Table. 1). However, the confusion LSTM makes in the bottom right corner
+
+                8
+A 100% 0% 0% 0% 0% 0%                                                                  A 94% 0% 0% 5% 0% 0%
+
+B 100% 0% 0% 0% 0% 0%                                                                  B 41% 31% 0% 27% 0% 0%
+
+Target Class                                                                           C 46% 0% 53% 0% 0% 0%
+                                                                         Target Class
+C 100% 0% 0% 0% 0% 0%
+
+D 100% 0% 0% 0% 0% 0%                                                                  D 65% 2% 0% 31% 0% 0%
+
+E 8% 0% 0% 0% 62% 29%                                                                  E 0% 0% 0% 0% 87% 12%
+
+F 15% 0% 0% 0% 42% 41%                                                                 F 0% 0% 0% 0% 62% 37%
+
+       ABCDE F                                                                                ABCDE F
+                      Output Class                                                                           Output Class
+
+         (a) LSTM                                                                                (b) Ours
+
+Figure 4: Confusion matrix comparison on the fine mistake labels.
+
+indicates the fact that LSTM is picking up the knowledge that a detach action can either be a mistake
+or a correction. In contrast, our approach (Fig 4(b)) is better at detecting the ordering mistakes and
+does not confuse a detach action (E and F) to a correct attach class (A) as the LSTM does.
+
+Sequence 1                M                                                                  Final
+                           A34
+ 1 + (chassis,interior)   ¬A03  S: 2 3
+ 2 + (body, chassis)       A25
+ 3 + (cabin, roof)         D03         154 0                                                                                  6
+ 4 − (chassis, body)       A24
+ 5 + (cabin, interior)     A12  T03 :                                                        S:                            2     3
+ 6 + (bumper, cabin)       A03
+ 7 + (body, chassis)        −   CONTEXT(0, 3) = {(2, 4), (1, 2)}
+ 8 + (chassis, wheel)
+                          M     C03 = {(3, 4), (2, 5), (2, 4), (1, 2)} 1                                                   54 0
+Sequence 2                  −   D03 = CONTEXT(0,3) ∩ C03 = {(2, 4), (1, 2)}
+                           A36  D03 = CONNECT(T03, M, S) = {(2, 4), (1, 2), (3, 4)}
+ 1 + (cabin, roof)          −
+ 2 + (chassis, wheel)      A34  S:     2                                               3  6  T03 :
+ 3 − (cabin, roof)         A24                                                                        2
+ 4 + (chassis, interior)   A03                    154 0                                                   4                      3
+ 5 + (cabin, interior)      −                                                                                                         0
+ 6 + (body, chassis)        −   T03 :
+ 7 + (bumper, cabin)            CONTEXT(0, 3) = ∅
+ 8 + (cabin, roof)              C03 = {(2, 4), (3, 4)}
+                                D03 = D03 ∩ C03 = {(2, 4), (3, 4)}
+                                D03 = CONNECT(T03, M, S) = {(2, 4), (3, 4)}
+
+Figure 5: A running example of our BELIEFBUILDER. Note that at the 7-th step in the first sequence,
+the D03 before the (highlighted in red) misses one dependent action (3, 4) since it is located outside the
+mistake context and includes an extra pair (1, 2) given the mistake context (Steps 5-6). The missing
+action is retrieved via the CONNECT step and the extra pair is removed when the RULEBUILDER
+sees the 6-th step in Sequence 2. The right side shows the final spatial and temporal rules.
+
+Spatial and temporal beliefs. We show an example of the beliefs building in Fig. 5. We additionally
+run our approach on the full set of sequences on Assembly101 dataset and yield in total 48 temporal
+beliefs. Among these, 23 are transitive, and the remaining 15 are intransitive. It is worth noting that
+these temporal rules are well aligned with the geometric constraints of the toy parts.
+
+5 Conclusion
+
+This work is aimed at detecting ordering mistakes in toy assembly sequences. Accordingly, we
+propose a novel framework that maintains two belief sets to describe the spatial structure and
+temporal constraints in assembly. The belief sets are constructed in an online fashion with the
+BELIEFBUILDER and serve as rules for the INFERENCER. Our approach achieves promising ordering
+mistake detection results and consistently outperforms other approaches on the Assembly101 dataset.
+
+                                       9
+References
+
+ [1] Yazan Abu Farha, Alexander Richard, and Juergen Gall. When will you do what?-anticipating
+      temporal occurrences of activities. In CVPR, 2018.
+
+ [2] Yizhak Ben-Shabat, Xin Yu, Fatemeh Saleh, Dylan Campbell, Cristian Rodriguez-Opazo,
+      Hongdong Li, and Stephen Gould. The ikea asm dataset: Understanding people assembling
+      furniture through actions, objects and pose. In WACV, 2021.
+
+ [3] Chien-Yi Chang, De-An Huang, Danfei Xu, Ehsan Adeli, Li Fei-Fei, and Juan Carlos Niebles.
+      Procedure planning in instructional videos. In ECCV, 2020.
+
+ [4] Dima Damen, Hazel Doughty, Giovanni Maria Farinella, Antonino Furnari, Jian Ma, Evangelos
+      Kazakos, Davide Moltisanti, Jonathan Munro, Toby Perrett, Will Price, and Michael Wray.
+      Rescaling egocentric vision: Collection, pipeline and challenges for epic-kitchens-100. IJCV,
+      130:33–55, 2022.
+
+ [5] Guodong Ding, Fadime Sener, and Angela Yao. Temporal action segmentation: An analysis of
+      modern technique. arXiv preprint arXiv:2210.10352, 2022.
+
+ [6] Dave Epstein, Boyuan Chen, and Carl Vondrick. Oops! predicting unintentional action in video.
+      In CVPR, 2020.
+
+ [7] Yazan Abu Farha and Jurgen Gall. Ms-tcn: Multi-stage temporal convolutional network for
+      action segmentation. In CVPR, 2019.
+
+ [8] Sepp Hochreiter and Jürgen Schmidhuber. Long short-term memory. Neural computation,
+      9(8):1735–1780, 1997.
+
+ [9] Mahnaz Koupaee and William Yang Wang. Wikihow: A large scale text summarization dataset.
+      arXiv preprint arXiv:1810.09305, 2018.
+
+[10] Xudong Lin, Fabio Petroni, Gedas Bertasius, Marcus Rohrbach, Shih-Fu Chang, and Lorenzo
+      Torresani. Learning to recognize procedural activities with distant supervision. In CVPR, pages
+      13853–13863, 2022.
+
+[11] Jonathan Malmaud, Jonathan Huang, Vivek Rathod, Nicholas Johnston, Andrew Rabinovich,
+      and Kevin Murphy. What’s cookin’? interpreting cooking videos using text, speech and vision.
+      In NAACL, 2015.
+
+[12] Francesco Ragusa, Antonino Furnari, Salvatore Livatino, and Giovanni Maria Farinella. The
+      meccano dataset: Understanding human-object interactions from egocentric videos in an
+      industrial-like domain. In WACV, 2021.
+
+[13] Amaia Salvador, Nicholas Hynes, Yusuf Aytar, Javier Marin, Ferda Ofli, Ingmar Weber, and
+      Antonio Torralba. Learning cross-modal embeddings for cooking recipes and food images. In
+      CVPR, 2017.
+
+[14] Fadime Sener, Dibyadip Chatterjee, Daniel Shelepov, Kun He, Dipika Singhania, Robert Wang,
+      and Angela Yao. Assembly101: A large-scale multi-view video dataset for understanding
+      procedural activities. In CVPR, pages 21096–21106, 2022.
+
+[15] Fadime Sener, Rishabh Saraf, and Angela Yao. Transferring knowledge from text to video:
+      Zero-shot anticipation for procedural actions. IEEE Transactions on Pattern Analysis and
+      Machine Intelligence, 2022.
+
+[16] Fadime Sener, Dipika Singhania, and Angela Yao. Temporal aggregate representations for
+      long-range video understanding. In Computer Vision–ECCV 2020: 16th European Conference,
+      Glasgow, UK, August 23–28, 2020, Proceedings, Part XVI 16, pages 154–171. Springer, 2020.
+
+[17] Fadime Sener and Angela Yao. Zero-shot anticipation for instructional activities. In ICCV,
+      pages 862–871, 2019.
+
+[18] Bilge Soran, Ali Farhadi, and Linda G. Shapiro. Generating notifications for missing actions:
+      Don’t forget to turn the lights off! ICCV, 2015.
+
+                                                          10
+[19] Waqas Sultani, Chen Chen, and Mubarak Shah. Real-world anomaly detection in surveillance
+      videos. In CVPR, 2018.
+
+[20] Luowei Zhou, Chenliang Xu, and Jason J Corso. Towards automatic learning of procedures
+      from web instructional videos. In AAAI, 2018.
+
+[21] Dimitri Zhukov, Jean-Baptiste Alayrac, Ramazan Gokberk Cinbis, David Fouhey, Ivan Laptev,
+      and Josef Sivic. Cross-task weakly supervised learning from instructional videos. In CVPR,
+      2019.
+
+                                                          11
+

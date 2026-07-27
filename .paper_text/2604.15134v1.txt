@@ -1,0 +1,1368 @@
+                                        How to Correctly Make Mistakes: A Framework for Constructing and
+                                              Benchmarking Mistake Aware Egocentric Procedural Videos
+
+                                             Olga Loginova                                                   Frank Keller
+                                          University of Trento                                        University of Edinburgh
+
+                                                    Italy                                                 United Kingdom
+
+                                        olga.loginova@unitn.it                                         keller@inf.ed.ac.uk
+
+arXiv:2604.15134v1 [cs.CV] 16 Apr 2026                          Abstract                              real kitchens, workshops, and labs, people omit steps, swap
+                                                                                                      substeps, use the wrong tool, or execute a step slightly
+                                        Reliable procedural monitoring in video requires exposure     off. Learning and evaluating such behavior therefore re-
+                                        to naturally occurring human errors and the recoveries that   quires datasets with realistic deviations, yet these are hard
+                                        follow. In egocentric recordings, mistakes are often par-     to collect and standardize at scale, leaving current resources
+                                        tially occluded by hands and revealed through subtle object   sparse and heterogeneous [2]. Such datasets are needed to
+                                        state changes, while existing procedural datasets provide     train mistake detectors and to evaluate state tracking, con-
+                                        limited and inconsistent mistake and correction traces. We    sequential error localization, and recovery after an error,
+                                        present PIE-V (Psychologically Inspired Error injection for   not only segment-level anomaly flags [12, 16, 41]. They
+                                        Videos), a framework for constructing and benchmarking        also support benchmarking of multimodal procedural assis-
+                                        mistake-aware egocentric procedural videos by augmenting      tants for egocentric guidance, post hoc procedure verifica-
+                                        clean keystep procedures with controlled, human-plausible     tion, and error-aware tutoring, where subtle mistakes and
+                                        deviations. PIE-V combines a psychology-informed error        corrections matter beyond the final action label [17, 32].
+                                        planner conditioned on procedure phase and semantic step
+                                        load, a correction planner that models recovery behavior,        The community is moving toward more structured mis-
+                                        an LLM writer that performs cascade-consistent rewrites,      take reasoning. Current approaches model errors through
+                                        and an LLM judge that validates procedural coherence and      action effects and state changes [12, 16] and emphasize
+                                        repairs failures. For video segment edits, PIE-V synthe-      coherence [41]. Staged mistakes scale better [32, 48],
+                                        sizes replacement clips with text-guided video generation     but naive perturbations often violate preconditions, create
+                                        and stitches them into the episode to preserve visual plau-   impossible object states, or break the task’s causal struc-
+                                        sibility. Applied to 17 tasks and 50 Ego-Exo4D scenarios,     ture [24, 28]. This makes mistake resources difficult to com-
+                                        PIE-V injects 102 mistakes and generates 27 recovery cor-     pare across domains and often too underspecified to support
+                                        rections. For benchmarking, we introduce a unified tax-       robust recovery modeling.
+                                        onomy and a human rubric with nine metrics that cover
+                                        step-level and procedure-level quality, including plausibil-     How can we correctly make mistakes in procedural
+                                        ity, procedure logic with annotator confidence, state change  videos to provide mistake detection models with quality
+                                        coherence, and grounding between text and video. Using        data? A useful mistake-enriched dataset should satisfy two
+                                        this protocol, we audit several existing resources and com-   requirements: (1) the procedure remains executable and
+                                        pare PIE-V against a freeform LLM generation baseline un-     logically coherent as a sequence; (2) injected mistakes re-
+                                        der the same criteria. Together, the framework and rubric     semble human error patterns rather than arbitrary corrup-
+                                        support post-completion verification for egocentric proce-    tion. We operationalize this with PIE-V 1 (Psychologically
+                                        dural mistake detection and correction.                       Inspired Error injection for Videos), a scalable pipeline for
+                                                                                                      augmenting procedural video datasets with mistake-aware
+                                        1. Introduction                                               variants. PIE-V instantiates five universal error types (Dele-
+                                                                                                      tion, Insertion, Transposition, Substitution, Wrong Execu-
+                                        To err is human; to err humanly plausible is hard. Pro-       tion) and controls when errors occur by procedure phase.
+                                        cedural assistants that watch, guide, or evaluate stepwise    For Substitution and Wrong Execution, we use semantic
+                                        activities can fail if trained only on ideal executions. In   roles within each step to localize the error and control its
+                                                                                                      severity through role importance and step load. PIE-V also
+
+                                                                                                          1Code and demos: https://github.com/ologin/PIE-V.
+Figure 1. PIE-V example on an Ego-Exo4D step from “Making Coffee Latte”: (A) reference step; (B) wrong execution with an observable
+spill; (C) correction that restores procedural consistency by cleaning and redoing the pour.
+
+generates realistic Corrections, since natural errors often      edit operations as a transferable structural view of procedu-
+trigger recovery such as redoing a step, inserting a missing     ral deviations, and (iii) cognitive error theory [35], which
+action, or undoing an incorrect state [42].                      distinguishes plan-level changes from execution-level devi-
+                                                                 ations and links plausibility to where an error occurs and
+   Figure 1 illustrates a typical PIE-V error and correction     how it disrupts task state.
+trace on a real procedural step. PIE-V modifies both the
+instruction sequence and the corresponding video segment            We define five mistake types and treat CORRECTION (C)
+to maintain episode-level coherence.                             as a separate component. Correction is reactive: it is trig-
+                                                                 gered by the error to return the executor to the reference
+   A second challenge is evaluation. Existing procedural         trace.
+mistake datasets are valuable resources, but they were typi-
+cally designed for objectives such as detecting visual devi-        The five mistake types are: DELETION (D), a required
+ations from a reference step or procedure [11, 13, 17]. For      step is missing; INSERTION (I), an extra step is added; SUB-
+post-completion mistake detection and correction, where          STITUTION (S), an intended step is replaced by a different
+the goal is to validate the full procedure trace after a task    step; TRANSPOSITION (T), steps are executed in the wrong
+appears complete, this yields only partial coverage. Anno-       order; and WRONG EXECUTION (WE), the intended step
+tations may capture visually salient deviations that are in-     occurs but with incorrect local parameters. The first four
+formative for their original tasks, but they do not necessarily  types are structural edits on the step sequence and align with
+correspond to consequential execution errors at the level of     classical edit operations. Deletion, Insertion, and Substitu-
+the full procedure. PIE-V avoids such visual “artifacts” by      tion correspond to Levenshtein style edits [22]. Transpo-
+using video generation to create more subtle, behaviorally       sition covers sequencing errors, including adjacent swaps
+credible deviations. We propose a rubric-style evaluation        characteristic of Damerau style edits [9]. Wrong Execution
+for mistake-aware procedural video datasets and use it to        is related to Substitution but captures execution level devi-
+audit existing resources and compare generation strategies.      ations that preserve the step identity while changing how
+The rubric scores whether an event is a consequential exe-       it is carried out. This type is closer to slips and lapses in
+cution error, whether its effects remain procedurally consis-    cognitive accounts of human error.
+tent, and whether the sample provides enough structure to
+study recovery.                                                     Wrong Execution and many instances of Substitution re-
+                                                                 quire localization within a step. We therefore represent
+   Our contributions are four-fold: (1) a unified taxonomy       steps through semantic roles [14, 31] and apply edits to
+of procedural errors and semantic roles; (2) a multi-criteria    targeted role arguments such as Object, Coobject, Instru-
+human rubric for mistake assessment; (3) an extensive audit      ment, Location, Destination, Origin, Purpose, and Manner.
+comparing PIE-V against SoTA LLM baselines and existing          Role importance provides an explicit notion of severity by
+datasets; and (4) PIE-V, a psychology-informed pipeline for      distinguishing high impact arguments (Object, Coobject2 )
+semantics-aware mistake injection.                               from medium impact roles (Location, Destination, Origin,
+                                                                 Instrument) and low impact modifiers (Manner, Temporal,
+2. Universal taxonomy of mistakes
+                                                                     2Coobject labels a secondary argument beyond the primary Object, of-
+Our taxonomy draws on three sources: (i) existing mis-           ten the target/recipient (e.g., in APPLY/FIT) or the second item being com-
+take datasets and their annotation practices, (ii) sequence      bined (e.g., in MIX/ADD).
+Table 1. Qualitative cognitive motivations behind each error type in our taxonomy and their phase tendencies.
+
+Error type       Key psychological interpretation and phase tendency
+Substitution
+Wrong execution  Confusion between similar steps, associative interference, or schema competition; tends to be rarer in later
+Deletion         phases once the execution pattern stabilizes.
+Insertion        Execution slips and capture errors (local parameter mistakes), often due to unfamiliarity and motor learning
+Transposition    early on; can occur throughout and may reappear toward the end under fatigue.
+                 Lapses due to memory overload and post-completion vulnerability; tends to increase over the procedure, often
+                 peaking toward the end as attention drops.
+                 Overgeneralization or associative activation (including unintended repetition); generally rarer, but can increase
+                 in the middle when multiple routines overlap and the performer is in the flow.
+                 Sequencing and planning slips under high cognitive load; can occur under time pressure or fatigue, often when
+                 step ordering constraints are weak or when attention is divided.
+
+Degree, Quantity). This role-based view is consistent with     rather than theatrical or staged. If a Correction is present, it
+work that localizes mistakes inside steps and analyzes their   is treated as an additional step in the edited trace with an ex-
+attribution, and with evidence that procedural understand-     plicit semantic dependency on the triggering mistake. It is
+ing depends on recovering and using step arguments, in-        scored with the same applicable metrics, and its plausibility
+cluding implicit ones [5, 24].                                 is interpreted relative to the mistake it addresses.
+
+   Table 1 summarizes the taxonomy and qualitative cogni-      Procedure-level criteria. Procedure-level metrics assess
+tive motivations. In later sections we use this unified lan-   global coherence of the full sequence of procedural steps
+guage to map heterogeneous datasets onto comparable cat-       with mistakes. Procedure Logic is a binary judgment of
+egories. When a dataset uses task-specific labels that do      whether the entire procedure becomes logically inconsistent
+not align cleanly with these types, we treat the mapping as    due to this mistake. Because this decision can be intrinsi-
+approximate.                                                   cally ambiguous, it is paired with a 3-level confidence score.
+                                                               Let e denote an annotated procedure instance and Ae the set
+3. Rubric for mistake-aware dataset assess-                    of raters who scored it. Each rater k ∈ Ae provides a binary
+    ment                                                       decision yk(e) ∈ {0, 1} indicating whether the procedure
+                                                               logic is broken, and a confidence weight qk(e) ∈ {1, 2, 3}.
+To assess mistake-aware procedural traces, we separate two     The final per example score is computed as a confidence
+questions. First, does the marked deviation constitute a con-  weighted fraction of “logic broken” decisions:
+sequential procedural mistake, as opposed to a permissible
+execution variant. Second, if it is a mistake, is it plausi-     \label {eq:procedure-logic} \begin {aligned} \mathrm {PL}(e) &= \frac {\sum _{k\in A_e}   q_k(e)\,y_k(e)} {\sum _{k\in A_e} q_k(e)} , \\ &\qquad y_k(e)\in \{0,1\},\;\; q_k(e)\i                              (1)
+ble at the step level and coherent at the procedure level.
+Table 2 summarizes the rubric dimensions and scales, fol-                                                                                                                                                                                        n \{1,2,3\}. \end {aligned} 
+lowing multi-criteria human evaluation practice rather than
+relying on a single subjective score [1, 44].                  For example, if two raters answer “Yes” with confidence 3
+                                                               and one answers “No” with confidence 2, then PL(e) =
+Step-level criteria. Error Validity is a binary gate: with-    6/(6 + 2) = 0.75. Sequence Consistency Score is a rat-
+out recovery, the deviation would plausibly change the in-     ing of whether the resulting step order remains consistent
+tended outcome, invalidate a prerequisite for later steps, or  with the procedure constraints and dependencies. This cap-
+induce an incorrect intermediate state. This separates con-    tures step sequence quality beyond the binary logic deci-
+sequential mistakes from benign execution variants or in-      sion, making a distinction between locally and completely
+cidental noise. Human Plausibility measures whether a          broken reorderings. State Change Coherence is a binary
+real person could naturally make this specific mistake in      check that the implied world state remains consistent across
+context. Confusability measures how easy it is to miss         the textual trace, avoiding contradictions such as objects
+the mistake during real-time execution; it is distinct from    appearing or changing identity without an action, or out-
+Human Plausibility. Taxonomy Fit (Error Type) assigns          comes that become impossible under the described steps.
+each mistake to one of the five universal categories from      For example, if the trace omits pouring water, but the video
+Section 2 for domain-agnostic analysis across datasets and     later shows a full coffee cup, the implied state transition
+generators. Video Plausibility evaluates whether the mis-      is inconsistent, violating State Change Coherence. Text-
+taken behavior looks visually natural in egocentric footage,
+                                  Table 2. Overview of the PIE-V dataset assessment rubric.
+
+Metric                            Scale                         What it measures
+Error Validity                    Binary
+Human Plausibility                Likert (1–5)                  Whether the deviation should be treated as a mistake under the
+Confusability                     Likert (1–5)                  procedure-level benchmark, rather than a benign variation.
+Procedure Logic                   Binary + Likert (1–3)         How natural the mistake appears in context, avoiding both overly
+Sequence Consistency              Likert (1–5)                  perfect staging and implausible corruption.
+State Change Coherence            Binary                        How difficult it is to notice the mistake, used as a proxy for de-
+Video Plausibility                Likert (1–5)                  tectability and perceived severity.
+Text-Video Grounding Consistency  Likert (1–5)                  Whether the overall procedure becomes logically broken due to the
+                                                                mistake(s), together with annotator confidence.
+                                                                Whether the edited step sequence remains executable as a coherent
+                                                                procedure.
+                                                                Whether the implied world state remains coherent, without impossi-
+                                                                ble preconditions or state transitions.
+                                                                Whether the visual depiction of the mistake looks natural when
+                                                                video is available.
+                                                                Whether the textual procedure matches what happens in the video at
+                                                                the episode level.
+
+Video Grounding Consistency (episode level) rates align-        Step load and phases. PIE-V computes phases3 using a
+ment between the entire textual trace (including the mistake    step-load signal that combines normalized duration and a
+and downstream steps) and what is shown in the video. This      semantic-complexity proxy derived from at:
+is defined at the episode level because mismatches can ac-
+cumulate after an error and can also reflect upstream step           \label {eq:step-load} \mathrm {load}(t)= w_c \cdot \widehat {\mathrm {complexity}}(t) + w_t \cdot \widehat {\mathrm {duration}}(t),  (2)
+segmentation or annotation drift, not only a single step.
+                                                                where duration(t) and complexity(t) are min-max nor-
+Scalable approximations. Human annotations do not               malized within the procedure. The complexity proxy in-
+scale to auditing entire corpora of procedural videos, so       creases with predicate count, role count, nesting depth, and
+the rubric supports learned or algorithmic proxies calibrated   the number of explicit relations in at. We assign each step
+on a small human-labeled subset. A common approach is           a coarse phase ϕ(t) ∈ {PHASE_1, PHASE_2, PHASE_3}
+an LLM-based judge that predicts rubric dimensions from         by splitting equally the cumulative load into thirds (ear-
+text for all metrics except video plausibility and video–text   ly/mid/late by effort). PIE-V outputs a mistake-aware trace
+grounding, then calibrates its outputs against human gold       consisting of a modified procedure P ′, an error plan E, a
+labels. These proxies support large-scale screening and         correction plan C (possibly empty), and an edited video
+comparative audits; the human rubric remains the reference      episode aligned with P ′.
+standard for validity and realism.
+                                                                4.1. Error planner and Correction simulator
+4. PIE-V algorithm
+                                                                4.1.1. Error plan
+PIE-V augments clean keystep egocentric procedures with         PIE-V first samples an error plan E = {ek}Kk=1. Each error
+explicit error and recovery traces. Figure 2 overviews the      event is
+modular pipeline: planning samples a structured error and
+correction program, LLM stages realize and validate a co-                                  e_k=(t_k,\tau _k,\rho _k), 
+herent textual trace, and the video stage renders edited seg-
+ments so the final episode remains visually plausible.          where tk ∈ {1, . . . , T } is the target step index, τk is the er-
+                                                                ror type, and ρk stores type-specific parameters (e.g., swap
+Problem setup. We start from clean keystep procedures           partner for T, or mutated semantic roles for WE). We use
+paired with egocentric video. Let a reference procedure         five error types τ ∈ {D, I, S, T, WE}.
+be a sequence of T steps P = (s1, . . . , sT ). Each step
+st is paired with (i) a semantic representation at (predicate-      3Phases serve as a compact control variable that separates where errors
+argument structure over semantic roles) and (ii) an observed    are more likely to occur from which error types are more likely within a
+duration dt from the video segment aligned to the step.         step. PIE-V, in turn, encodes cognitive regularities such as peak-load se-
+                                                                quencing failures and late post-completion omissions (details and parame-
+                                                                ter tables are provided in Sec. C.1.
+Figure 2. PIE-V pipeline overview. Clean keystep procedures are enriched by (1) an error planner (psychology-informed, constrained by
+step semantics and procedure phase), (2) a correction planner (recovery behavior), (3) an LLM writer (procedure rewriting with cascade
+consistency edits), (4) an LLM judge (coherence validation and repair; optionally multimodal), and (5) a video synthesis stage that generates
+new clips and smooth transitions for video plausibility. Green dashed arrows denote precomputed semantic representations for each step
+that condition all PIE-V modules except video generation.
+
+   The planner is psychology-informed. It biases error                                                                                                                      Structural edits. For D, PIE-V removes st from the trace.
+placement and type by phase ϕ(t) and step load load(t), re-                                                                                                                 For I, it inserts a new step near t (the plan specifies insertion
+flecting that slips, lapses, and post-completion vulnerability                                                                                                              location and intent; the writer realizes the text). For T, it
+vary over a procedure [6, 7, 29, 35].                                                                                                                                       swaps the order of two nearby steps within a fixed window
+                                                                                                                                                                            (default window size 6). For S, it replaces the intended step
+Phase error-rate model (where errors occur). We de-                                                                                                                         with an alternative step consistent with local context and
+fine a phase error-rate model rϕ and normalize it into mul-                                                                                                                 taxonomy constraints.
+tipliers with mean 1:
+                                                                                                                                                                            Localized edits. WE and many cases of S require
+           \label {eq:phase-mult} m_{\phi }=\frac {r_{\phi }}{\frac {1}{3}\sum _{\phi '\in \{\textsc {phase\_1},\textsc {phase\_2},\textsc {phase\_3}\}} r_{\phi '}}.  (3)  localization inside a step. PIE-V therefore mutates
+                                                                                                                                                                            role arguments inside at rather than rewriting the en-
+Candidate error locations are sampled with load-based                                                                                                                       tire step arbitrarily. We use a role-impact map ω(r) ∈
+weights:                                                                                                                                                                    {HIGH, MEDIUM, LOW}4. For Wrong Execution, we select
+                                                                                                                                                                            one (occasionally two) roles present in the step with prob-
+   \label {eq:error-step-weights} w(t)=\bigl (\lambda +(1-\lambda )\mathrm {load}(t)\bigr )\cdot m_{\phi (t)},\qquad \lambda =0.15,  (4)                                    ability proportional to an impact weight and a predicate-
+                                                                                                                                                                            conditioned role prior:
+under hard constraints that prevent degenerate traces (e.g.,
+K ≤ 5 and no more than three consecutive error steps).                                                                                                                                 \label {eq:role-sampling} \begin {aligned} p(r\mid a_t) \propto \;& \mathrm {ImpactWeight}(\omega (r)) \\ &\cdot \Bigl (0.2+\mathrm {Prior}\bigl (r\mid \mathrm {pred}(a_t)\bigr )\Bigr ) \end {aligned}  (6)
+
+Phase-conditioned type priors (what errors occur). Er-                                                                                                                      We define error severity as the maximum impact among mu-
+ror types are sampled from phase-conditioned priors.                                                                                                                        tated roles.
+Let πϕ be a phase-specific prior over the taxonomy
+{WE, D, S, I, T}. We sample                                                                                                                                                 4.1.2. Correction simulator
+                                                                                                                                                                            PIE-V produces a correction plan C = {cj}Jj=1 conditioned
+  \label {eq:error-type} p(\tau \mid \phi (t)) \propto \pi _{\phi (t)}(\tau )\cdot m(\tau ;T,\mathrm {ess}(t)),   (5)                                                       on E and procedure context (with J possibly zero). A cor-
+                                                                                                                                                                            rection event is represented as
+where m(·) applies feasibility modifiers such as disallowing
+deletion if T ≤ 4, limiting transposition to a local window,                                                                                                                                           c_j=(t'_j,\kappa _j,\pi _j), 
+and biasing insertions toward non-essential steps. We also
+constrain transpositions and prefer substitutions using tax-                                                                                                                where t′j is the insertion point in the edited trace, κj is the
+onomy blocks from the underlying keystep hierarchy so that                                                                                                                  correction type, and πj encodes the repair target (the trig-
+edits remain locally coherent without requiring a full world                                                                                                                gering error id and the object/role to repair).
+model.
+                                                                                                                                                                                4Role annotations are precomputed offline for the dataset step vocabu-
+                                                                                                                                                                            lary, while the role-impact map and predicate-conditioned role priors are
+                                                                                                                                                                            constructed once from the semantic representation corpus; implementation
+                                                                                                                                                                            details are given in Sec. C.3.
+                                                                                                                                                                                                   4.3. LLM judge: plan compliance, coherence vali-
+                                                                                                                                                                                                         dation, and repair
+
+                                                                                                                                                                                                   The judge validates and repairs the writer output. It checks
+
+                                                                                                                                                                                                   three classes of constraints. Plan compliance: Planned er-
+
+                                                                                                                                                                                                   ror and correction events must appear at the intended lo-
+
+Figure 3. Example PIE-V simulation log for the Ego-Exo4D “In-                                                                                                                                      cations and match the intended types, including targeted
+stall a Wheel” task (cmu_bike14_4). The simulators insert a WE
+event at Step 01 (incorrect wheel positioning in the fork) and then                                                                                                                                roles for localized edits. Procedure coherence: The rewrit-
+schedule a phase-matched correction (STOP_AND_FIX → redo
+Step 01) before continuing the remaining steps.                                                                                                                                                    ten trace must remain executable and logically consistent,
+
+                                                                                                                                                                                                   including ordering constraints and state consistency. We
+
+                                                                                                                                                                                                   treat state coherence as a predicate over implied transitions
+
+                                                                                                                                                                                                   xt+1    =  g  (xt  ,  s′   )  and  reject  traces  that  assume  unavail-
+
+                                                                                                                                                                                                                           t
+
+                                                                                                                                                                                                   able objects or contradict prior effects. Recovery validity:
+
+Detection and action priors. Corrections depend on                                                                                                                                                 Corrections must address the triggering mistake and restore
+whether the executor notices the error and decides to act.
+We model detection with a factorized prior based on error                                                                                                                                          procedural consistency rather than introduce new contradic-
+type and phase, modulated by severity, essentiality, predi-
+cate salience, and cognitive load:                                                                                                                                                                 tions.
+
+                                                                                                                                                                                                   The judge runs a bounded repair loop: it proposes min-
+
+                                                                                                                                                                                                   imal rewrites that preserve the plan and revalidates them.
+
+                                                                                                                                                                                                   If repeated text-only repairs fail, the judge can optionally
+
+  \label {eq:detect-prob} p_{\mathrm {detect}}(e)=\mathrm {clamp}\Bigl (b(\tau ,\phi )\cdot f_{\mathrm {sev}}\cdot f_{\mathrm {ess}}\cdot f_{\mathrm {pred}}\cdot f_{\mathrm {load}}\Bigr ),  (7)  become multimodal by attaching a small number of cached
+
+                                                                                                                                                                                                   frames from the implicated steps (typically WE or S) and
+
+where b(τ, ϕ) is a hand-specified base detectability prior                                                                                                                                         retrying repair with visual evidence.
+over error types and phase buckets, motivated by cognitive
+error recovery regularities, and fload = max(0.70, 1−0.25·                                                                                                                                         4.4. Video synthesis and stitching
+load(t)) decreases detection under high load. The full de-
+tectability tables, action priors, and latency settings are pro-                                                                                                                                   PIE-V edits the egocentric episode to match P ′ by regen-
+vided in Sec. C.2.                                                                                                                                                                                 erating only windows affected by planned errors or correc-
+                                                                                                                                                                                                   tions and keeping other clips unchanged. For each edited
+   Conditioned on detection, we sample a latency in steps                                                                                                                                          window, we cache boundary anchors (end frame of the pre-
+and a correction type consistent with the triggering error,                                                                                                                                        ceding step and start frame of the following step), generate
+such as STOP_AND_FIX, REDO, ROLLBACK_AND_REDO,                                                                                                                                                     a replacement clip conditioned on these anchors when sup-
+or UNDO_EXTRA_STEP, following cognitive accounts of                                                                                                                                                ported, and splice it back, updating step timestamps. Edit-
+recovery behavior [42].                                                                                                                                                                            ing is type-dependent and constrained by model duration:
+                                                                                                                                                                                                   WE and S typically replace a full step, I and C add a short
+   Figure 3 shows a concrete sampled trace in which WE at                                                                                                                                          clip, T regenerates a local window, and D removes a step
+Step 01 triggers an immediate STOP_AND_FIX correction                                                                                                                                              and inserts a brief bridge (often < 3 s) to connect surround-
+C and step redo, so that the next Step_2 remains plausible,                                                                                                                                        ing context.
+as well as all the following steps.
+
+4.2. LLM writer: coherent procedure rewriting                                                                                                                                                      5. Experiments
+      with cascades
+                                                                                                                                                                                                   5.1. Annotations
+Given (P, {at}, E, C), the writer produces a rewritten pro-
+                                                                                                                                                                                                   Annotation protocol and agreement. We use 5 annota-
+cedure  P′  =  (s′1  ,  .  .  .  ,  s  ′  ′  )  that  instantiates  planned  devi-                                                                                                                 tors (2 male, 3 female; age 20–47; mixed educational back-
+                                       T                                                                                                                                                           grounds).
+
+ations and recoveries. A key requirement is global coher-                                                                                                                                             Annotators evaluate samples in a paired setting: a refer-
+                                                                                                                                                                                                   ence execution and a mistake-aware variant with mistakes
+ence: if an entity or attribute is edited at step t, later men-                                                                                                                                    and corrections explicitly marked. The task is to rate the
+                                                                                                                                                                                                   quality of the indicated deviations and recoveries, not to
+tions must be updated consistently. We represent this with                                                                                                                                         discover them. We monitor inter-annotator agreement using
+                                                                                                                                                                                                   Krippendorff’s α. The details on annotators and guidelines
+a cascading rewrite map M over entities and attributes. For                                                                                                                                        are given in B.
+
+each planned local edit, we update M and apply it to future                                                                                                                                        5.2. PIE-V for Ego-Exo4D
+
+steps:                                                                                                                                                                                             We construct a mistake-enriched benchmark from Ego-
+                                                                                                                                                                                                   Exo4D by selecting 17 tasks and 50 scenarios and gen-
+  M \leftarrow M \cup \{v_{t,r}\mapsto \tilde {v}_{t,r}\}, \qquad s'_{t'>t}=\mathrm {Rewrite}(s_{t'},M). 
+
+The writer therefore emits both the planned error/correction
+steps and any necessary downstream adjustments, avoiding
+a common failure mode of unstructured generation where
+local edits silently break global procedure logic.
+Table 3. Aggregated rubric statistics for existing datasets and Ego-Exo4D generations. We do not report Taxonomy Fit here because it is
+not a scalar score/rate. Lower is better for “Proc.Logic (Yes, %)” and “State-Chg (Yes, %)”; higher is better for the remaining reported
+metrics. “–” indicates unavailable values. The best value is highlighted only for metrics with a clear optimization direction.
+
+Dataset                                             Err.Valid (Yes, %) Human Pl. Confus. Proc.Logic (Yes, %) Seq.Cons. State-Chg (Yes, %) Vid.Pl. T–V Gr.
+
+EgoPER                                              51                                     2.67  1.88  26  4.41  14  3.22 3.42
+EgoOops
+Assembly101                                         72                                     3.73  1.63  28  4.50  10  4.31 3.74
+CaptainCook4D
+                                                    65                                     3.69  2.09  12  4.82  4   4.05 3.22
+
+                                                    74                                     3.71  2.32  12  4.73  2   3.42 3.63
+
+Ego-Exo4D-Qwen (freeform)                           57                                     3.34  2.04  36  4.20  27  –  –
+
+Ego-Exo4D-GPT-5.2 (freeform)                        55                                     3.08  1.76  25  4.18  7   –  –
+
+Ego-Exo4D-Qwen-PJ (PIE-V+Qwen2.5, Qwen3-VL-judged)  71                                     3.09  1.86  30  4.39  10  –  –
+
+Ego-Exo4D-GPT-5.2-PJ (PIE-V+GPT, judged)            89                                     3.41  1.76  6   4.48  3   3.54 3.87
+
+Table 4. Scale statistics for Ego-Exo4D generations under differ-                                6. Results
+ent settings.
+                                                                                                 6.1. Audit of existing datasets
+Setting                    Total steps Mistake steps Mistake rate (%) Avg. mistakes/video
+                                                                                                 We apply our rubric to four egocentric datasets with an-
+Ego-Exo4D-Qwen (freeform)  1156    112    9.69          2.24                                     notated mistakes: EgoPER [21], EgoOops [17], Captain-
+                                                                                                 Cook4D [32], and Assembly101 [39]. For each dataset, we
+Ego-Exo4D-GPT-5.2 (freeform) 1270  77     6.06          1.54                                     randomly sample 25 videos that contain at least one anno-
+                                                                                                 tated mistake. Table 2 summarizes step and mistake density
+Ego-Exo4D-Qwen-PJ          1320    143    10.83         2.86                                     for the four audited datasets for general context.
+
+Ego-Exo4D-GPT-5.2-PJ       1323    141    10.66         2.82                                        Table 3 summarizes rubric aggregates and reveals
+                                                                                                 dataset-specific signatures relevant for procedure-level mis-
+erating one mistake-aware variant per scenario. The error                                        take reasoning: (i) how often annotated deviations are
+planner injects up to five mistakes per procedure with a cap                                     judged as consequential mistakes (Err.Valid), (ii) whether
+on consecutive mistakes, disallows deletions for very short                                      they look like errors a real person could make (Human Pl.)
+procedures, and restricts transpositions to a local window.                                      and whether they are easy to overlook (Confus.), and (iii)
+Across the 50 scenarios, PIE-V injects 102 mistakes and 27                                       whether the resulting trace remains logically and causally
+recovery corrections; the mistakes cover all five taxonomy                                       coherent (Proc.Logic / Seq.Cons. / State-Chg) with aligned
+types. Corrections are not generated for every mistake be-                                       text and video (T–V Gr.).
+cause recovery is sampled conditionally from detectability,
+action, and latency priors, as detailed in Sec. C.2.                                                Across datasets, step-level realism cues (Human Pl.,
+                                                                                                 Vid.Pl.) do not imply procedure-level coherence: several re-
+   For text generation and validation in the writer/judge                                        sources score well on plausibility while still exhibiting fre-
+stages we use GPT-5.2 [40], Qwen2.5-32B[3], and the mul-                                         quent logic or state inconsistencies under a holistic rubric.
+timodal Qwen3-VL-32B [46]. For video editing we syn-                                             Conversely, the higher step–mistake density summarized in
+thesize replacement clips with Kling-O [43], Sora 2 [25],                                        Table 2 often correlates with lower confusability and more
+Seedance 1.5 Pro [38], Veo 3.1 [10], and Runway Gen-                                             staged-looking deviations, which is desirable for anomaly
+4 [36].                                                                                          recognition but less representative of naturally occurring
+                                                                                                 mistake-and-recovery traces.
+5.3. LLMs for Ego-Exo4D
+                                                                                                    Our audit reveals specific signatures: EgoOops scores
+To assess whether unstructured generation can match struc-                                       strongly on Human Plausibility and Video Plausibility, sug-
+tured planning, we compare PIE-V against a freeform                                              gesting mistakes tend to look behaviorally credible and vi-
+baseline that rewrites a clean procedure into a mistake-                                         sually natural. Its scenarios are specific and mistakes are
+aware variant directly from text instructions, without ex-                                       mostly staged, which reduces coverage for broad everyday
+plicit phase priors or role-constrained edits. We also evalu-                                    procedures and limits the diversity of long-horizon causal
+ate a stronger baseline that adds the same validation and re-                                    failures. Assembly101 shows lower Text–Video Ground-
+pair stage as PIE-V (LLM judge plus deterministic checks),                                       ing Consistency. It indicates that textual step descriptions
+isolating the effect of structured planning. Both baselines                                      do not fully correspond to what is executed on video, which
+use the same model pool as PIE-V for writer/judge: GPT-                                          complicates episode-level tracking for multimodal models.
+5.2, Qwen2.5-32B, and the multimodal Qwen3-VL-32B.                                               Its completion-driven assembly protocol also reshapes the
+All generated traces are evaluated under the same rubric and                                     error space: genuine omissions are naturally rare, and re-
+audit protocol as the existing datasets.                                                         peated attach/detach attempts can appear insertion-like at
+                                          Table 5. Krippendorff’s α agreement summary.
+
+Dataset                                   Err.Valid  Human Pl.  Confus.  Proc.Logic  Seq.Cons.  State-Chg  Taxonomy Fit  Vid.Pl.  T–V Gr.
+
+EgoPER                                      0.912       0.541    0.368      0.728      0.628      0.579         0.759    0.574     0.662
+EgoOops                                     0.916       0.592    0.375      0.836      0.667      0.600         0.882    0.579     0.560
+Assembly101                                 0.859       0.584    0.697      0.739      0.649      1.000         0.931    0.670     0.861
+CaptainCook4D                               0.694       0.758    0.847      0.621      0.542      0.584         0.791    0.550     0.488
+Ego-Exo4D-GPT-5.2-PJ (PIE-V+GPT, judged)    0.913       0.489    0.387      0.672      0.619      0.696         0.803    0.630     0.930
+
+the sequence level. EgoPER has comparatively low Er-                     7. Related work
+ror Validity: a substantial fraction of labeled deviations
+are judged as permissible variants rather than consequen-                Human errors, corrections, and structured procedu-
+tial mistakes. This highlights that “mistake” boundaries                 ral edits. PIE-V builds on cognitive accounts that dis-
+are often ambiguous in practice, and that such ambiguity                 tinguish slips (execution failures) from mistakes (planning
+can weaken supervision signals when the goal is to learn                 failures) [29, 35]. We model phase-dependent vulnerabil-
+recovery-triggering errors rather than stylistic execution dif-          ity (e.g., post-completion errors) [7] and elevated error rates
+ferences. CaptainCook4D combines high mistake density                    under high cognitive load [19, 30], and we explicitly synthe-
+with lower Confusability, i.e., many deviations are easy to              size reactive corrections to capture human recovery behav-
+notice. This profile fits segment-level anomaly recognition,             ior and memory competition effects [42, 45]. To generate
+but it can be less representative of naturally occurring traces          realistic deviations without physically implausible corrup-
+where mistakes are often subtle and followed by explicit re-             tion, we leverage semantic role labeling to localize editable
+coveries rather than frequent isolated anomalies.                        arguments [31] and constrain edits by feasibility and role
+                                                                         impact, rather than unconstrained role swaps used in mis-
+   Overall, these datasets were primarily designed for                   alignment generation [24].
+segment-level deviation and anomaly recognition. Our
+rubric makes explicit which procedure-level properties are               Procedural video benchmarks. Egocentric procedural
+not directly targeted by this focus, such as coherent state              datasets and mistake-focused benchmarks are rapidly ex-
+transitions and episode-level text–video alignment. This re-             panding but remain heterogeneous in domains and tax-
+flects different design objectives rather than a flaw of the             onomies. A detailed survey and comparison are available in
+resources.                                                               A. PIE-V complements these resources by providing a scal-
+                                                                         able pipeline to inject plausible, non-staged errors and re-
+6.2. PIE-V vs. LLMs                                                      coveries across diverse scenarios, bridging domain-specific
+                                                                         anomalies and universal procedural logic.
+If we compare PIE-V and freeform mistake generation, two
+trends stand out. First, freeform generation under-produces              8. Conclusion
+mistakes (Table 4) and produces substantially higher rates
+of procedure-level failures (Proc.Logic and State-Chg) de-               Making mistakes is easy; making them correctly is what
+spite producing locally fluent text (see Table 3). Second,               enables reliable benchmarking. PIE-V turns mistake-aware
+adding a judge stage without structured planning is insuffi-             dataset construction into a controlled, auditable pipeline for
+cient: phase/load priors and role-constrained edits are what             egocentric procedures. It plans phase- and load-conditioned
+keep multi-error traces executable over long horizons.                   deviations and recoveries, realizes them with constrained
+                                                                         rewriting and validation, and synthesizes edited clips so the
+   A common freeform failure mode is violating implicit                  final episodes remain visually plausible.
+preconditions or dropping necessary tail steps: for instance,
+the model describes a deviation but leaves the step text ef-                PIE-V is the first method to prioritize world state when
+fectively unchanged, or truncates the remaining procedure;               generating errors: deviations are kept only if their causal ef-
+or the resulting trace lacks a recovery step and becomes in-             fects remain executable, consistent, and recoverable, yield-
+consistent with later state-dependent actions.                           ing full error–correction traces rather than isolated anoma-
+                                                                         lies. Human evaluation with our nine-metric rubric con-
+   To quantify reliability of the rubric dimensions, we com-             firms that this structure matters: compared with freeform
+pute Krippendorff’s α across annotators for each metric and              generation and existing resources, PIE-V more often pro-
+dataset (Table 5). We expect higher agreement for crisp cat-             duces consequential, procedure-coherent mistake traces
+egorical judgments (e.g., Error Validity, Taxonomy Fit) and              with stronger plausibility cues.
+lower agreement for inherently subjective ratings (Human
+Plausibility, Confusability), where multiple interpretations
+of “how a human might err” are reasonable.
+Acknowledgements                                                     [12] Alessandro Flaborea, Guido Maria D’Amely di Melen-
+                                                                           dugno, Leonardo Plini, Luca Scofano, Edoardo De Matteis,
+Olga Loginova thanks Amazon Alexa for supporting her                       Antonino Furnari, G. Farinella, and Fabio Galasso. Prego:
+research through a generous donation to Raffaella Bernardi.                Online mistake detection in procedural egocentric videos.
+                                                                           2024 IEEE/CVF Conference on Computer Vision and Pat-
+References                                                                 tern Recognition (CVPR), pages 18483–18492, 2024. 1
+
+ [1] Jacopo Amidei, Paul Piwek, and Alistair Willis. The use of      [13] Reza Ghoddoosian, Isht Dwivedi, Nakul Agarwal, and Be-
+      rating and Likert scales in natural language generation hu-          hzad Dariush. Weakly-supervised action segmentation and
+      man evaluation tasks: A review and some recommendations.             unseen error detection in anomalous instructional videos.
+      In Proceedings of the 12th International Conference on Nat-          2023 IEEE/CVF International Conference on Computer Vi-
+      ural Language Generation, pages 397–402, Tokyo, Japan,               sion (ICCV), pages 10094–10104, 2023. 2, 3
+      2019. Association for Computational Linguistics. 3
+                                                                     [14] Daniel Gildea and Daniel Jurafsky. Automatic labeling of
+ [2] Konstantinos Bacharidis and Antonis A. Argyros. Vision-               semantic roles. Computational Linguistics, 28(3):245–288,
+      based mistake analysis in procedural activities: A review of         2002. 2
+      advances and challenges, 2025. 1
+                                                                     [15] Kristen Grauman, Andrew Westbury, Lorenzo Torresani,
+ [3] Jinze Bai, Shuai Bai, Yunfei Chu, Zeyu Cui, Kai Dang, Xi-             Kris Kitani, Jitendra Malik, Triantafyllos Afouras, Kumar
+      aodong Deng, Yang Fan, Wenbin Ge, Yu Han, Fei Huang,                 Ashutosh, Vijay Baiyya, Siddhant Bansal, Bikram Boote,
+      Binyuan Hui, Luo Ji, Mei Li, Junyang Lin, Runji Lin, Day-            Eugene Byrne, Zach Chavis, Joya Chen, Feng Cheng, Fu-
+      iheng Liu, Gao Liu, Chengqiang Lu, Keming Lu, Jianxin                Jen Chu, Sean Crane, Avijit Dasgupta, Jing Dong, Maria
+      Ma, Rui Men, Xingzhang Ren, Xuancheng Ren, Chuanqi                   Escobar, Cristhian Forigua, Abrham Gebreselasie, Sanjay
+      Tan, Sinan Tan, Jianhong Tu, Peng Wang, Shijie Wang, Wei             Haresh, Jing Huang, Md Mohaiminul Islam, Suyog Jain,
+      Wang, Shengguang Wu, Benfeng Xu, Jin Xu, An Yang,                    Rawal Khirodkar, Devansh Kukreja, Kevin J Liang, Jia-
+      Hao Yang, Jian Yang, Shusheng Yang, Yang Yao, Bowen                  Wei Liu, Sagnik Majumder, Yongsen Mao, Miguel Martin,
+      Yu, Hongyi Yuan, Zheng Yuan, Jianwei Zhang, Xingxuan                 Effrosyni Mavroudi, Tushar Nagarajan, Francesco Ragusa,
+      Zhang, Yichang Zhang, Zhenru Zhang, Chang Zhou, Jingren              Santhosh Kumar Ramakrishnan, Luigi Seminara, Arjun So-
+      Zhou, Xiaohuan Zhou, and Tianhang Zhu. Qwen technical                mayazulu, Yale Song, Shan Su, Zihui Xue, Edward Zhang,
+      report. arXiv preprint arXiv:2309.16609, 2023. 7                     Jinxu Zhang, Angela Castillo, Changan Chen, Xinzhu Fu,
+                                                                           Ryosuke Furuta, Cristina Gonzalez, Prince Gupta, Jiabo
+ [4] Siddhant Bansal, Chetan Arora, and C. V. Jawahar. My view             Hu, Yifei Huang, Yiming Huang, Weslie Khoo, Anush Ku-
+      is the best view: Procedure learning from egocentric videos,         mar, Robert Kuo, Sach Lakhavani, Miao Liu, Mi Luo,
+      2022. 3                                                              Zhengyi Luo, Brighid Meredith, Austin Miller, Oluwatumin-
+                                                                           inu Oguntola, Xiaqing Pan, Penny Peng, Shraman Praman-
+ [5] Anil Batra, Laura Sevilla-Lara, Marcus Rohrbach, and Frank            ick, Merey Ramazanova, Fiona Ryan, Wei Shan, Kiran So-
+      Keller. Predicting implicit arguments in procedural video in-        masundaram, Chenan Song, Audrey Southerland, Masatoshi
+      structions. In Proceedings of the 63rd Annual Meeting of the         Tateno, Huiyu Wang, Yuchen Wang, Takuma Yagi, Mingfei
+      Association for Computational Linguistics (Volume 1: Long            Yan, Xitong Yang, Zecheng Yu, Shengxin Cindy Zha, Chen
+      Papers), pages 30399–30419, Vienna, Austria, 2025. Asso-             Zhao, Ziwei Zhao, Zhifan Zhu, Jeff Zhuo, Pablo Arbelaez,
+      ciation for Computational Linguistics. 3                             Gedas Bertasius, David Crandall, Dima Damen, Jakob En-
+                                                                           gel, Giovanni Maria Farinella, Antonino Furnari, Bernard
+ [6] Michael D. Byrne and Susan Bovair. A working memory                   Ghanem, Judy Hoffman, C. V. Jawahar, Richard Newcombe,
+      model of a common procedural error. Cogn. Sci., 21:31–61,            Hyun Soo Park, James M. Rehg, Yoichi Sato, Manolis Savva,
+      1997. 5                                                              Jianbo Shi, Mike Zheng Shou, and Michael Wray. Ego-
+                                                                           exo4d: Understanding skilled human activity from first- and
+ [7] Michael D. Byrne and Elizabeth M. Davis. Task structure               third-person perspectives, 2024. 3, 4
+      and postcompletion error in the execution of a routine proce-
+      dure. Human Factors, 48(4):627–638, 2006. 5, 8                 [16] Wenliang Guo, Yujiang Pu, and Yu Kong. Procedural mis-
+                                                                           take detection via action effect modeling, 2025. 1
+ [8] Dima Damen, Hazel Doughty, Giovanni Maria Farinella,
+      Sanja Fidler, Antonino Furnari, Evangelos Kazakos, Davide      [17] Yuto Haneji, Taichi Nishimura, Hirotaka Kameko, Keisuke
+      Moltisanti, Jonathan Munro, Toby Perrett, Will Price, and            Shirai, Tomoya Yoshida, Keiya Kajimura, Koki Yamamoto,
+      Michael Wray. The epic-kitchens dataset: Collection, chal-           Taiyu Cui, Tomohiro Nishimoto, and Shinsuke Mori.
+      lenges and baselines, 2020. 3                                        Egooops: A dataset for mistake action detection from ego-
+                                                                           centric videos referring to procedural texts, 2025. 1, 2, 7, 3,
+ [9] Fred J. Damerau. A technique for computer detection and               4
+      correction of spelling errors. Communications of the ACM,
+      7:171 – 176, 1964. 2                                           [18] Youngkyoon Jang, Brian T. Sullivan, Casimir J. H. Ludwig,
+                                                                           Iain D. Gilchrist, Dima Damen, and W. Mayol-Cuevas. Epic-
+[10] Google DeepMind. Veo 3.1 technical report. Technical re-              tent: An egocentric video dataset for camping tent assembly.
+      port, Google, 2026. Accessed: 2026-02-24. 7                          2019 IEEE/CVF International Conference on Computer Vi-
+                                                                           sion Workshop (ICCVW), pages 4461–4469, 2019. 3
+[11] Guodong Ding, Fadime Sener, Shugao Ma, and Angela Yao.
+      Every mistake counts in assembly. ArXiv, abs/2307.16453,       [19] Marcel Adam Just and Patricia A. Carpenter. A capacity
+      2023. 2
+      theory of comprehension: individual differences in working      [35] James Reason. Human Error. Cambridge University Press,
+      memory. Psychological review, 99 1:122–49, 1992. 8, 5                 1990. 2, 5, 8, 6
+[20] Max Ku, Cong Wei, Weiming Ren, Harry Yang, and Wenhu
+      Chen. Anyv2v: A tuning-free framework for any video-to-         [36] Runway Research. Introducing Runway Gen-4. https:
+      video editing tasks, 2024. 12                                         / / runwayml . com / research / introducing -
+[21] Shih-Po Lee, Zijia Lu, Zekun Zhang, Minh Hoai, and Ehsan               runway-gen-4, 2025. Accessed: 2025-03-01. 7
+      Elhamifar. Error detection in egocentric procedural task
+      videos. In Proceedings of the IEEE/CVF Conference on            [37] Tim J. Schoonbeek, Tim Houben, Hans Onvlee, Peter H. N.
+      Computer Vision and Pattern Recognition (CVPR), pages                 de With, and Fons van der Sommen. Industreal: A dataset
+      18655–18666, 2024. 7, 2, 3, 4                                         for procedure step recognition handling execution errors in
+[22] Vladimir I. Levenshtein. Binary codes capable of correcting            egocentric videos in an industrial-like setting, 2023. 2, 3
+      deletions, insertions, and reversals. Soviet physics. Doklady,
+      10:707–710, 1965. 2                                             [38] Team Seedance, Heyi Chen, Siyan Chen, Xin Chen, Yan-
+[23] Runjia Li, Moayed Haji-Ali, Ashkan Mirzaei, Chaoyang                   fei Chen, Ying Chen, Zhuo Chen, Feng Cheng, Tianheng
+      Wang, Arpit Sahni, Ivan Skorokhodov, Aliaksandr Siaro-                Cheng, Xinqi Cheng, Xuyan Chi, Jian Cong, Jing Cui, Qin-
+      hin, Tomas Jakab, Junlin Han, Sergey Tulyakov, Philip Torr,           peng Cui, Qide Dong, Junliang Fan, Jing Fang, Zetao Fang,
+      and Willi Menapace. Egoedit: Dataset, real-time streaming             Chengjian Feng, Han Feng, Mingyuan Gao, Yu Gao, Dong
+      model, and benchmark for egocentric video editing, 2025.              Guo, Qiushan Guo, Boyang Hao, Qingkai Hao, Bibo He,
+      12                                                                    Qian He, Tuyen Hoang, Ruoqing Hu, Xi Hu, Weilin Huang,
+[24] Yayuan Li, Aadit Jain, Filippos Bellos, and Jason J. Corso.            Zhaoyang Huang, Zhongyi Huang, Donglei Ji, Siqi Jiang,
+      Mistake attribution: Fine-grained mistake understanding in            Wei Jiang, Yunpu Jiang, Zhuo Jiang, Ashley Kim, Jianan
+      egocentric videos, 2025. 1, 3, 8                                      Kong, Zhichao Lai, Shanshan Lao, Yichong Leng, Ai Li,
+[25] Yixin Liu, Kai Zhang, Yuan Li, Zhiling Yan, Chujie Gao,                Feiya Li, Gen Li, Huixia Li, JiaShi Li, Liang Li, Ming Li,
+      Ruoxi Chen, Zhengqing Yuan, Yue Huang, Hanchi Sun, Jian-              Shanshan Li, Tao Li, Xian Li, Xiaojie Li, Xiaoyang Li,
+      feng Gao, Lifang He, and Lichao Sun. Sora: A review                   Xingxing Li, Yameng Li, Yifu Li, Yiying Li, Chao Liang,
+      on background, technology, limitations, and opportunities of          Han Liang, Jianzhong Liang, Ying Liang, Zhiqiang Liang,
+      large vision models, 2024. 7                                          Wang Liao, Yalin Liao, Heng Lin, Kengyu Lin, Shanchuan
+[26] Jinjie Mai, Chaoyang Wang, Guocheng Gordon Qian,                       Lin, Xi Lin, Zhijie Lin, Feng Ling, Fangfang Liu, Gaohong
+      Willi Menapace, Sergey Tulyakov, Bernard Ghanem, Pe-                  Liu, Jiawei Liu, Jie Liu, Jihao Liu, Shouda Liu, Shu Liu,
+      ter Wonka, and Ashkan Mirzaei. Easyv2v: A high-quality                Sichao Liu, Songwei Liu, Xin Liu, Xue Liu, Yibo Liu, Zikun
+      instruction-based video editing framework, 2025. 12                   Liu, Zuxi Liu, Junlin Lyu, Lecheng Lyu, Qian Lyu, Han
+[27] Stephen McKenna and Sebastian Stein. 50 salads. https:                 Mu, Xiaonan Nie, Jingzhe Ning, Xitong Pan, Yanghua Peng,
+      //discovery.dundee.ac.uk/en/datasets/50-                              Lianke Qin, Xueqiong Qu, Yuxi Ren, Kai Shen, Guang Shi,
+      salads/, 2012. 3                                                      Lei Shi, Yan Song, Yinglong Song, Fan Sun, Li Sun, Renfei
+[28] Medhini Narasimhan, Licheng Yu, Sean Bell, Ning Zhang,                 Sun, Yan Sun, Zeyu Sun, Wenjing Tang, Yaxue Tang, Zirui
+      and Trevor Darrell. Learning and verification of task struc-          Tao, Feng Wang, Furui Wang, Jinran Wang, Junkai Wang,
+      ture in instructional videos, 2023. 1                                 Ke Wang, Kexin Wang, Qingyi Wang, Rui Wang, Sen Wang,
+[29] Donald A. Norman. The Psychology of Everyday Things.                   Shuai Wang, Tingru Wang, Weichen Wang, Xin Wang, Yan-
+      Basic Books, New York, 1988. 5, 8, 6                                  hui Wang, Yue Wang, Yuping Wang, Yuxuan Wang, Ziyu
+[30] Fred Paas, Alexander Renkl, and John Sweller. Cognitive                Wang, Guoqiang Wei, Wanru Wei, Di Wu, Guohong Wu,
+      load theory and instructional design: Recent developments.            Hanjie Wu, Jian Wu, Jie Wu, Ruolan Wu, Xinglong Wu,
+      Educational Psychologist, 38:1 – 4, 2003. 8, 5                        Yonghui Wu, Ruiqi Xia, Liang Xiang, Fei Xiao, XueFeng
+[31] Martha Palmer, Daniel Gildea, and Paul Kingsbury. The                  Xiao, Pan Xie, Shuangyi Xie, Shuang Xu, Jinlan Xue, Shen
+      Proposition Bank: An annotated corpus of semantic roles.              Yan, Bangbang Yang, Ceyuan Yang, Jiaqi Yang, Runkai
+      Computational Linguistics, 31(1):71–106, 2005. 2, 8                   Yang, Tao Yang, Yang Yang, Yihang Yang, ZhiXian Yang,
+[32] Rohith Peddi, Shivvrat Arya, Bharath Challa, Likhitha Pal-             Ziyan Yang, Songting Yao, Yifan Yao, Zilyu Ye, Bowen
+      lapothula, Akshay Vyas, Bhavya Gouripeddi, Jikai Wang,                Yu, Jian Yu, Chujie Yuan, Linxiao Yuan, Sichun Zeng, Wei-
+      Qifan Zhang, Vasundhara Komaragiri, Eric Ragan, Nicholas              hong Zeng, Xuejiao Zeng, Yan Zeng, Chuntao Zhang, Heng
+      Ruozzi, Yu Xiang, and Vibhav Gogate. Captaincook4d:                   Zhang, Jingjie Zhang, Kuo Zhang, Liang Zhang, Liying
+      A dataset for understanding errors in procedural activities,          Zhang, Manlin Zhang, Ting Zhang, Weida Zhang, Xiaohe
+      2024. 1, 7, 2, 3                                                      Zhang, Xinyan Zhang, Yan Zhang, Yuan Zhang, Zixiang
+[33] Yicheng Qian, Weixin Luo, Dongze Lian, Xu Tang, Peilin                 Zhang, Fengxuan Zhao, Huating Zhao, Yang Zhao, Hao
+      Zhao, and Shenghua Gao. Svip: Sequence verification for               Zheng, Jianbin Zheng, Xiaozheng Zheng, Yangyang Zheng,
+      procedures in videos, 2022. 2, 3                                      Yijie Zheng, Jiexin Zhou, Jiahui Zhu, Kuan Zhu, Shenhan
+[34] Francesco Ragusa, Antonino Furnari, Salvatore Livatino,                Zhu, Wenjia Zhu, Benhui Zou, and Feilong Zuo. Seedance
+      and Giovanni Maria Farinella. The meccano dataset: Under-             1.5 pro: A native audio-visual joint generation foundation
+      standing human-object interactions from egocentric videos             model, 2025. 7
+      in an industrial-like domain, 2020. 2, 3
+                                                                      [39] Fadime Sener, Dibyadip Chatterjee, Daniel Shelepov, Kun
+                                                                            He, Dipika Singhania, Robert Wang, and Angela Yao. As-
+                                                                            sembly101: A large-scale multi-view video dataset for un-
+                                                                            derstanding procedural activities. 2022 IEEE/CVF Confer-
+      ence on Computer Vision and Pattern Recognition (CVPR),       Johannes Ferstad, Johannes Heidecke, John Fishbein, John
+      pages 21064–21074, 2022. 7, 2, 3                              Hallman, Jonah Grant, Jonathan Chien, Jonathan Gordon,
+                                                                    Jongsoo Park, Jordan Liss, Jos Kraaijeveld, Joseph Guay,
+[40] Aaditya Singh, Adam Fry, Adam Perelman, Adam Tart, Adi         Joseph Mo, Josh Lawson, Josh McGrath, Joshua Vendrow,
+      Ganesh, Ahmed El-Kishky, Aidan McLaughlin, Aiden Low,         Joy Jiao, Julian Lee, Julie Steele, Julie Wang, Junhua Mao,
+      AJ Ostrow, Akhila Ananthram, Akshay Nathan, Alan Luo,         Kai Chen, Kai Hayashi, Kai Xiao, Kamyar Salahi, Kan
+      Alec Helyar, Aleksander Madry, Aleksandr Efremov, Alek-       Wu, Karan Sekhri, Karan Sharma, Karan Singhal, Karen Li,
+      sandra Spyra, Alex Baker-Whitcomb, Alex Beutel, Alex          Kenny Nguyen, Keren Gu-Lemberg, Kevin King, Kevin Liu,
+      Karpenko, Alex Makelov, Alex Neitz, Alex Wei, Alexan-         Kevin Stone, Kevin Yu, Kristen Ying, Kristian Georgiev,
+      dra Barr, Alexandre Kirchmeyer, Alexey Ivanov, Alexi          Kristie Lim, Kushal Tirumala, Kyle Miller, Lama Ahmad,
+      Christakis, Alistair Gillespie, Allison Tam, Ally Bennett,    Larry Lv, Laura Clare, Laurance Fauconnet, Lauren Itow,
+      Alvin Wan, Alyssa Huang, Amy McDonald Sandjideh,              Lauren Yang, Laurentia Romaniuk, Leah Anise, Lee By-
+      Amy Yang, Ananya Kumar, Andre Saraiva, Andrea Vallone,        ron, Leher Pathak, Leon Maksin, Leyan Lo, Leyton Ho,
+      Andrei Gheorghe, Andres Garcia Garcia, Andrew Braun-          Li Jing, Liang Wu, Liang Xiong, Lien Mamitsuka, Lin
+      stein, Andrew Liu, Andrew Schmidt, Andrey Mereskin,           Yang, Lindsay McCallum, Lindsey Held, Liz Bourgeois,
+      Andrey Mishchenko, Andy Applebaum, Andy Rogerson,             Logan Engstrom, Lorenz Kuhn, Louis Feuvrier, Lu Zhang,
+      Ann Rajan, Annie Wei, Anoop Kotha, Anubha Srivastava,         Lucas Switzer, Lukas Kondraciuk, Lukasz Kaiser, Manas
+      Anushree Agrawal, Arun Vijayvergiya, Ashley Tyra, Ashvin      Joglekar, Mandeep Singh, Mandip Shah, Manuka Stratta,
+      Nair, Avi Nayak, Ben Eggers, Bessie Ji, Beth Hoover,          Marcus Williams, Mark Chen, Mark Sun, Marselus Cayton,
+      Bill Chen, Blair Chen, Boaz Barak, Borys Minaiev, Bo-         Martin Li, Marvin Zhang, Marwan Aljubeh, Matt Nichols,
+      tao Hao, Bowen Baker, Brad Lightcap, Brandon McK-             Matthew Haines, Max Schwarzer, Mayank Gupta, Meghan
+      inzie, Brandon Wang, Brendan Quinn, Brian Fioca, Brian        Shah, Melody Huang, Meng Dong, Mengqing Wang, Mia
+      Hsu, Brian Yang, Brian Yu, Brian Zhang, Brittany Bren-        Glaese, Micah Carroll, Michael Lampe, Michael Malek,
+      ner, Callie Riggins Zetino, Cameron Raymond, Camillo Lu-      Michael Sharman, Michael Zhang, Michele Wang, Michelle
+      garesi, Carolina Paz, Cary Hudson, Cedric Whitney, Chak       Pokrass, Mihai Florian, Mikhail Pavlov, Miles Wang, Ming
+      Li, Charles Chen, Charlotte Cole, Chelsea Voss, Chen Ding,    Chen, Mingxuan Wang, Minnia Feng, Mo Bavarian, Molly
+      Chen Shen, Chengdu Huang, Chris Colby, Chris Hallacy,         Lin, Moose Abdool, Mostafa Rohaninejad, Nacho Soto, Na-
+      Chris Koch, Chris Lu, Christina Kaplan, Christina Kim,        talie Staudacher, Natan LaFontaine, Nathan Marwell, Nel-
+      CJ Minott-Henriques, Cliff Frey, Cody Yu, Coley Czar-         son Liu, Nick Preston, Nick Turley, Nicklas Ansman, Nicole
+      necki, Colin Reid, Colin Wei, Cory Decareaux, Cristina        Blades, Nikil Pancha, Nikita Mikhaylin, Niko Felix, Nikunj
+      Scheau, Cyril Zhang, Cyrus Forbes, Da Tang, Dakota Gold-      Handa, Nishant Rai, Nitish Keskar, Noam Brown, Ofir
+      berg, Dan Roberts, Dana Palmie, Daniel Kappler, Daniel        Nachum, Oleg Boiko, Oleg Murk, Olivia Watkins, Oona
+      Levine, Daniel Wright, Dave Leo, David Lin, David Robin-      Gleeson, Pamela Mishkin, Patryk Lesiewicz, Paul Baltescu,
+      son, Declan Grabb, Derek Chen, Derek Lim, Derek Salama,       Pavel Belov, Peter Zhokhov, Philip Pronin, Phillip Guo,
+      Dibya Bhattacharjee, Dimitris Tsipras, Dinghua Li, Dingli     Phoebe Thacker, Qi Liu, Qiming Yuan, Qinghua Liu, Rachel
+      Yu, DJ Strouse, Drew Williams, Dylan Hunn, Ed Bayes, Ed-      Dias, Rachel Puckett, Rahul Arora, Ravi Teja Mullapudi,
+      win Arbus, Ekin Akyurek, Elaine Ya Le, Elana Widmann,         Raz Gaon, Reah Miyara, Rennie Song, Rishabh Aggarwal,
+      Eli Yani, Elizabeth Proehl, Enis Sert, Enoch Cheung, Eri      RJ Marsan, Robel Yemiru, Robert Xiong, Rohan Kshir-
+      Schwartz, Eric Han, Eric Jiang, Eric Mitchell, Eric Sigler,   sagar, Rohan Nuttall, Roman Tsiupa, Ronen Eldan, Rose
+      Eric Wallace, Erik Ritter, Erin Kavanaugh, Evan Mays, Ev-     Wang, Roshan James, Roy Ziv, Rui Shu, Ruslan Nigmat-
+      genii Nikishin, Fangyuan Li, Felipe Petroski Such, Filipe de  ullin, Saachi Jain, Saam Talaie, Sam Altman, Sam Arne-
+      Avila Belbute Peres, Filippo Raso, Florent Bekerman, Foivos   sen, Sam Toizer, Sam Toyer, Samuel Miserendino, Sand-
+      Tsimpourlas, Fotis Chantzis, Francis Song, Francis Zhang,     hini Agarwal, Sarah Yoo, Savannah Heon, Scott Ethersmith,
+      Gaby Raila, Garrett McGrath, Gary Briggs, Gary Yang, Gi-      Sean Grove, Sean Taylor, Sebastien Bubeck, Sever Banesiu,
+      ambattista Parascandolo, Gildas Chabot, Grace Kim, Grace      Shaokyi Amdo, Shengjia Zhao, Sherwin Wu, Shibani San-
+      Zhao, Gregory Valiant, Guillaume Leclerc, Hadi Salman,        turkar, Shiyu Zhao, Shraman Ray Chaudhuri, Shreyas Krish-
+      Hanson Wang, Hao Sheng, Haoming Jiang, Haoyu Wang,            naswamy, Shuaiqi, Xia, Shuyang Cheng, Shyamal Anadkat,
+      Haozhun Jin, Harshit Sikchi, Heather Schmidt, Henry As-       Simón Posada Fishman, Simon Tobin, Siyuan Fu, Somay
+      pegren, Honglin Chen, Huida Qiu, Hunter Lightman, Ian         Jain, Song Mei, Sonya Egoian, Spencer Kim, Spug Golden,
+      Covert, Ian Kivlichan, Ian Silber, Ian Sohl, Ibrahim Ham-     SQ Mah, Steph Lin, Stephen Imm, Steve Sharpe, Steve Yad-
+      moud, Ignasi Clavera, Ikai Lan, Ilge Akkaya, Ilya Kostrikov,  lowsky, Sulman Choudhry, Sungwon Eum, Suvansh Sanjeev,
+      Irina Kofman, Isak Etinger, Ishaan Singal, Jackie Hehir, Ja-  Tabarak Khan, Tal Stramer, Tao Wang, Tao Xin, Tarun Gogi-
+      cob Huh, Jacqueline Pan, Jake Wilczynski, Jakub Pachocki,     neni, Taya Christianson, Ted Sanders, Tejal Patwardhan,
+      James Lee, James Quinn, Jamie Kiros, Janvi Kalra, Jasmyn      Thomas Degry, Thomas Shadwell, Tianfu Fu, Tianshi Gao,
+      Samaroo, Jason Wang, Jason Wolfe, Jay Chen, Jay Wang,         Timur Garipov, Tina Sriskandarajah, Toki Sherbakov, Tomer
+      Jean Harb, Jeffrey Han, Jeffrey Wang, Jennifer Zhao, Jeremy   Kaftan, Tomo Hiratsuka, Tongzhou Wang, Tony Song, Tony
+      Chen, Jerene Yang, Jerry Tworek, Jesse Chand, Jessica Lan-    Zhao, Troy Peterson, Val Kharitonov, Victoria Chernova,
+      don, Jessica Liang, Ji Lin, Jiancheng Liu, Jianfeng Wang,     Vineet Kosaraju, Vishal Kuo, Vitchyr Pong, Vivek Verma,
+      Jie Tang, Jihan Yin, Joanne Jang, Joel Morris, Joey Flynn,
+      Vlad Petrov, Wanning Jiang, Weixing Zhang, Wenda Zhou,        [48] Yiwu Zhong, Licheng Yu, Yang Bai, Shangwen Li, Xueting
+      Wenlei Xie, Wenting Zhan, Wes McCabe, Will DePue, Will              Yan, and Yin Li. Learning procedure-aware video represen-
+      Ellsworth, Wulfie Bain, Wyatt Thompson, Xiangning Chen,             tation from instructional videos and their narrations, 2023.
+      Xiangyu Qi, Xin Xiang, Xinwei Shi, Yann Dubois, Yaodong             1
+      Yu, Yara Khakbaz, Yifan Wu, Yilei Qian, Yin Tat Lee,
+      Yinbo Chen, Yizhen Zhang, Yizhong Xiong, Yonglong Tian,
+      Young Cha, Yu Bai, Yu Yang, Yuan Yuan, Yuanzhi Li,
+      Yufeng Zhang, Yuguang Yang, Yujia Jin, Yun Jiang, Yun-
+      yun Wang, Yushi Wang, Yutian Liu, Zach Stubenvoll, Zehao
+      Dou, Zheng Wu, and Zhigang Wang. Openai gpt-5 system
+      card, 2025. 7
+[41] Shane Storks, Itamar Bar-Yossef, Yayuan Li, Zheyuan
+      Zhang, Jason J. Corso, and Joyce Chai. Transparent and co-
+      herent procedural mistake detection, 2025. 1
+[42] Franklin P. Tamborello and J. Gregory Trafton. A long-term
+      memory competitive process model of a common procedural
+      error. Cognitive Science, 35, 2013. 2, 6, 8
+[43] Kling Team, Jialu Chen, Yuanzheng Ci, Xiangyu Du, Zipeng
+      Feng, Kun Gai, Sainan Guo, Feng Han, Jingbin He, Kang
+      He, Xiao Hu, Xiaohua Hu, Boyuan Jiang, Fangyuan Kong,
+      Hang Li, Jie Li, Qingyu Li, Shen Li, Xiaohan Li, Yan Li, Ji-
+      ajun Liang, Borui Liao, Yiqiao Liao, Weihong Lin, Quande
+      Liu, Xiaokun Liu, Yilun Liu, Yuliang Liu, Shun Lu, Hangyu
+      Mao, Yunyao Mao, Haodong Ouyang, Wenyu Qin, Wanqi
+      Shi, Xiaoyu Shi, Lianghao Su, Haozhi Sun, Peiqin Sun,
+      Pengfei Wan, Chao Wang, Chenyu Wang, Meng Wang, Qi-
+      ulin Wang, Runqi Wang, Xintao Wang, Xuebo Wang, Zekun
+      Wang, Min Wei, Tiancheng Wen, Guohao Wu, Xiaoshi
+      Wu, Zhenhua Wu, Da Xie, Yingtong Xiong, Yulong Xu,
+      Sile Yang, Zikang Yang, Weicai Ye, Ziyang Yuan, Sheng-
+      long Zhang, Shuaiyu Zhang, Yuanxing Zhang, Yufan Zhang,
+      Wenzheng Zhao, Ruiliang Zhou, Yan Zhou, Guosheng Zhu,
+      and Yongjie Zhu. Kling-omni technical report, 2025. 7
+[44] Chris van der Lee, Albert Gatt, Emiel van Miltenburg,
+      Sander Wubben, and Emiel Krahmer. Best practices for the
+      human evaluation of automatically generated text. In Pro-
+      ceedings of the 12th International Conference on Natural
+      Language Generation, pages 355–368, Tokyo, Japan, 2019.
+      Association for Computational Linguistics. 3
+[45] TW {Van der Schaaf} and Lisette Kanse. Error recovery
+      in socio-technical systems. In 7th European Conference on
+      Cognitive Science Approaches to Process Control (CSAPC
+      ’99), Villeneuve d’Asq, France, pages 151–156. Presses Uni-
+      versitaires de Valenciennes, 1999. 8
+[46] Peng Wang, Shuai Bai, Sinan Tan, Shijie Wang, Zhihao Fan,
+      Jinze Bai, Keqin Chen, Xuejing Liu, Jialin Wang, Wenbin
+      Ge, Yang Fan, Kai Dang, Mengfei Du, Xuancheng Ren, Rui
+      Men, Dayiheng Liu, Chang Zhou, Jingren Zhou, and Jun-
+      yang Lin. Qwen2-vl: Enhancing vision-language model’s
+      perception of the world at any resolution. arXiv preprint
+      arXiv:2409.12191, 2024. 7
+[47] Xin Wang, Taein Kwon, Mahdi Rad, Bowen Pan, Ishani
+      Chakraborty, Sean Andrist, D. Bohus, Ashley Feniello,
+      Bugra Tekin, F. Frujeri, Neel Joshi, and Marc Pollefeys.
+      Holoassist: an egocentric human interaction dataset for in-
+      teractive ai assistants in the real world. 2023 IEEE/CVF In-
+      ternational Conference on Computer Vision (ICCV), pages
+      20213–20224, 2023. 2, 3
+How to Correctly Make Mistakes: A Framework for Constructing and
+      Benchmarking Mistake Aware Egocentric Procedural Videos
+
+                              Supplementary Material
+
+A. Egocentric Procedural Video Datasets                           ror types assigned at the step level (omission, addition,
+     (Context)                                                    modification, slip, correction). CaptainCook4D [32] pro-
+                                                                  vides a cooking-specific taxonomy (measurement, timing,
+In this section, we review the main procedural video              temperature, technique, missing and misordered steps).
+datasets, both with and without errors. Beyond a high-            EgoOops [17] adopts another multiclass execution-error
+level comparison (Table 1), we describe in more de-               taxonomy (working with wrong objects, grasping wrong
+tail the datasets that are central to this work: EgoPER,          objects, correction, unintended actions, working in the
+EgoOops, Assembly101, CaptainCook4D, and Ego-                     wrong way, and others). CaptainCook4D and EgoOops
+Exo4D keysteps.                                                   augment each erroneous segment with a natural-language
+                                                                  explanation of the error aligned to the procedural text
+   Ego-Exo4D keysteps is used as source procedures for            (EgoOops additionally sometimes captures correction be-
+PIE-V. EgoPER, EgoOops, Assembly101, and Captain-                 havior in free-text explanations).
+Cook4D serve as real-data references for what mistakes and
+corrections look like under different annotation schemes.         Assembly101. In the Assembly101 annotations, each step
+                                                                  is represented by one action class and two object classes
+   Most procedural datasets were created primarily for ac-        that are being manipulated. There are only two actions: at-
+tion recognition, action segmentation, key step (sequence)        tach and detach1. The full object vocabulary contains 64
+extraction, object interaction, or pose estimation based on       parts, and some of them are semantically close (for exam-
+visual data. Consequently, instead of a full description of       ple, “roller arm”, “crane arm”, and “excavator arm” can all
+the steps, the annotations may take the form of action labels.    be seen as instances of a more general “arm”).
+This is typical of early datasets in the assembly domain such
+as MECCANO [34], Assembly101 [39], ATA [13], and In-                 The classes only record the action and the objects, so if
+dustREAL [37]. A shorter description of the procedure step        an object is attached incorrectly (with a wrong orientation),
+makes it harder to recognize errors based on semantic cues.       this can be seen only from the error-type label “wrong ori-
+                                                                  entation”. To make the distinction clear at the text level, we
+   The error annotations are heterogeneous and fragmented.        converted class labels into full imperative commands using
+The first group of general error annotations treats mistakes      templates, for example, “attach the step to the chassis in the
+purely at the level of sequence validity, i.e., whether the       wrong way” versus the correct “attach the step to the chas-
+overall execution follows the canonical procedure, without        sis”. In the original annotations, there is also no consis-
+localizing or typologizing individual erroneous steps. In         tency between attaching part X to part Y and attaching part
+CSV [33] each video of an experiment is labeled as correct        Y to part X. We normalized such steps to a single canonical
+or incorrect with respect to the entire reference protocol.       form. As a result, we obtain a vocabulary of 339 full step
+ATA [13] focuses on detecting whether an activity sequence        descriptions.
+adheres to the expected order, emphasizing structural devi-
+ations such as deletions. The second group extends step/ac-          Some toy variants may have only a single assembly in
+tion annotations with per-step binary correctness labels. In      the whole dataset (e.g., c13c for a single correct assembly
+HoloAssist [47], action segments are labeled as “correct” or      and b04b for a single erroneous assembly). Since the toy
+“mistake”, and conversational interventions are categorized       subtypes encoded by the last letter in the toy_id differ
+(e.g., corrections, follow-ups), but the error label itself does  only slightly, we merge them into shared type classes.
+not distinguish between procedural and executional issues.
+Assembly101 [39]-based benchmarks used in Ding et al.                Overall, the error annotations in Assembly101 do not
+[11] attach a binary mistake flag to specific action segments     fully match our taxonomy, because the original annotations
+and further distinguish structural errors such as misordering     follow the logic of the assembly process rather than the
+or redundant steps, along with incorrect attachment of parts.     logic of conformity to a reference procedure. For example,
+Notably, this benchmark also marks accumulating mistakes          from the assembly point of view, detaching an incorrectly
+and corrective steps (detaching incorrectly attached parts)       attached part can be a correct step, but from the point of
+with a special label.                                             view of matching the canonical assembly, no detachment
+
+   A smaller number of datasets introduce explicit tax-               1In the original annotations there is a third rare verb class, “position”,
+onomies of both structural and execution errors, often            which appears only together with the object “figurine”. For the sake of
+tied to a specific domain. EgoPER [21] defines five er-           simplicity it was merged into “attach”.
+Table 1. Egocentric procedural video datasets. #Steps refers to the number of distinct action/step classes when reported; otherwise it is
+left as “–”. For Step annotations, step refers to natural step descriptions, while action label refers to verb + object(s) phrases. Timestamps
+mark either time or frame stamps.
+
+Dataset          #Videos Duration [h] #Tasks #Steps Domains    Step annotations Mistakes Source
+
+MECCANO [34]     32     –      1   –   toy assembly            action labels + × controlled lab
+                 ∼700
+EPIC-KITCHENS-          100                                    timestamps
+100 [8]          50     ∼6.4
+50 Salads [27]   329    62     –   > 90k cooking, kitchen ac- action labels + × participant record-
+EgoProceL [4]
+                 350    166            tivities                timestamps          ings
+HoloAssist [47]
+                               1   17  cooking                 action labels       × controlled lab
+
+                               16  139 various, incl. cook- steps + timestamps     × semi-controlled par-
+
+                                       ing, assembly                               ticipant recordings
+
+                               20  414 AR-assisted manip- summary, conversa- ✓ controlled lab
+
+                                       ulations, incl. as- tions, steps + times-
+
+                                       sembly                  tamps
+
+Assembly101 [39] 362    167    101 202 toy assembly            action labels + ✓ controlled lab
+
+                                                               timestamps
+
+CaptainCook4D [32] 384  94.5   24  352 cooking                 steps + timestamps  ✓ participant record-
+
+                                                                                   ings
+
+EgoOops [17]     50     6.8    5   46  lab-style exper- step + timestamp           ✓ controlled lab
+
+                                       iments and con-
+
+                                       trolled assembly
+
+                                       tasks
+
+Ego-Exo4D        852    30     17  186 various, incl. cook- step + timestamp       ✓† participant record-
+(keysteps) [15]
+EgoPER [21]                            ing, repair                                 ings
+
+ATA [13]         396    28     5   70  cooking                 step + timestamp    ✓ participant record-
+EPIC-Tent [18]
+                                                                                   ings
+CSV [33]
+                 141    24.8   3   15  toy assembly            action labels       ✓ controlled lab
+IndustReal [37]
+                 24     > 5.4  1   38  assembly                action labels + ✓ participant record-
+
+                                                               timestamps          ings
+
+                 70     11.1   14  106 chemical experi- action labels              ✓ controlled lab
+
+                                       ments
+
+                 84     5.8    2   75  toy assembly            steps + timestamps  ✓ Industrial-like lab
+
+† † Only 17 keysteps carry the Mistake label; it replaces the step description, so we use Ego-Exo4D keysteps as a clean source and inject mistakes
+synthetically.
+
+should be considered a correct step. Similarly, re-attaching   descriptions but different step IDs. For example, “Take 1
+a part after an erroneous detachment may be labeled as a       tomato” (step_id: 149) versus “Take a tomato” (step_id:
+Correction, but with respect to the reference procedure this   247), or “Peel 1 garlic cloves” (step_id: 200) versus “Peel
+step is simply correct.                                        1 garlic clove” (step_id: 14). Such steps are visually indis-
+                                                               tinguishable and identical in their semantic representations.
+   From the visual point of view, actions in Assembly101       For each erroneous step, the modified textual description
+are mirror-like: a detachment is the reverse of an attachment  also provides corrected descriptions. However, this is not
+of the same parts. The parts in the dataset are also visually  consistent. For example, in recording 1_33, the first step
+specific: they are sometimes small and visually similar to     “Coat a 6-oz. ramekin cup with cooking spray” is labeled
+each other. In addition, the visual referent of the same ob-   with the preparation error “Coating a large bowl instead of
+ject can change as the assembly progresses. For example,       6-oz ramekin cup”, yet later steps are marked as correct
+in assembly c03f, at the step “attach the arm connector to     and described as “Microwave the ramekin cup uncovered
+the chassis” the chassis has one appearance, while in the      on high for 30 seconds”, “Stir the ramekin cup” and so on.
+next step, “attach the body to the chassis”, the term “chas-   In the video the same bowl appears in all steps. Such incon-
+sis” refers to two already connected parts, the arm connector  sistencies in the step descriptions create discrepancies be-
+and the chassis.                                               tween the modalities, which are reflected in our Text–Video
+                                                               Grounding Consistency metric.
+CaptainCook4D. A key property of the cooking domain
+is the need to follow precise quantities to execute a recipe      Some steps also share almost the same temporal seg-
+successfully. However, for visual models it is hard to see     ment, but receive different textual descriptions and differ-
+the difference between, say, “Add 1/3 tsp salt to the pan”     ent step IDs. For example, in 2_28 the step “Cut 1/8 garlic
+(step_id: 178) and “Add 1/2 tsp salt to the pan” (step_id:     clove” is annotated from 564.6 to 624.6 and the step “Mince
+146), and even for a human this is often unclear from a        1/8 garlic clove” – from 582 to 640. These steps are easy
+single video. The dataset authors also note in Peddi et al.    to distinguish in text but almost indistinguishable visually,
+[32] that full recipe understanding is multimodal rather than  adding further misalignment between the visual and textual
+purely visual.                                                 modalities.
+
+   Even so, some dataset steps have very similar textual          Given that each dataset contains less than 400 videos,
+these numerous inconsistencies contribute a substantial         but not required for the canonical goal). In PIE-V we use all
+amount of noise for the models. This motivated us to in-        available steps when constructing clean source procedures,
+clude it in the list of datasets for annotators’ assessment.    because this reduces the risk of deleting or transposing crit-
+                                                                ical actions when injecting errors, and it preserves a faithful
+EgoPER. EgoPER [21] is an egocentric cooking dataset            “what happened” trace. We leave for future work a more
+built around a small set of recurring recipes (coffee, que-     aggressive setting that injects mistakes only into essential
+sadilla, pinwheels, tea, oatmeal). We stratified 5 videos of    keysteps.
+each task for our annotators’ assessment. The given dataset
+annotations include step-level timestamps and one of five       B. Details on Annotators and Annotations
+labels of the following taxonomy: two structural deviations
+(step omission and step addition), two execution-level de-      Annotator pool and diversity of judgments. We use five
+viations (slip and modification), and correction. A distinc-    annotators (2 male, 3 female; age 20–47) with heteroge-
+tive aspect of EgoPER is that the annotations separate task-    neous backgrounds (engineering and humanities) and edu-
+relevant steps from background activity: some segments re-      cational levels ranging from high school to graduate training
+flect incidental actions that are not part of the core proce-   (including two Master’s degrees and one PhD). This diver-
+dure (e.g., reading a script on a screen), and are marked ex-   sity was intentional: most rubric dimensions are designed
+plicitly as background rather than being forced into the step   to capture human perception of mistake realism and coher-
+taxonomy. This design is helpful for studying mistake de-       ence rather than a single objective ground truth. In particu-
+tection without conflating procedural steps with incidental     lar, Human Plausibility, Confusability, and Video Plausibil-
+context.                                                        ity are subjective judgments by design, while Error Validity
+                                                                and Taxonomy Fit are expected to be more stable across an-
+EgoOops. EgoOops [17] contains 5 tasks with 10 videos           notators.
+per task. While it was designed to include both mistake-
+free executions and scripted mistake executions, in prac-       Annotation workflow and interface. Annotators evalu-
+tice additional small deviations also appear in the “correct”   ated samples in a paired setting with a reference (mistake-
+runs (e.g., extra grasping or redundant manipulation), which    free) execution and a mistake-aware execution shown side
+makes the boundary between benign variation and mistake-        by side. Mistake and correction steps were explicitly high-
+like behavior particularly salient (reflected in our Error Va-  lighted in the evaluated trace; the task was to rate the in-
+lidity metric). EgoOops gives a multi-class taxonomy of         dicated deviations and recoveries, not to discover them.
+deviations (including corrections) and aligns each execution    The annotation interface (implemented in structured Google
+to a canonical script. However, for error segments the text     Sheets templates) provided metric-specific inline guidance
+often describes the deviation from the canonical step rather    and drop-down fields for each rating (Fig. 1). Reference
+than the exact action the person performed. For example,        and erroneous procedures were aligned stepwise to support
+instead of restating the full step description, the annotation  direct comparison.
+may specify what was wrong relative to the canonical step
+with a description such as “correct errors in steps 1 and 2”.   Metric design philosophy. With the exception of Tax-
+This complicates purely text-based assessment: recovering       onomy Fit (error category assignment), the rubric metrics
+the implied correct step may require broader context and/or     were designed to capture different aspects of perceived er-
+video grounding. Additionally, some steps are semantically      ror naturalness and procedural coherence. Error Validity
+dense and contain multiple predicates (e.g., “pour ... then     serves as a gate-like metric that distinguishes consequen-
+dip ... and squeeze ...”), which increases the structural com-  tial procedural mistakes from non-consequential deviations;
+plexity of the instruction.                                     disagreement on this binary judgment captures boundary
+                                                                cases. The remaining metrics decompose human judg-
+Ego-Exo4D keysteps. Ego-Exo4D [15] is a large-scale             ments into plausibility (text/video), noticeability (Confus-
+egocentric/exocentric dataset with multiple benchmarks.         ability), sequence-level coherence, and world-state consis-
+For PIE-V, we specifically take the split of the keystep        tency, rather than collapsing them into a single score.
+annotations because they provide (i) step timestamps and
+(ii) natural-language step descriptions suitable as inputs for  Annotator instructions and scale interpretation. Each
+controlled textual rewriting.                                   metric was presented with a short operational definition and
+                                                                anchored response options. For example, Human Plausi-
+   A practical property of the keystep annotations is that      bility was defined as whether the described deviation looks
+step structure can be hierarchical: a step may be a leaf or     like a mistake a real person could make in the given con-
+a parent over finer-grained children, and some steps are ex-    text, while Confusability measured how easy it would be
+plicitly marked as non-essential (i.e., present in the video
+         Table 2. Audit sampling summary for the four existing mistake-aware datasets (25 videos each).
+
+Dataset      Videos Total steps Mistake steps Mistake rate Avg. steps/video Avg. mistakes/video
+
+EgoPER       25   358  134                                       37.43%  14.32  5.36
+
+EgoOops      25   302  87                                        28.81%  12.08  3.48
+
+Assembly101  25   409  166                                       40.59%  16.36  6.64
+
+CaptainCook4D 25  370  192                                       51.89%  14.80  7.68
+
+Figure 1. Annotation interface used for the rubric (example from the electronics task in EgoOops). Annotators are shown a reference
+mistake-free execution (with video) alongside a mistake-aware execution containing mistakes and corrections (highlighted in red). The
+goal is not to localize errors but to rate the indicated deviations on step-level and procedure-level criteria. Each metric includes a short
+in-UI explanation, and ratings are selected via drop-down menus.
+
+to overlook the mistake during real-time task execution.         onomy Fit, indicating that annotators largely agree on what
+Procedure Logic was collected as a binary judgment (does         counts as a procedural error and how to assign taxonomy la-
+the mistake make the textual procedure logically inconsis-       bels. Lower agreement on Human Plausibility and Confus-
+tent as a whole) together with a 3-level confidence rating,      ability reflects genuine variation in human judgments about
+which is later combined into a confidence-weighted aggre-        realism and noticeability, which is an intended property of
+gate score. Sequence Consistency and Text–Video Ground-          these metrics rather than a failure of the annotation protocol.
+ing were rated on 5-point Likert scales. State-Change Co-
+herence was annotated as a binary judgment on whether the        C. Details on the Method
+text implies any clear inconsistency in object identity, avail-
+ability, or state transitions.                                   C.1. Phase Modeling and Phase-Conditioned Priors
+
+Pilot calibration and agreement monitoring. We did               PIE-V uses a three-phase abstraction to model when errors
+not expect uniformly high agreement across all metrics, be-      are likely to occur and which error types are more likely
+cause several dimensions are intentionally subjective. In-       in different parts of a procedure. The phase design follows
+stead, we used Krippendorff’s α as a monitoring signal and       cognitive error accounts that relate error profiles to plan-
+iteratively refined annotation guidelines after a pilot round,   ning demands, attentional load, routine execution, and post-
+especially for metrics that produced strong outliers or sys-     completion vulnerability [6, 7, 19, 29, 30, 35].
+tematic disagreements. This calibration focused on clari-
+fying metric wording and decision boundaries (e.g., proce-          We model three coarse phases: Phase 1 (initiation),
+dural error vs. harmless variation; Substitution vs. Wrong       where plan construction and low familiarity increase at-
+Execution), not on forcing consensus.                            tention demand; Phase 2 (routine execution), where au-
+                                                                 tomaticity rises but cognitive load and monotony can pro-
+Agreement summary. Inter-annotator agreement for all             duce slips and sequencing failures; and Phase 3 (comple-
+datasets and generation settings is reported in Table 3.         tion), where attention often drops and omissions become
+Agreement is generally highest for Error Validity and Tax-       more likely due to post-completion effects.
+Table 3. Krippendorff’s α agreement summary for all settings. “–” indicates values are unavailable (due to nonexistent videos).
+
+Dataset                                             Err.Valid  Human Pl.                               Confus.  Proc.Logic  Seq.Cons.  State-Chg  Taxonomy Fit  Vid.Pl.  T–V Gr.
+
+EgoPER                                                0.912       0.541                                 0.368      0.728      0.628      0.579         0.759    0.574     0.662
+EgoOops                                               0.916       0.592                                 0.375      0.836      0.667      0.600         0.882    0.579     0.560
+Assembly101                                           0.859       0.584                                 0.697      0.739      0.649      1.000         0.931    0.670     0.861
+CaptainCook4D                                         0.694       0.758                                 0.847      0.621      0.542      0.584         0.791    0.550     0.488
+Ego-Exo4D-Qwen (freeform)                             0.568       0.539                                 0.417      0.579      0.543      0.643         0.820
+Ego-Exo4D-GPT-5.2 (freeform)                          0.701       0.424                                 0.341      0.593      0.652      0.547         0.752       –         –
+Ego-Exo4D-Qwen-PJ (PIE-V+Qwen2.5, Qwen3-VL-judged)    0.958       0.483                                 0.358      0.631      0.706      0.601         0.905       –         –
+Ego-Exo4D-GPT-5.2-PJ (PIE-V+GPT, judged)              0.913       0.489                                 0.387      0.672      0.619      0.696         0.803       –         –
+                                                                                                                                                                0.630     0.930
+
+Load-based phase boundaries. PIE-V computes step                                                       This factorization is intentional: phase priors encode cog-
+load with Eq. 2, forms the cumulative load over steps, and                                             nitive tendencies, while feasibility modifiers prevent struc-
+assigns PHASE_1, PHASE_2, and PHASE_3 by splitting the                                                 turally invalid edits.
+cumulative load into three equal parts.
+                                                                                                       C.2. Correction Detection and Action Priors
+Phase error-rate model (where errors occur). PIE-V
+separates phase-level risk from error type choice. The phase                                           PIE-V models correction generation as a two-stage process:
+error-rate model specifies relative rates                                                              (i) whether an error is noticed (detection that correlates with
+                                                                                                       our Confusibility metric), and (ii) whether a corrective ac-
+    r_{\textsc {phase\_1}}=0.10,\quad r_{\textsc {phase\_2}}=0.19,\quad r_{\textsc {phase\_3}}=0.14,   tion is taken, with what latency and repair type. The base
+                                                                                                       detectability term b(τ, ϕ) in Eq. 7 is a hand-specified prior
+which are then normalized to multipliers with mean 1 before                                            over error type τ and phase bucket ϕ, designed to reflect
+step-index sampling (Eq. 3). In the current implementation,                                            cognitive regularities of error noticeability and recovery be-
+this corresponds approximately to                                                                      havior (e.g., salient execution failures are more detectable
+                                                                                                       than subtle deviations; detection probability decreases un-
+   m_{\textsc {phase\_1}}=0.698, m_{\textsc {phase\_2}}=1.326, m_{\textsc {phase\_3}}=0.977.           der high cognitive load) [29, 35, 42].
+
+Thus, the middle phase is sampled more aggressively for                                                Base detectability table. We define b(τ, ϕ) for each error
+error placement, while total error count remains controlled                                            type and phase bucket (EARLY, MID, LATE) and then mod-
+separately by procedure-level risk and hard caps.                                                      ulate it multiplicatively with severity, essentiality, predicate
+                                                                                                       salience, and load factors as in Eq. 7. These values are im-
+Phase-conditioned type priors (which errors occur).                                                    plementation priors (not learned parameters) and are fixed
+Conditioned on a selected step, PIE-V samples the error                                                across all experiments.
+type from phase-specific priors over {WE, D, S, I, T}. The
+implementation uses unnormalized weights (in this order):                                              Action, latency, and repair type. Conditioned on detec-
+                                                                                                       tion, PIE-V samples (i) whether the agent acts, (ii) correc-
+                \textsc {phase\_1}: [3.5,\,1.0,\,2.5,\,2.0,\,1.0],                                     tion latency in steps, and (iii) a correction type compati-
+                                                                                                       ble with the triggering error (e.g., STOP_AND_FIX, REDO,
+                \textsc {phase\_2}: [2.0,\,2.0,\,1.5,\,2.5,\,2.0],                                     ROLLBACK_AND_REDO, UNDO_EXTRA_STEP). This sep-
+                \textsc {phase\_3}: [3.5,\,2.5,\,1.0,\,2.0,\,1.0].                                     aration allows PIE-V to model both noticed-but-unfixed er-
+After normalization, the corresponding type probabilities                                              rors and explicit recovery traces.
+are as shown in Table 4.
+                                                                                                       C.3. Semantic Roles
+Table 4. Normalized phase-conditioned type priors used in the
+current PIE-V implementation (before feasibility modifiers).                                           PIE-V uses semantic step representations as a compact
+                                                                                                       structural layer between free-form step text and the error
+               Phase WE D S I T                                                                        simulator. Each step is represented as a predicate–argument
+               Phase 1 0.35 0.10 0.25 0.20 0.10                                                        expression of the form PREDICATE(Role: value,
+               Phase 2 0.20 0.20 0.15 0.25 0.20                                                        Role: value, ...) with nested structures when
+               Phase 3 0.35 0.25 0.10 0.20 0.10                                                        needed (e.g., locations, purposes, temporal clauses). These
+                                                                                                       representations are used to (i) compute step complexity and
+   These priors are then modulated by feasibility con-                                                 phase boundaries, (ii) localize WE and role-level S edits, (iii)
+straints and step properties (e.g., procedure length, essen-                                           estimate role severity via a role-impact map, and (iv) pro-
+tiality, transposition feasibility), as described in Sec. 4.1.                                         vide predicate-conditioned role priors for selecting which
+arguments to mutate.                                               for role-targeted mutation, essentiality heuristics, and local
+                                                                   ordering guards without introducing a full symbolic world
+Source of semantic role annotations. For the bench-                model.
+mark split, semantic representations are precomputed of-
+fline for the dataset step vocabulary and cached in a              Listing 2. Representative cached semantic representations (Sem-
+JSON mapping from step id to step_description and seman-           Rep) used by PIE-V on the Ego-Exo4D split.
+tic_representation. We generate them with GPT-5.2 using a
+constrained prompt (Listing 1) and a strict JSON schema,            {
+in batches of step id → step description pairs, and require             "1": {
+exact copying of input ids and step text in the output. The                "step_description": "Unbox covid test
+generation utility also normalizes step text and builds a re-               package",
+verse map for robust lookup across formatting variants (e.g.,              "semantic_representation": "UNBOX(Agent:
+punctuation differences).                                                   you, Object: covid_test_package)"
+                                                                        },
+Listing 1. Excerpt of the prompt used to generate semantic repre-       "11": {
+sentations (SemRep) for step descriptions.                                 "step_description": "Extract the test swab
+                                                                            from her nostril",
+ You are a linguistic semantic analyzer.                                   "semantic_representation": "EXTRACT(Agent:
+ For each procedural step description, generate                             you, Object: test_swab, Origin:
+                                                                            from(nostril(of(her))))"
+         the semantic representation in roles.                          },
+                                                                        "20": {
+ Hard constraints:                                                         "step_description": "Insert the collection
+ - Use compact single-line format:                                          swab in its pack for disposal",
+                                                                           "semantic_representation": "INSERT(Agent:
+         PREDICATE(Role: value, Role: value, ...)                           you, Object: collection_swab, Destination:
+ - Predicates MUST be UPPERCASE.                                            in(pack(of(it))), Purpose: disposal)"
+ - Prefer the role name Object (NOT Theme) for                          },
+                                                                        "21": {
+         concrete manipulated entities.                                    "step_description": "Cover the test vial
+ - Use Agent: you unless another agent is                                   with the lid",
+                                                                           "semantic_representation": "COVER(Agent:
+         explicitly stated.                                                 you, Object: test_vial, Instrument: lid)"
+ - Prepositional phrases modifying a noun                               },
+                                                                        "152": {
+         should be nested inside that noun.                                "step_description": "Slowly backpedal the
+ - Keep entities as lowercase_with_underscores;                             chain while applying the chain lube to
+                                                                            each individual roller",
+         nested structures are allowed.                                    "semantic_representation":
+                                                                            "BACKPEDAL(Agent: you, Object: chain,
+ Examples:                                                                  Manner: slowly, Temporal:
+ 1) Insert the test swab into her nostril                                   WHILE(APPLY(Agent: you, Object:
+ INSERT(Agent: you, Object: test_swab,                                      chain_lube, Coobject:
+                                                                            to(each_individual_roller(of(chain))))))"
+         Destination: into(nostril(of(her))))                           },
+                                                                        "457": {
+ 2) Add coffee grounds from a bowl to the                                  "step_description": "Cut the sushi roll
+         filter in the French press                                         into smaller pieces on the cutting board",
+                                                                           "semantic_representation": "CUT(Agent:
+ ADD(Agent: you, Object: coffee_grounds,                                    you, Object: sushi_roll, Result:
+         Origin: bowl,                                                      smaller_pieces, Location:
+        Destination: filter(Location:                                       on(cutting_board))"
+         in(french_press)))                                             }
+
+ 3) Add cut onions to the egg in the mixing bowl                    }
+ ADD(Agent: you, Object: cut(onions), Coobject:
+                                                                   Role impact map (severity prior). PIE-V uses a role-
+         egg(Location: in(mixing_bowl)))                           impact map ω(r) ∈ {HIGH, MEDIUM, LOW} to control er-
+                                                                   ror severity in role-level edits. Impact labels are assigned
+ Return only JSON that matches the schema.                         manually based on linguistic and procedural semantics.
+                                                                   Roles that typically determine the manipulated entity or a
+SemRep format and parsing. The semantic representa-                critical counterpart are treated as high impact, locative and
+tion format is designed for controllable procedural editing        instrumental roles are typically medium impact, and man-
+rather than full semantic parsing. Predicates are uppercase        ner or temporal modifiers are typically low impact. Table 5
+action labels, and role values are compact entity expres-
+sions with optional nesting, as shown in Listing 2 (e.g.,
+nested Origin, Destination, Temporal, Purpose,
+and Result structures). In the simulator, we use a shallow
+parser that extracts the main predicate and top-level role-
+value pairs from the representation string. This is sufficient
+Table 5. Semantic roles, counts, and impact assignments for the                                                  but a downstream repair of textual consistency caused by an
+50-scenario Ego-Exo4D subset used in PIE-V. Counts are given in                                                  earlier mistake realization.
+brackets.
+                                                                                                                    Cascade edits are necessary because PIE-V generates co-
+Impact  Roles                                                                                                    herent traces, not isolated error labels. A locally valid er-
+High                                                                                                             ror can make later steps impossible if references are left
+Medium  Agent (1037), Object (1027), Coobject (51)                                                               unchanged (e.g., a substituted object is never acquired, or
+        Location (288), Destination (281), Origin (259), In-                                                     a tool is removed before later use). The writer therefore
+Low     strument (201), Purpose (62), Content (1)                                                                rewrites downstream steps minimally, preserving the plan
+        Manner (28), Temporal (18), Degree (11), Path (9),                                                       while keeping the procedure executable. The judge then
+        Duration (5), Direction (5), Proposition (5), Result                                                     checks that these adjustments are present when needed and
+        (4), Quantity (3), Theme (2), Condition (2), Crite-                                                      that they remain linked to the same eid.
+        rion (1)
+                                                                                                                 Example: GET-substitution propagation. In the Ego-
+summarizes the role inventory, counts, and impact assign-                                                        Exo4D procedure sfu_cooking_005_2, PIE-V realizes
+ments for the 50-scenario Ego-Exo4D subset used in this                                                          a substitution at the early GET step by replacing “Get cu-
+work. PIE-V uses this role-impact map both for role sam-                                                         cumber from the refrigerator” with “Get bell pepper from
+pling and for deriving error severity from the set of mutated                                                    the refrigerator” (eid=E01). This change propagates to
+roles. Agent is excluded from mutation.                                                                          later steps that originally depend on cucumber. As a re-
+                                                                                                                 sult, multiple downstream steps are rewritten as cascade
+Predicate-conditioned role priors. To avoid uniformly                                                            edits (mod="a", same eid=E01), i.e., the trace explic-
+random role edits, PIE-V uses predicate-conditioned role                                                         itly replaces cucumber-dependent steps with bell-pepper-
+priors estimated from the semantic representation corpus.                                                        dependent ones, including “Wash bell pepper with wa-
+For each predicate, we aggregate the empirical frequency                                                         ter”, “Chop bell pepper with knife on the chopping board”
+(or share) of roles observed with that predicate across the                                                      (twice), and “Add chopped bell pepper into the bowl”.
+corpus and use the resulting distribution as Prior(r | pred).                                                    Without these cascade edits, later steps would continue re-
+At generation time, for a step with predicate pred(at) and                                                       ferring to cucumber even though the rewritten trace acquires
+roles present in that step, the role score is proportional to                                                    bell pepper instead.
+
+     \mathrm {ImpactWeight}(\omega (r)) \cdot \bigl (0.2 + \mathrm {Prior}(r \mid \mathrm {pred}(a_t))\bigr ),   What is and is not a cascade edit. A cascade edit
+                                                                                                                 changes a later original step only as much as needed to
+where the additive constant provides smoothing for rare but                                                      restore consistency with an earlier error. It is not a pri-
+valid roles. Role selection is restricted to roles present in the                                                mary error realization (mod="e") and not a correction
+current step, and Agent is excluded from mutation. PIE-V                                                         step (mod="c"). Primary error realizations instantiate the
+occasionally may select two roles (instead of one) for com-                                                      planned mistake, while cascade edits preserve executability
+pound WE events.                                                                                                 and semantic continuity after that mistake.
+
+Auto-extension for generated steps. The LLM writer                                                               Writer constraints for cascades. The writer prompt ex-
+can introduce new step texts that are not present in the orig-                                                   plicitly enforces cascade behavior when an error changes
+inal vocabulary. To preserve SemRep-based validation and                                                         inventory or object identity, including a special rule for
+cascade checks, the writer pipeline supports automatic Sem-                                                      GET-like substitutions. A shortened excerpt is shown in
+Rep extension: unseen generated steps are resolved through                                                       Listing 3.
+a reverse text-to-id map and, if missing, are assigned new
+cached semantic representations via the same constrained                                                         Listing 3. Writer prompt excerpt enforcing cascade edits after
+GPT-5.2 SemRep generator.                                                                                        inventory-changing mistakes.
+
+C.4. Cascade Edits                                                                                                If the plan location/wording would make the
+                                                                                                                          sequence physically impossible, you must
+Cascade edits are follow-up text rewrites that preserve pro-                                                              still realize the requested error type,
+cedure feasibility after a planned error changes an object,
+tool, or local state. They are produced in the LLM writer                                                         but choose the closest feasible variant near
+stage and validated in the LLM judge stage. In the meta-                                                                  the same location (and then repair
+data, cascade edits are marked as mod="a" and reuse the                                                                   downstream references via cascade
+same error id eid as the triggering error. This makes the                                                                 adjustments).
+causal dependency explicit: the step is not a new mistake,
+                                                                                                                  IMPORTANT SPECIAL CASE: GET-substitution
+                                                                                                                          propagation
+ If the planned error substitutes a GET-like                    f"You will receive a step-by-step
+         step (get/take/pick/retrieve) so that you              procedure.\n"
+         acquire Y instead of X,                                f"Your task is to produce an edited final
+                                                                procedure that contains 1 to 3 plausible
+ then assume X is NOT available later unless it                 human mistakes.\n"
+         is explicitly acquired again (do NOT add               f"You may also add 0 to 2 explicit
+         new insertions unless the plan includes                correction steps.\n\n"
+         them).                                                 f"### ERROR TYPES (HIGH-LEVEL)\n"
+                                                                f"- wrong_execution (mod='we'): Keep the
+ Therefore, any later steps that refer to X                     same general goal, but execute it slightly
+         should be cascade-adjusted to refer to Y:              wrong (wrong amount, messy action, wrong
+                                                                orientation).\n"
+ - rewrite those downstream steps and mark them                 f"- substitution (mod='s'): Replace the
+         as mod="a" with the SAME eid as the                    step with a different plausible action
+         GET-substitution.                                      caused by confusion.\n"
+                                                                f" Do not copy a later step verbatim.\n"
+ This keeps the procedure executable while                      f"- insertion (mod='i'): Insert one extra
+         preserving the planned mistake.                        plausible step (unnecessary repetition,
+                                                                extra cleaning, checking, etc.).\n"
+D. Details on Experiments and Results                           f"- deletion: Remove the step completely
+                                                                (do not mention it was skipped). Add it to
+D.1. Prompt Logic and Structured Output Con-                    'del'.\n"
+       tracts                                                   f"- transposition: Swap two steps.\n"
+                                                                f" Use mod='ms' for the moved SOURCE step
+We do not reproduce the full LLM prompts here because           and mod='mt' for the moved TARGET step
+they are long and implementation-specific. The full writer      (both verbatim text, only order
+and judge prompts are available in the released codebase.       changes).\n\n"
+Here, we summarize the core constraints they enforce and        f"### HARD CONSTRAINTS\n"
+the structured output contracts that are required by the        f"1) VERBATIM PRESERVATION: Keep most
+pipeline.                                                       steps unchanged unless directly edited.\n"
+                                                                f"2) IMPERATIVE STYLE: Use direct
+   The writer prompt receives the original procedure, an er-    imperative commands. No story.\n"
+ror and correction plan, semantic representations of orig-      f"3) SOURCE INDEX RANGE: Every meta
+inal steps, and ordering constraints. Its main objective is     source_idx MUST be a valid original index
+to realize the planned mistakes while keeping the rewritten     in [0, {len(steps)-1}]. Never use -1.\n"
+procedure physically feasible and executable. The prompt        f"4) PHYSICAL PLAUSIBILITY: Do not use
+explicitly requires structured JSON output with a rewritten     tools/ingredients/objects before they
+step list (final_steps) and a timeline mapping (meta)           appear earlier in the procedure.\n"
+that marks unchanged steps, primary error realizations, cas-    f"5) METADATA ALIGNMENT: 'final_steps' and
+cade edits, insertions, deletions, corrections, and transposi-  'meta' must have the exact same
+tion pairs.                                                     length.\n\n"
+                                                                f"6) UNCHANGED MEANS VERBATIM: If mod='u',
+   The judge prompt validates plan compliance and pro-          the final step text MUST match the
+cedural coherence and proposes minimal repairs when             original step text exactly.\n"
+needed. In particular, it checks that each planned error        f"7) TRANSPOSITION RULE: If using
+and correction id is realized, that transpositions are encoded  transposition, error_id must be non-null
+via the required ms/mt pair, and that downstream refer-         and exactly TWO steps must share that
+ences are repaired through cascade edits when an earlier er-    error_id:\n"
+ror changes object or tool availability. These prompt-level     f" - one with mod='ms' and one with
+constraints are combined with deterministic checks in the       mod='mt'.\n\n"
+pipeline, so acceptance depends on both LLM reasoning           f"8) NO FAKE ERRORS: If mod in ['we','s'],
+and rule-based validation. Representative prompt fragments      the text MUST be meaningfully different
+for cascade constraints and video style locking are shown in    from the original step at source_idx.\n"
+Listings 3 and 5.                                               f"9) MOVE IS VERBATIM: If mod in
+                                                                ['ms','mt'], the text MUST be identical to
+   For comparison, Listing 4 shows the freeform baseline        the original step at source_idx (only
+prompt used to generate mistake-aware procedures without        moved).\n"
+structured planning.                                            f"10) INSERTION IS NEW: If mod='i', the
+                                                                inserted text MUST NOT be identical to the
+Listing 4. Freeform LLM baseline prompt for direct mistake-     anchor step at source_idx.\n"
+aware procedure rewriting (without PIE-V planning priors).      f"11) CORRECTION NEEDS ID: If mod='c',
+                                                                correction_id must be non-null like 'C01'
+ instructions = (                                               and the text must be new.\n"
+        f"### ROLE: Procedure Editor for                        f"12) ERROR IDS: For mod in
+         '{scenario}'\n"                                        ['we','s','i','ms','mt'] use error_id like
+                                                                'E01'. For deletions also.\n"
+                                                                f"### OUTPUT FORMAT (STRICT JSON ONLY)\n"
+        f"- final_steps: list[str]\n"                           Agreement. We compute Krippendorff’s α separately for
+        f"- meta: list[list], one per final step:               each metric and setting. Higher agreement is expected for
+         [source_idx, mod, error_id,                            Error Validity and Taxonomy Fit, while lower agreement
+         correction_id]\n"                                      on Human Plausibility and Confusability reflects genuine
+        f" mod_type: 'u'(unchanged),                            variation in human judgments about naturalness and notice-
+         'we'(wrong_execution), 's'(substitution),              ability.
+         'ms'(moved_source), 'mt'(moved_target),
+         'c'(correction), 'i'(insertion)\n"                     D.3. Additional Breakdowns for Ego-Exo4D Gen-
+        f"- del: list[list] for deleted steps:                         erations
+         [source_idx, error_id]\n\n"
+        f"For every deletion, error_id must be a                Table 4 reports scale statistics for the four Ego-Exo4D gen-
+         string like 'E01' (never null).\n"                     eration settings. Two patterns are consistent across the au-
+        f"Return ONLY a single JSON object. No                  dited outputs. First, freeform generation under-produces
+         markdown. No extra text.\n"                            mistakes relative to PIE-V+Judge settings, with fewer mis-
+        f"Do NOT repeat the prompt. Output ONLY                 take steps and a lower average number of mistakes per
+         JSON.\n"                                               video. Second, even when freeform outputs are fluent at the
+ )                                                              sentence level, they more often fail to realize clearly conse-
+                                                                quential deviations or to preserve long-horizon procedural
+D.2. Annotation Data Processing and Aggregation                 consistency, which is reflected in the rubric aggregates in
+                                                                Table 3.
+This subsection describes how raw annotator responses are
+converted into the aggregate statistics reported in Tables 3       The freeform models also show different error-type bi-
+and 5.                                                          ases. For Qwen freeform, the generated distribution is
+                                                                strongly skewed toward deletions (Deletion 31, Substitu-
+Metric types. Our rubric mixes categorical judgments            tion 12, Transposition 5, Wrong Execution 5, Insertion 2,
+(e.g., Error Validity, Procedure Logic, State-Change Coher-     Correction 1), and qualitative inspection shows many weak
+ence, Taxonomy Fit) and Likert-scale ratings (e.g., Human       or under-realized edits. For GPT freeform, the distribution
+Plausibility, Confusability, Sequence Consistency, Video        is more concentrated on Wrong Execution and Substitution
+Plausibility, Text–Video Grounding). This is intentional,       (Wrong Execution 27, Substitution 13, Transposition 8, In-
+because the rubric is designed to capture both relatively sta-  sertion 2, Correction 4, Deletion 0), which often produces
+ble categorizations and subjective human judgments about        locally plausible deviations but still under-produces explicit
+realism and noticeability.                                      recovery behavior relative to PIE-V. These tendencies mo-
+                                                                tivate the use of explicit planning, cascade edits, and judge-
+Error Validity. Error Validity is annotated as a binary         side validation in PIE-V.
+judgment (Yes/No), namely whether the highlighted devi-
+ation is a consequential procedural error under our defini-     D.4. Qualitative Failure Cases of Freeform Base-
+tion. In the main-paper tables, we report the percentage               lines
+of “Yes” judgments aggregated at the sample level. Dis-
+agreements on this metric therefore reflect ambiguity in the    Binary Error Validity disagreement from weakly con-
+generated behavior (or dataset annotation), not a multi-level   sequential freeform insertion (indiana_bike_03_1).
+scoring scheme. In practice, disagreement on this binary        A recurring source of disagreement on Error Validity in
+metric often comes from freeform outputs that are lexically     freeform generations is that the LLM marks an event as ac-
+marked as “accidental” but have weak procedural conse-          cidental without introducing a clearly consequential proce-
+quences. We provide representative examples in Sec. D.4.        dural failure. For example, in a bike-chain cleaning proce-
+                                                                dure, GPT inserts “Accidentally knock the chain lube bottle
+Procedure Logic with confidence weighting. Procedure            over on the floor while reaching for it” between “Hold the
+Logic is annotated as a binary judgment together with con-      toothbrushes to the chain as you backpedal with your other
+fidence; aggregation follows the confidence-weighted for-       hand” and “Get the chain lube from the floor”. Some an-
+mulation defined in Eq. 1.                                      notators judge this as a procedural error, while others judge
+                                                                it as a harmless deviation because the procedure remains
+Likert-scale aggregation. For Human Plausibility, Con-          executable and the intended outcome is not meaningfully
+fusability, Sequence Consistency, Video Plausibility, and       affected. This is precisely the kind of boundary case that
+Text–Video Grounding, we report the arithmetic mean over        Error Validity is designed to expose.
+annotator ratings.
+                                                                Qwen repetition instead of a meaningful substitution
+                                                                (nus_covidtest_15_2). In a COVID-test procedure,
+a planned substitution near the disposal and waiting stage              "Same bike repair workshop, same bike
+should replace the step “Arrange test materials in the plas-             wheel and tools, same hands and body, same
+tic bag for disposal”. Qwen, even with judge, realizes the               lighting. "
+deviation by duplicating the previous waiting step, produc-             "No new objects, no swaps, no text
+ing two consecutive occurrences of “Wait for a few min-                  overlays, no reframing, no cut."
+utes”. This keeps the text locally fluent but weakens pro-       )
+cedural specificity and does not create a clear, interpretable
+mistake mechanism.                                                 For Ego-Exo4D edits, a short style-lock prefix is often
+                                                                sufficient to preserve egocentric viewpoint and scene iden-
+   By contrast, GPT produces a more consequential and           tity across regenerated clips (Listing 5).
+traceable deviation in the same region, for example “Dis-
+pose the test plate into the plastic bag”, followed by a com-   D.6. Video Model Constraints and Editing Windows
+pensating step “Takes the test plate from the plastic bag to
+check the test plate for the results”. Although still imper-    Video generation models differ in conditioning interface
+fect, this sequence preserves a clearer error and recovery      and clip-length limits. Some support text-only generation,
+interpretation for benchmarking.                                while others require boundary anchors, for example start
+                                                                and end frames, or support only specific durations. Because
+   More broadly, freeform outputs often use lexical mark-       of these constraints, long procedural steps cannot always
+ers such as “Accidentally” or “Stop and ...” while describ-     be replaced in a single pass and often require windowing,
+ing behavior that is only weakly harmful, visually subtle,      bridge clips, and stitching.
+or procedurally neutral. This is one reason Error Valid-
+ity remains an informative metric for freeform baselines: it       In PIE-V, edited windows are selected around the tar-
+measures whether the generated deviation is perceived as a      geted mistake or correction, while unchanged parts of the
+consequential procedural error, not whether the text merely     episode are preserved from the original video. When a full-
+sounds like one.                                                step replacement is not feasible, we generate shorter clips
+                                                                and reconnect them with boundary-aware splicing and tran-
+D.5. From LLM Step Text to Video Generation                     sition smoothing. This is particularly important for ego-
+       Prompts                                                  centric video, where continuity of hands, tools, and camera
+                                                                viewpoint strongly affects plausibility.
+A practical scalability bottleneck of PIE-V is the conversion
+of LLM-generated step text into video-generation prompts.          Different video models also require different condi-
+Writer and judge outputs are optimized for procedural co-       tioning inputs, including text-only mode, boundary-frame
+herence and annotation traceability, not for direct video syn-  mode, and model-specific editing interfaces, which prevents
+thesis. As a result, many generated step descriptions re-       a single universal editing script. We also tested prompt-
+quire manual prompt compilation to make the intended vi-        based editing on non-egocentric videos, but support is un-
+sual event physically explicit and compatible with a specific   even across models, especially for clips with clearly visible
+video model.                                                    people, which makes the current workflow more reliable on
+                                                                egocentric footage.
+   This issue is especially visible in freeform generations.
+LLMs often produce text that is linguistically marked as        D.7. Limitations and Future Directions
+an error, for example with words such as “accidentally”,
+while the described behavior is visually subtle, weakly con-    PIE-V is intended as a controlled framework for construct-
+sequential, or underspecified for video generation. Simi-       ing and auditing mistake-aware procedural traces, and the
+larly, correction steps may be described as meta-actions, for   current version should be understood as a first step rather
+example “Stop and fix...”, that require rewriting into con-     than a final fully scaled benchmark.
+crete visible behavior before synthesis.
+                                                                Benchmark scale and coverage. The current benchmark
+   In our workflow, each edited segment is therefore paired     remains modest in scale: it is built from 50 Ego-Exo4D sce-
+with a model-specific prompt that specifies observable ac-      narios and contains 102 injected mistakes and 27 recovery
+tions, object identity, camera constraints, and scene conti-    corrections. This is sufficient for an initial controlled study,
+nuity. This prompt compilation step is currently the main       but it does not yet support strong claims of exhaustive cov-
+scalability bottleneck of the video stage in PIE-V.             erage over mistake diversity, recovery patterns, or domain
+                                                                variation. In particular, some error types, correction strate-
+Listing 5. Example style-lock prompt used for egocentric video  gies, and long-horizon dependencies are still underrepre-
+generation (bike-repair scenario).                              sented. Expanding the benchmark with more tasks, multiple
+                                                                variants per scenario, and broader procedural domains is a
+ PROMPT_STYLE_LOCK = (                                          natural next step.
+        "Egocentric head-mounted camera, fixed
+         POV, same fisheye lens and same dark
+         circular vignette. "
+Downstream utility is not yet established. The present          Video-side evaluation is necessarily selective. A limi-
+paper evaluates PIE-V primarily through human judgment          tation of the current study is that Video Plausibility and
+and comparative auditing. While this is appropriate for val-    Text–Video Grounding are not reported for every generation
+idating plausibility and coherence, we do not yet show that     setting. Producing and auditing fully edited videos is sub-
+PIE-V data improves downstream models for mistake de-           stantially more resource-intensive than text-only evaluation,
+tection, correction prediction, or post-completion verifica-    since each setting requires video generation, clip selection,
+tion. Demonstrating such gains through controlled training      temporal stitching, and additional human assessment of the
+and transfer experiments is an important direction for future   resulting outputs. For this reason, we adopted a staged eval-
+work.                                                           uation design: generation settings were first compared at
+                                                                the textual/procedural level, and only the strongest configu-
+The video stage is not yet fully automated, but it already      ration was carried forward to the full video stage. We view
+changes the cost profile of mistake-aware data construc-        this as an intentional and pragmatic use of limited computa-
+tion. The textual planning and rewriting components are         tional and annotation resources rather than as an arbitrary
+substantially more scalable than the current video-editing      omission, because scaling clearly weaker text-generation
+stage. In practice, converting rewritten procedural steps into  settings to costly video realization would add substantial ex-
+high-quality video-generation prompts still requires model-     pense with limited scientific value. A broader cross-setting
+specific prompt compilation and manual iteration. This bot-     video evaluation remains an important direction for future
+tleneck is compounded by heterogeneous video-model in-          work, but it would require substantially greater compute,
+terfaces, conditioning requirements, and clip-length limits,    annotation time, and human effort.
+which prevent a single universal editing pipeline.
+                                                                Dependence on source data and external models. The
+   At the same time, PIE-V operates under a fundamentally       current benchmark is derived from Ego-Exo4D keysteps
+different data-construction paradigm from existing mistake-     and therefore inherits both the strengths and the limitations
+aware procedural video datasets, including the ones we au-      of that source representation. More broadly, PIE-V also
+dit, which rely on newly recorded human executions of er-       depends on rapidly evolving LLM and video-generation
+roneous procedures. Such collection typically requires par-     models whose behavior, interfaces, and output quality may
+ticipant time, repeated performances, annotation effort, and    change over time. For this reason, the current results should
+often specialized capture setups. By contrast, PIE-V starts     be interpreted as evidence for the usefulness of the PIE-V
+from existing clean procedural videos and edits only tar-       design principles and evaluation protocol, rather than as a
+geted segments. In this sense, even in its current partially    claim that one fixed generated benchmark is final or univer-
+manual form, PIE-V already offers a practical and resource-     sal.
+efficient alternative to full re-recording, reducing both col-
+lection cost and human effort while preserving control and      Generated mistakes remain approximations of human
+auditability.                                                   behavior. Even when errors are psychology-informed,
+                                                                role-constrained, and judged coherent by annotators, gener-
+   To our knowledge, PIE-V is also among the first              ated traces remain approximations rather than direct obser-
+mistake-aware procedural benchmark constructions to rely        vations of naturally occurring human mistakes. They may
+on prompt-based editing of existing video segments rather       miss social context, tacit goals, embodied variability, and
+than new recordings of erroneous executions. We there-          opportunistic recovery strategies that arise in real-world ex-
+fore view the current pipeline not only as a benchmark-         ecution. We therefore view PIE-V as complementary to nat-
+generation method, but also as an early demonstration of        urally observed mistake datasets rather than a replacement
+a different and potentially much cheaper way to build           for them.
+mistake-aware procedural video resources.
+
+   We also expect the scalability of this stage to improve as
+prompt-based and instruction-guided video editing models
+continue to advance [20, 23, 26]. Recent progress in gen-
+eral video-to-video editing, instruction-based video editing,
+and emerging egocentric video editing suggests that more
+automated and temporally consistent editing pipelines may
+substantially reduce the need for manual prompt engineer-
+ing. However, adapting such models to controlled procedu-
+ral mistake construction remains a separate research prob-
+lem.
+

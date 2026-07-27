@@ -1,0 +1,54 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<feed xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/" xmlns:arxiv="http://arxiv.org/schemas/atom" xmlns="http://www.w3.org/2005/Atom">
+  <id>https://arxiv.org/api/lW9LiytDToCbarX0yhfSb/EouIc</id>
+  <title>arXiv Query: search_query=all:"EgoOops"&amp;id_list=&amp;start=0&amp;max_results=20</title>
+  <updated>2026-07-26T12:23:23Z</updated>
+  <link href="https://arxiv.org/api/query?search_query=all:%22EgoOops%22&amp;start=0&amp;max_results=20&amp;id_list=" type="application/atom+xml"/>
+  <opensearch:itemsPerPage>20</opensearch:itemsPerPage>
+  <opensearch:totalResults>1</opensearch:totalResults>
+  <opensearch:startIndex>0</opensearch:startIndex>
+  <entry>
+    <id>http://arxiv.org/abs/2410.05343v3</id>
+    <title>EgoOops: A Dataset for Mistake Action Detection from Egocentric Videos referring to Procedural Texts</title>
+    <updated>2025-07-31T01:32:29Z</updated>
+    <link href="https://arxiv.org/abs/2410.05343v3" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2410.05343v3" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Mistake action detection is crucial for developing intelligent archives that detect workers' errors and provide feedback. Existing studies have focused on visually apparent mistakes in free-style activities, resulting in video-only approaches to mistake detection. However, in text-following activities, models cannot determine the correctness of some actions without referring to the texts. Additionally, current mistake datasets rarely use procedural texts for video recording except for cooking. To fill these gaps, this paper proposes the EgoOops dataset, where egocentric videos record erroneous activities when following procedural texts across diverse domains. It features three types of annotations: video-text alignment, mistake labels, and descriptions for mistakes. We also propose a mistake detection approach, combining video-text alignment and mistake label classification to leverage the texts. Our experimental results show that incorporating procedural texts is essential for mistake detection. Data is available through https://y-haneji.github.io/EgoOops-project-page/.</summary>
+    <category term="cs.CV" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.AI" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2024-10-07T07:19:50Z</published>
+    <arxiv:comment>Main 8 pages, supplementary 6 pages</arxiv:comment>
+    <arxiv:primary_category term="cs.CV"/>
+    <author>
+      <name>Yuto Haneji</name>
+    </author>
+    <author>
+      <name>Taichi Nishimura</name>
+    </author>
+    <author>
+      <name>Hirotaka Kameko</name>
+    </author>
+    <author>
+      <name>Keisuke Shirai</name>
+    </author>
+    <author>
+      <name>Tomoya Yoshida</name>
+    </author>
+    <author>
+      <name>Keiya Kajimura</name>
+    </author>
+    <author>
+      <name>Koki Yamamoto</name>
+    </author>
+    <author>
+      <name>Taiyu Cui</name>
+    </author>
+    <author>
+      <name>Tomohiro Nishimoto</name>
+    </author>
+    <author>
+      <name>Shinsuke Mori</name>
+    </author>
+  </entry>
+</feed>

@@ -1,0 +1,622 @@
+                                                     Failure Identification in Imitation Learning
+                                                         via Statistical and Semantic Filtering
+
+                                                Quentin Rolland1,2, Fabrice Mayran de Chamisso1, Jean-Baptiste Mouret2,3
+
+arXiv:2604.13788v1 [cs.RO] 15 Apr 2026     Abstract— Imitation learning (IL) policies in robotics deliver            quantification remains an open challenge in IL and RL [6],
+                                        strong performance in controlled settings but remain brittle in              [7], and is not integrated into the highest-performing learning
+                                        real-world deployments: rare events such as hardware faults,                 algorithms [1]–[3]. A more practical direction is to rely on
+                                        defective parts, unexpected human actions, or any state that lies            an independent monitoring module that evaluates execution
+                                        outside the training distribution can lead to failed executions.             at runtime [8]–[12].
+                                        Vision-based Anomaly Detection (AD) methods emerged as an
+                                        appropriate solution to detect these anomalous failure states but               In this paper, we build on recent work [8]–[12] and
+                                        do not distinguish failures from benign deviations. We introduce             propose an independent failure monitor, designed to detect
+                                        FIDeL (Failure Identification in Demonstration Learning), a                  situations in which a policy should be interrupted. We frame
+                                        policy-independent failure detection module. Leveraging recent               the problem in terms of Anomaly Detection (AD). Anomalies
+                                        AD methods, FIDeL builds a compact representation of nominal                 correspond to deviations from the expected distribution,
+                                        demonstrations and aligns incoming observations via optimal                  which may—but do not always—indicate failure states. Our
+                                        transport matching to produce anomaly scores and heatmaps.                   approach leverages the One-Class (OC) paradigm, a well-
+                                        Spatio-temporal thresholds are derived with an extension of                  established method in computer vision [13]–[17]. In OC
+                                        conformal prediction, and a Vision–Language Model (VLM)                      learning, a model is trained solely on data from a “nor-
+                                        performs semantic filtering to discriminate benign anomalies                 mal” class, and any significant deviation from this baseline
+                                        from genuine failures. We also introduce BotFails, a multimodal              is flagged as anomalous. This formulation is particularly
+                                        dataset of real-world tasks for failure detection in robotics. FI-           well-suited to IL, where the space of possible deviations
+                                        DeL consistently outperforms state-of-the-art baselines, yielding            is unbounded, yet expert demonstrations naturally provide
+                                        +5.30% AUROC in anomaly detection and +17.38% failure-                       a reliable definition of normality. Thus, we treat expert
+                                        detection accuracy on BotFails compared to existing methods.                 demonstrations as our baseline and regard any deviation as an
+                                        Videos of FIDeL can be found on our website :                                anomaly—yielding an implicit and comprehensive definition
+                                                                                                                     of undesirable behavior.
+                                        https://cea-list.github.io/FIDeL/
+                                                                                                                        That said, the notion of anomaly encompasses a broader
+                                                               I. INTRODUCTION                                       range of situations than failure. Not all anomalies correspond
+                                                                                                                     to failure-related events: some may be entirely benign—for
+                                           Recent progresses in imitation learning (IL) [1]–[3]                      instance, a fly landing on a table or an object slightly shifting
+                                        have the potential to significantly enhance the flexibility                  in the background—and should not trigger unnecessary or
+                                        and adaptability of robotic systems. Unfortunately, current                  costly interventions. This mismatch reveals a key limitation
+                                        learned policies cannot be deployed in real world environ-                   of existing AD methods: while they can reliably highlight
+                                        ments because their behavior is not defined when they are in                 deviations from nominal behavior, they lack the ability to
+                                        a situation that is not part of the training set. Such events are            discriminate between harmless anomalies and those that truly
+                                        unavoidable in factories or human-centered environments,                     compromise task execution. In robotics, this distinction is
+                                        arising from defective objects, operator mistakes, or environ-               essential. What is required is a mechanism that can seman-
+                                        mental shifts, and they cannot be exhaustively anticipated in                tically interpret anomalies and explicitly determine whether
+                                        training data.                                                               they represent benign variations or genuine failures.
+
+                                           A prevalent strategy is to assume that the training dataset                  To bridge the gap between traditional Vision Anomaly
+                                        is sufficiently diverse to encompass all possible scenarios.                 Detection and the unique demands of robotic applications,
+                                        Implicitly, this amounts to presuming that no situation is off               we introduce FIDeL (Failure Identification in Demonstration
+                                        distribution. While this assumption simplifies the problem,                  Learning), a failure detection module designed to com-
+                                        it is unrealistic in practice, many rare events will never                   plement IL policies in robotics. FIDeL performs post-hoc
+                                        appear in training data. The second approach is to design                    anomaly detection by comparing new observations with
+                                        models that can quantify the uncertainty of their decision, for              stored representations of normal demonstrations using Op-
+                                        instance with Bayesian models [4], [5]. However, uncertainty                 timal Transport (OT). To decide whether or not an AD score
+                                                                                                                     indicates an anomaly, we leverage a Conformal Prediction
+                                        1Universite´ Paris-Saclay, CEA, List, F-91120, Palaiseau, France             (CP)–based thresholding [18], [19] mechanism, which ac-
+                                                                                                                     counts for both temporal variations in anomaly scores and
+                                        2Inria, CNRS, Universite´ de Lorraine, LORIA, F-54000 Nancy,                 spatial variations across visual patches. When the anomaly
+                                                                                                                     score exceeds the CP threshold, FIDeL triggers a semantic
+                                        France  3Bleu Robotics, Paris, France  correspondance to:
+
+                                        quentin.rolland2@cea.fr. This publication was made possible
+
+                                        by the use of the CEA List FactoryAI supercomputer, financially supported
+
+                                        by the Ile-de-France Regional Council. This work was partly funded by : the
+
+                                        European Union’s Horizon Europe Research and Innovation program under
+
+                                        grant agreement no 101135708 (JARVIS project), no101070227 (CON-
+
+                                        VINCE project) and no 101070596 (euROBIN project) - and by the France
+
+                                        2030 program through the PEPR O2R projects AS3 (ANR-22-EXOD-007).
+filter based on a vision-language model (VLM), which             while PatchCore [8] retrieves outliers from a memory bank of
+determines whether the detected anomaly is failure-related or    normal features. These approaches are particularly appealing
+benign. This three-stage process allows for efficient failure    for robotics as they are sample-efficient and interpretable,
+detection while reducing false positives, thus preserving        providing localized heatmaps that highlight anomalous re-
+productivity.                                                    gions [8], [37]. Their efficiency and explainability make them
+                                                                 especially suited for failure detection. We evaluate three AD
+   Our contributions are summarized as follows:                  families (see Section IV).
+   • Following the One-Class paradigm, we design a novel
+                                                                 B. Failure detection in autonomous robotics
+      Vision Anomaly Detection, representation-based al-
+      gorithm tailored for autonomous robotics.                     Ensuring that autonomous robotic agents can detect and
+   • We extend Conformal Prediction to handle both tem-          respond to abnormal behaviors or failure during deployment
+      poral and spatial variations, with memory-based            is critical for both performance and human trust.
+      temporal alignment that ensures robustness to variable
+      execution speeds.                                             Traditional approaches to failure detection have focused
+   • We propose a semantic filtering mechanism using             on detection through supervised learning frameworks that
+      a VLM and anomaly heatmaps, which discriminates            rely on labeled examples of failures [40]–[43]. For instance,
+      between benign anomalies and task-critical failures.       Liu et al. [40] trained an LSTM-based classifier using latent
+   • We enhance interpretability through localized               embeddings from a conditional VAE for RNN-based BC
+      heatmaps and VLM-based explanations, providing             policies, while Gokmen et al. [41] employed a jointly trained
+      human-readable justifications for failure detection.       state-value function to anticipate failure states in behavior
+   • We present BotFails a dedicated training and eval-          cloning setups. However, these methods require failure data
+      uation dataset collected on LeRobot [20] for bench-        trajectories for training, limiting their applicability in novel
+      marking anomaly and failure detection in robotics,         or unstructured environments.
+      addressing the scarcity of failure-oriented datasets.
+   • We demonstrate significant performance gains over              Several alternative approaches have been explored. Wang
+      baselines in both anomaly detection (+5.30% AUROC)         et al. [44] collect failure data via self-reset to train a clas-
+      and failure detection tasks (+17, 38% accuracy).           sifier, requiring around 2,000 trajectories (2 hours of data),
+                                                                 which limits scalability. He et al. [45] use random network
+                      II. RELATED WORK                           distillation to filter out out-of-distribution trajectories, while
+                                                                 Sun et al. [46] reduce uncertainty by predicting reward
+A. Vision Anomaly Detection                                      intervals. However, these methods do not address failure
+                                                                 detection during execution. In contrast, other approaches
+   Vision AD is a well-established problem in computer vi-       such as Hafez et al. [10] verify LLM-generated trajectories
+sion, particularly within the unsupervised learning paradigm.    using reachability analysis, and Agia et al. [11] introduce a
+Existing methods can be broadly categorized into four fam-       statistical temporal action consistency (STAC) metric with
+ilies [13]: (1) Augmentation-based methods add artificial        VLMs to detect execution-time anomalies. Still, both focus
+anomalies to normal samples and train a classifier to recog-     solely on trajectory-level data.
+nize them [21]–[23]. However, we found no straightforward
+way to adapt these approaches to robotics, primarily due to         The closest work to ours, FAIL-Detect [12], performs run-
+the challenge of generating realistic anomalies in robot and     time failure detection in imitation learning with Continuous
+object motions. (2) Reconstruction-based methods learn to        Normalizing Flows (CNF) [47], but does not distinguish
+reconstruct normal inputs, using the reconstruction error as     benign anomalies from task-critical failures and assumes
+an anomaly score. Common architectures include Autoen-           that the task is performed with the same temporal consis-
+coders (AE), Variational Autoencoders (VAE) or Genera-           tency during inference as in demonstrations. Instead, our
+tive Adversarial Networks (GANs) [24]–[26], and Student-         method relies on a representation based formulation that
+Teacher frameworks [27]–[29]. However, such models often         captures both temporal progression and spatial structure, en-
+generalize well enough to reconstruct anomalous inputs, thus     abling alignment across variable execution speeds, localized
+failing to highlight anomalous regions effectively [30], [31].   heatmaps, and more interpretable scores. Combined with a
+(3) Normalizing Flows (NF) [32] based methods [33]–[35]          semantic filtering stage using a VLM, this design narrows
+learn an invertible transformation from the data distribution    detection to genuine failures and yields significant gains,
+to a well-defined prior, typically a Gaussian. Anomalies are     achieving +17.38% accuracy on BotFails.
+detected when the likelihood of a test sample under the
+learned distribution deviates significantly from the normal                                  III. METHOD
+class. Despite their theoretical appeal, NF exhibit “likelihood
+paradoxes,” often assigning higher likelihood to anomalous       A. Problem formulation
+images than normal ones [36]. (4) Representation-based
+methods [8], [37]–[39] use pretrained, frozen networks to           We consider a generative robotic policy fθ trained us-
+extract semantic embeddings and compute anomaly scores           ing Imitation Learning. At inference, the policy maps an
+based on their distance to normal class features. Early meth-    observation Ot to an action At = fθ(Ot). Our goal is to
+ods like PaDiM [37] model per-patch Gaussian distributions,      design a monitoring module capable of identifying execution
+                                                                 anomalies and, among them, failures that compromise task
+                                                                 completion. We decompose the problem into two levels:
+1 step – offline                         Expert Features aggregation                                                              0                       Anomaly Heatmap∶ "#!"∗  FIDeL
+   Teleoperation of the robot by the       ViT (!) M
+        expert to realize the task                                                   M                                                                                                M
+                                                                                   ! "!
+                                     Ot                                                                             max dev
+                                                                                 CP Calibration                     std
+                                                                                                                    CP threshold  #$$%&",$
+                                                                                                                    Expert mean
+
+Expert
+
+2 step – online                                                Anomaly Detection                           2 Thresholding 3                                                  VLM
+Imitation learning policy inference                                                          M                                                                       semantic filtering
+                                                                                                           Heatmap    : AD score          : CP threshold
+                                Ot* ViT (!)                                                                  "#!"∗                                                         Given <task> ,
+                                                                                                                                                                     <expert reference> and      Failure
+    π                                                                                                                                                               <heatmap> is it a failure ?  score
+
+                                                            1  $# = min$∈ ' (,*                  ! "!      Anomaly                                        Anomaly     from anomaly to failure
+                                                                                                             score                                        detected
+                                                                                  ,,
+                                                                                                                        ./ (0 10. , 0#∗)
+                                                                                 * * +!,!∗ ⋅ "#!,!∗ -∗
+
+                                                                                 !-. !∗-.
+
+Fig. 1: We introduce FIDeL, a framework for detecting failures in imitation learning (IL) policies. - Offline - Expert demonstrations
+are first encoded and stored in a memory buffer M. 0. Conformal Prediction Calibration — A decision threshold is computed from M
+using Conformal Prediction to determine when a score should be considered anomalous. - Online - 1. Anomaly Detection — During
+policy execution, anomaly scores and heatmaps are computed from incoming observations. 2. Thresholding — If the score exceeds the
+calibrated threshold, an anomaly is flagged. 3. Semantic Filtering — Since not all anomalies are failure-related, a VLM filter discards
+benign deviations and flags only failures that threaten task success.
+
+Anomaly detection: an anomaly detector DA assigns a score                                               patches per frame, and F the feature dimension. To reduce
+to each observation Ot, reflecting the likelihood of deviation                                          memory cost and ensure efficient inference, features are
+from nominal behavior. Failure detection: a failure detector                                            aggregated across episodes by computing Gaussian statistics.
+DF refines this decision by filtering out benign anomalies                                              The resulting memory encodes the expected distribution of
+(e.g., harmless scene changes) while flagging failure-related                                           nominal features:
+anomalies. We adopt a one-class formulation, requiring only
+nominal demonstrations. Let XN denote the dataset of expert                                             M = {µt,p,f , σt,p,f | t ∈ 1, T , p ∈ 1, P , f ∈ 1, F } ,
+trajectories, consisting of at most a few dozen episodes. It is
+randomly partitioned into two subsets of equal sizes: YN for                                            where µt,p,f and σt,p,f are the empirical mean and standard
+constructing the anomaly detector DA and ZN for calibrating                                             deviation of feature dimension f , estimated across episodes
+thresholds.                                                                                             for patch p at timestep t.
+
+B. Method overview                                                                                      D. Anomaly score computation
+
+   Our framework comprises two stages: an Offline phase                                                    At runtime, in parallel with the operation of the policy fθ,
+during which observations from XN are encoded using a
+vision encoder ϕ, yielding patch-level features ϕt = ϕ(Ot).                                             we retrieve the observation Ot∗ . Features are then extracted
+These features are aggregated into a statistical memory                                                 from Ot∗ using the vision encoder, resulting in ϕt∗ query =
+M (Sec. III-C), which models the nominal distribution.                                                  ϕ(Ot∗ ) ∈ RP ×F . Subsequently, we compare this query data–
+The calibration subset ZN is then used to derive adaptive                                               whose indices hold a ”∗”– with the memory, i.e., the stored
+thresholds via conformal prediction, producing time and
+patch dependent bounds. During the online phase., at each                                               data, which we refer to as the keys. Anomaly scoring relies
+timestep t∗, the policy outputs an action At∗ = fθ(Ot∗ ).
+In parallel, as illustrated in Fig. 1, the anomaly detector                                             on an optimal transport (OT) alignment between the query
+DA computes a score DA(ϕ(YN ), ϕt∗ ) by aligning query
+features ϕt∗ with keys from YN using optimal transport. This                                            and memorized features [50], [51]. Rather than comparing
+score is compared against conformal thresholds to decide if
+Ot∗ is anomalous. If flagged, the failure detector DF invokes                                           patches one by one, OT seeks the best global alignment
+a VLM to distinguish harmless anomalies from genuine
+failures.                                                                                               between the two sets of patches: how much ”feature mass”
+
+C. Memory representation                                                                                from query patches needs to be moved to match the key
+
+   The memory module M is built offline from nominal                                                    (memory) patches, and at what cost. Formally, we look for
+demonstrations. After encoding trajectories using a vision
+encoder (resnet18 [48] or dinoV2 [49]), we obtain a feature                                             a  transport  plan        γ       ∈ RP ∗P         that  redistributes     the  query     mass
+tensor ϕ(YN ) ∈ RN×T ×P ×F , where N is the number of
+episodes, T the horizon length, P the number of spatial                                                                                          +
+
+                                                                                                        into the key mass with minimum total cost. We define a
+
+                                                                                                        ground cost function c : RF ×RF → R+ between two feature
+
+                                                                                                        vectors, implemented here as normalized Euclidean distance
+
+                                                                                                        (i.e., a diagonal Mahalanobis distance), where each feature
+
+                                                                                                        dimension is scaled by the corresponding standard deviation
+
+                                                                                                        stored in M. This gives rise to a cost matrix Mc(t) ∈ RP ×P
+                                                                                                        for each memory timestep t:
+
+                                                                                                                      Mc(t)[p, p∗] = c ϕt∗,p∗ query, (µt,p, σt,p) . (1)
+
+                                                                                                        We then seek a coupling matrix γ ∈ Π(a, b), where
+
+                                                                                                                    Π(a, b) = γ ∈ R+P ×P γ1 = a, γ⊤1 = b
+domestic         1                                  2                     3  4                         5                   6
+                   industrial
+                                                    7                     8  9                         10
+
+Fig. 2: BotFails dataset illustration - all images are illustrations of BotFails tasks executed by the expert - Domestic - 1. clear away
+the dishes, 2. make coffee, 3. set the table, 4. pour coffee, 5. sort groceries, 6. sort fruits and vegetables - Industrial - 7. sort screws, 8.
+measure voltage, 9. press buttons, 10. solder.
+
+is the set of admissible transport plans between two uniform                 tuning the detector’s sensitivity to the task context: stricter
+distributions a, b ∈ ∆P . The OT cost between query and                      values improve responsiveness in fine-grained or sensitive
+                                                                             scenarios, while more permissive ones reduce false positives
+memory features at time t is thus:                                           in less sensitive settings. Additionally, non-critical spatial
+                                                                             regions can be masked, further focusing detection on areas
+                 Wt = min ⟨Mc(t), γ⟩                              (2)        of interest.
+                            γ∈Π(a,b)
+
+where ⟨·, ·⟩ denotes the Frobenius inner product.                            F. Semantic filtering
+   The final anomaly score is obtained as the minimum
+                                                                             We leverage Qwen 2.5-7b [52] as a Vision-Language
+transport cost across nominal timesteps:
+
+DA(ϕ(YN ), ϕt∗ ) = min Wt,                 tmin = arg min Wt                 Model (VLM) to distinguish between benign anomalies and
+
+                                   t∈ 1,T                      t∈ 1,T        task-relevant failures. Formally, we define the failure detector
+                                                                             DF as a binary classifier operating on both contextual task
+                                                                     (3)     information and visual evidence:
+
+In practice, solving the OT problem exactly is costly;
+
+we rely on entropic regularization (Sinkhorn iterations) to                  DF : d, O(XN,tmin ), Ot∗ , M cp∗ † → {0, 1},
+
+compute an efficient approximation [50].
+
+E. Thresholding via Spatially-Aware Conformal Prediction                     where d is a task-specific textual description provided by
+
+We extend the Conformal Prediction (CP) framework [18],                      the user, O(XN,tmin ) ∈ O(XN ) is a reference (expert)
+                                                                             demonstration frame at timestep tmin (see Eq. (3)), Ot∗ is
+[19] to define a dynamic threshold for our anomaly detector                  the current observation, and M cp∗ † is the anomaly heatmap
+                                                                             highlighting the most suspicious region(s) in the image.
+DA, accounting for both temporal structure and patch-level                   M cp∗ † ∈ RP is derived from the cost matrix (eq.(1)) at
+                                                                             the most similar time step tmin (eq.(3)) by extracting the
+variations.
+                                                                             minimum transport cost per query patch:
+- Offline calibration -
+
+We divide the expert calibration set ZN in two subsets
+
+EA and EB. Then, we compute the anomaly calibration                          M cp∗ † = min (M cp,p∗ (tmin))                (4)
+
+score DA(ϕ(YN ), ϕ(EA)) which is used to compute the                                                p
+
+mean    anomaly  score  µt     over        nominal     examples,  while      The VLM is prompted with (d, O(XN,tmin ), Ot∗ , M cp∗ † ) and
+                                                                             asked to:
+                          p
+                                                                                1) Identify the semantic nature of the anomaly by com-
+DA(ϕ(YN ), ϕ(EB)) is used to compute deviations. The split
+                                                                                    paring the two images and interpreting the heatmap.
+aims to maintain the exchangeability assumption [18]. A                         2) Classify the anomaly as either: False positive (DF =
+
+threshold bandwidth h is then set as the (1 − α)-quantile of                        0): the anomaly is benign, the robot may continue.
+                                                                                    Failure (DF = 1): the anomaly is a failure.
+the maximum deviations observed on EB. This bandwidth                           The combination of nominal reference (O(XN,tmin )) with
+                                                          µt      ρtp.h,     structured context (d) and localized anomaly cues (M cp∗ † ),
+yields  a  spatio-temporal     upper  bound  upperp,t  =       +             allows to constrain the reasoning space of the VLM.
+                                                            p
+
+which controls the false positive rate at level α under
+
+exchangeability. With ρtp, a patch-wise modulation factor,
+
+capturing variability across time and space [18]. Figure 3
+
+depicts the upper bound (Threshold) as a dotted red line.
+
+- Online thresholding -
+
+At runtime, the current observation is aligned to its clos-                     IV. EVALUATION
+
+est nominal timestep tmin using OT (Eq. (3)), and patch-                        To rigorously evaluate the effectiveness of our failure
+                                                                             detection approach, we introduce a dedicated dataset specifi-
+level scores are compared to their corresponding bounds                      cally designed for robotic failure monitoring. Our method is
+                                                                             benchmarked on this dataset alongside several state-of-the-
+upperp∗,tmin . An input is flagged as anomalous when the                     art baseline methods adapted to our experimental setting.
+fraction of patches exceeding their respective bounds sur-
+
+passes a user-defined percentage. This parameter allows
+                                          Expert, anomaly and safety scores vs Timestep
+
+       0.8                                                                                                                     – CP Calibration —
+
+               GT Normal                                                                                                       µt
+
+       0.6                                                                                                                       p
+
+                                                                                                                               µt   ±  std
+
+                                                                                                                                 p
+
+                                                                                                                               µt   ±  max  dev
+
+                                                                                                                                 p
+
+                                                                                                                               — AD Results—
+
+Score  0.4                                                                                                                     AD score
+
+                                                                                                                               — CP Results —
+
+                                                                                                   GT Failure                  Threshold
+
+       0.2                                                                                                           1         CP ° Anomalous
+                                                                                                                     2
+                                                                                                                               CP ° Normal
+                                                                                                                 500
+       0.0                                                                                                                     — VLM Results —
+
+                                                                                                                               VLM ° Failure
+
+                                                                                                                               VLM ° Benign
+
+            0             100                200               300                       400
+
+                                                     Timestep
+
+Fig. 3: Score illustration - Real-π soldering - episode 15 over 20 episodes of the evaluation set, score obtained with Representation and
+CP time. The Anomaly Detection score corresponds to the output of the AD module DA(ϕ(YN ), ϕt∗ ). µpt is obtained when computing
+DA(ϕ(YN ), ϕ(EA)) and allows to compute the Threshold values, see section III-E. When the Anomaly Detection score is below the
+
+Threshold, no anomaly is detected (CP-Normal) and when it is above, an anomaly is flagged (CP-Anomalous). We observe that transitioning
+
+from anomaly detection ⃝1 to failure detection ⃝2 through the use of the VLM reduces the number of false positives (highlighted in the
+
+yellow boxes). However, this additional filtering step also introduces a small number of false negatives.
+
+                          Real-𝜋 – Soldering                                                    BotFails – pouring coffee
+
+                  1                       2                    3                                4                5                                 6
+
+Fig. 4: Heatmaps illustration - obtained using Representation AD and temporal/spatial CP - Real-π: ⃝1 expert, ⃝2 benign anomaly: screws
+present in the work plan, ⃝3 failure: dropping the iron - BotFails: ⃝4 expert, ⃝5 benign anomaly: someone walking in the background
+(top left corner), ⃝6 failure: spilling the cup.
+
+                   Representation (ours)          logpZ0 [12]                   lopO                            AE              STAC [11]
+                  AUROC ↑ F1@Opt ↑        AUROC ↑ F1@Opt ↑          AUROC ↑ F1@Opt ↑               AUROC ↑ F1@Opt ↑     AUROC ↑ F1@Opt ↑
+
+BotFails             70.50     62.90          65.20  59.87          58.30                53.48     49.90  52.12         N/A                 N/A
+Real-π soldering      ±0        ±0            ±0.15  ±0.06          ±0.70                ±0.02     ±1.08  ±0.08
+                                                                                                                        N/A                 N/A
+
+                     86.72     78.29          82.62  78.03          76.16                70.99     81.07  76.33         53.55               63.93
+                      ±0        ±0            ±0.08  ±0.02          ±0.42                ±0.03     ±0.88  ±0.06          ±0                  ±0
+
+TABLE I: Anomaly Detection evaluation before thresholding – mean AUROC and mean F1-score at optimal threshold (in %) for
+anomaly detection only evaluated on the BotFails dataset and Real-π soldering task, across various AD methods. Best results are
+highlighted in green and bold. Each task score reflects performance over multiple rollouts (several dozens per task).
+
+A. Dataset                                                             2) Real-π dataset: We additionally evaluated FIDeL on
+                                                                    more realistic data by performing inference on trajectories
+   1) We introduce BotFails: given the scarcity of available        generated with ACT [3], an IL policy. While these data
+datasets in the robotics failure detection field, we created        contain fewer types of anomalies/failures—due to the lack of
+a new dataset specifically designed for general failure situ-       control over the policy’s behavior—they better reflect real-
+ations in robotics, incorporating vision, proprioception, and       world execution scenarios. We conducted experiments on a
+natural language instructions. Data collection was performed        soldering task. Two types of labels are available with these
+using master arm teleoperation with LeRobot [20], a real-           datasets: anomaly detection labels and failure labels which
+world robotic platform. BotFails has been curated to maxi-          only include anomalies related to failure scenarios.
+mize semantic diversity across task types. The dataset covers
+10 distinct tasks, with 6 tasks reflecting domestic environ-        B. Baselines
+ments, and 4 tasks representative of industrial contexts. The
+tasks are illustrated in Figure 2. Each task features several          We evaluate FIDeL against three families of baselines:
+anomaly types. Some are not failure-related (e.g. an unknown        (i) AD methods relying exclusively on nominal data, (ii)
+object is present in the scene) and some are real failures (e.g.    thresholding strategies for anomaly scoring, and (iii) end-to-
+manipulation mistake, semantic mistake...).                         end failure detection modules that combine detection with
+                                                                    additional filtering or semantic reasoning.
+   1) Anomaly Detection (AD) baselines: We first compare         evaluation of TPR/FPR across thresholds) and F1 at the
+against representative approaches from recent advances in        optimal threshold (best precision–recall balance).
+robotic AD and Vision Anomaly Detection (VAD). Like
+FIDeL, these methods are trained exclusively on nominal             Thresholding module. We then assess thresholding meth-
+demonstrations, without requiring annotated anomalies.           ods at the frame level (0 = normal sample, 1 = anomaly),
+                                                                 using: TPR, TNR, Balanced Accuracy = (TPR + TNR)/2,
+   FAIL-Detect [12] introduces two anomaly scoring mech-         Weighted Accuracy = β · TNR + (1 − β) · TPR with
+anisms based on Conditional Normalizing Flows (CNFs):            β = number of normal samples/total number of samples.
+lopO and logpZ0 [53]. - lopO estimates the likelihood of an
+observation Ot under a CNF fitted on expert demonstrations;         End-to-end evaluation. Finally, we evaluate the full fail-
+anomalies correspond to low-likelihood samples. - logpZ0,        ure detection pipeline (including semantic filtering), where
+instead, integrates the CNF backward from Ot to compute          metrics only consider failure-related anomalies as positive
+its corresponding latent variable ZOt . Under nominal con-       samples. Metrics (TPR, TNR, Balanced/Weighted and Ac-
+ditions, ZOt is approximately Gaussian, so large values of       curacy) are reported at observation level to assess the ability
+∥ZOt ∥2 are indicative of anomalies. Compared to lopO, this      to detect true failures while ignoring benign anomalies.
+method avoids explicitly computing the flow’s divergence,
+improving stability in high-dimensional settings.                D. Results and discussion
+
+   In addition, we include a reconstruction-based AD base-          Table I reports the performance of anomaly detection
+line, inspired by SOTA methods for video anomaly detec-          (AD) methods evaluated directly on raw anomaly scores.
+tion [26], [54], [55]. We train an AutoEncoder (AE) on expert    Our representation-based approach consistently achieves the
+data to learn a compact latent representation. At inference,     best AUROC and F1@Opt across both datasets, surpassing
+high reconstruction error signals a deviation from expert-like   all baselines by a clear margin. On BotFails, it yields a
+behavior and is used as an anomaly score.                        +5.3% AUROC gain over the second-best method (logpZ0),
+                                                                 confirming robustness to the high semantic variability of
+   Finally, we consider STAC (Statistical Temporal Action        anomalies. On the Real-π soldering task, it further widens the
+Consistency) [11] which monitors the temporal consistency        gap, reaching 86.7% AUROC versus 82.6% for logpZ0 and
+of a generative policy. At each step, the policy predicts a se-  53.6% for STAC. These results show that compact nominal
+quence of future actions; overlapping parts of successive pre-   representations outperform reconstruction- and likelihood-
+dictions are compared using statistical distances (e.g., MMD,    based methods in capturing deviations from expert behavior.
+KL). When the policy is in-distribution, these overlapping
+action distributions remain consistent, yielding low distances.     Figure 5 compares thresholding strategies applied to
+Conversely, large divergences signal out-of-distribution states  anomaly scores. The best results are obtained with our
+and potential failure. We can only evaluate STAC on the          representation-based method combined with CP-time&space,
+Real-π dataset given that it requires the sequence of actions    which yields robust performance across datasets. Conformal
+predicted by the policy.                                         prediction (CP) generally outperforms Gaussian threshold-
+                                                                 ing, as it makes no distributional assumption and adapts to
+   2) Thresholding baselines: Raw anomaly scores need            diverse score behaviors. In contrast, Gaussian fitting assumes
+to be mapped to binary anomaly decisions. To assess the          Gaussian-distributed scores, an approximation that often fails
+contribution of our conformal thresholding mechanism, we         under extreme conditions, leading to higher variance and
+compare against several thresholding strategies: - CP-time, a    degraded weighted accuracy—especially for logpZ0, where
+standard conformal prediction approach using only temporal       over-flagging anomalies reduces TNR. Still, Gaussian thresh-
+deviations from reference demonstrations. - CP-time+space,       olding is not entirely ineffective: in some tasks where the
+our spatial extension that accounts for both temporal and        score distribution is closer to normal, it can match or even
+spatial (patch-level) variations. - Gaussian assumption, a       surpass CP-time. Comparing CP variants, CP-time&space
+simpler baseline with thresholds derived from a Gaussian fit     consistently improves over CP-time. On Real-π, the gain is
+of calibration scores (mean and variance) at each timestep.      marked since anomalies in soldering are spatially localized.
+                                                                 On BotFails, where anomalies are more diverse, the improve-
+   3) End-to-end failure detection baselines: Beyond iso-        ment is smaller: CP-time&space still yields higher accuracy,
+lated AD modules, we also benchmark FIDeL against SOTA           though its weighted accuracy is marginally lower (–0.17%),
+full failure detection pipelines: - FAIL-Detect [12], in its     reflecting a TPR–TNR trade-off.
+end-to-end configuration. - Sentinel [11], which combines
+STAC and VLM monitoring in parallel. - VLM only: we                 End-to-end results (Figure 6) highlight the importance of
+use Qwen 2.5 [52], as a failure classifier. It receives the 5    semantic filtering when converting anomaly labels to failure
+last images and the user prompt and decides whether a failure    labels. AD modules suffer a sharp performance drop when
+occurred or not.                                                 benign anomalies are relabeled as nominal, especially in
+                                                                 TNR; for example, our Representation method with CP-
+C. Evaluation Protocol                                           time&space loses 23% TNR on Real-π. Adding semantic fil-
+                                                                 tering significantly mitigates the TNR degradation, enabling
+   Anomaly Detection (AD) module. We first evaluate              more balanced detection (85.8% TPR / 74.8% TNR). Fail-
+anomaly scoring independently of thresholds by extracting        Detect tends to overpredict anomalies, as it cannot distin-
+raw anomaly scores. Labels are defined at the frame level        guish true failures from benign deviations, while Sentinel
+(0 = nominal, 1 = anomaly). Metrics: AUROC (balanced
+TPR (%)                    BotFails - TPR         TNR (%)                    BotFails - TNR        Acc (%)                     BotFails - Acc       W.Acc (%)                   BotFails - W.Acc
+         40                                                75                                               60
+         20                                                50                                                                                                  60
+                                                           25                                               40                                                 40
+                                                                                                                                                               20
+                                                                                                            20
+
+           0 CP time CP t&s Multi Gaussian                  0 CP time CP t&s Multi Gaussian                  0 CP time CP t&s Multi Gaussian                    0 CP time CP t&s Multi Gaussian
+                                  Threshold type                                   Threshold type                                   Threshold type                                     Threshold type
+
+                       Real-π soldering - TPR                          Real-π soldering - TNR                            Real-π soldering - Acc                           Real-π soldering - W.Acc
+         100
+                                                           75                                               75                                                 75
+                                                                                                                                                    W.Acc (%)
+TPR (%)  50                                       TNR (%)  50                                      Acc (%)  50                                                 50
+
+                                                           25                                               25                                                 25
+
+         0 CP time CP t&s Multi Gaussian                   0 CP time CP t&s Multi Gaussian                  0 CP time CP t&s Multi Gaussian                    0 CP time CP t&s Multi Gaussian
+                               Threshold type                                    Threshold type                                   Threshold type                                     Threshold type
+
+                                           Representation (ours)  logpZ0                     lopO               AE  STAC                       Best Acc and W.Acc
+
+Fig. 5: Anomaly Detection evaluation with thresholding - mean True Positive Rate (TPR), True Negative Rate (TNR), balanced
+accuracy (Acc), weighted accuracy (W.Acc), (in %), for various Anomaly Detection types and various thresholding types–temporal
+Conformal Prediction (CP time), temporal and spatial Conformal Prediction (CP t&s), Multiple Gaussian–evaluated on real world task
+from the BotFails dataset and soldering task operated autonomously with ACT [3]. Best Acc and W.Acc in hatched red.
+
+                                           BotFails                                                                                            Real-𝜋
+
+Fig. 6: End-to-end system evaluation (including semantic filtering) - accuracy (Acc) and weighted accuracy (W.Acc) for various
+robotics failure detection systems. The labeling is different for this evaluation. While AD and Threshold module are evaluated using
+anomaly labels, the end-to-end system is evaluated using failures labels. Which means that all failure-related anomaly labels remain 1,
+while non-failure anomalies are relabeled from 1 to 0. FiDeL = Representation + CP t&s + Semantic filtering
+
+favors nominal predictions, likely missing failures that are                                       depends heavily on the diversity of demonstrations, which
+purely visual and not reflected in proprioceptive signals.                                         may cause benign variations to be flagged as anomalies.
+These results show that semantic filtering is crucial for reli-                                    While the VLM filter helps reduce false positives, its use
+able failure monitoring—avoiding unnecessary interventions                                         is computationally costly, and excessive false alarms would
+while still capturing genuine failures.                                                            slow inference. Second, the method’s spatial and temporal in-
+                                                                                                   variance, though useful for robustness, can reduce sensitivity
+                       V. CONCLUSIONS                                                              to fine-grained or order-dependent deviations. This is partic-
+                                                                                                   ularly problematic for non-Markovian anomalies, where the
+   We introduced FIDeL, a representation-based anomaly                                             correctness of an action depends not only on the current state
+detection module tailored for IL robotic policies. By combin-                                      but also on the history of states or actions that preceded
+ing optimal transport alignment, spatially-aware conformal                                         it. (e.g., press buttons to perform a specific sequence).
+thresholds, and semantic filtering, our approach enables                                           Detecting such cases requires explicit temporal modeling.
+reliable failure detection with interpretable localization. Ex-                                    Finally, balancing invariance and sensitivity remains task-
+periments across diverse tasks show that FIDeL balances                                            dependent: some applications benefit from tolerance to small
+robustness to natural task variability with sensitivity to fail-                                   perturbations, while others demand detection of subtle devi-
+ure related deviations, highlighting the benefit of spatially-                                     ations such as misalignments or object misplacements.
+extended conformal prediction. Beyond detecting anomalies,
+FIDeL provides a practical interface for monitoring robot                                                                      REFERENCES
+behavior in deployment, where reliable monitoring hinges
+not only on policy quality but also on the ability to recognize                                     [1] P. Intelligence, K. Black, et al., “π0.5: a vision-language-action
+and interpret failures.                                                                                  model with open-world generalization,” 2025. [Online]. Available:
+                                                                                                         https://arxiv.org/abs/2504.16054
+                         VI. LIMITATIONS
+                                                                                                    [2] C. Chi, Z. Xu, S. Feng, E. Cousineau, Y. Du, B. Burchfiel, R. Tedrake,
+   FIDeL shows strong failure detection in real-world robotic                                            and S. Song, “Diffusion policy: Visuomotor policy learning via action
+tasks, but several limitations remain. First, its performance                                            diffusion,” The International Journal of Robotics Research, 2024.
+ [3] T. Z. Zhao, V. Kumar, S. Levine, and C. Finn, “Learning Fine-Grained       [30] L.-L. Chiu and S.-H. Lai, “Self-supervised normalizing flows for
+      Bimanual Manipulation with Low-Cost Hardware,” in Proceedings of                image anomaly detection and localization,” in 2023 IEEE/CVF
+      Robotics: Science and Systems, Daegu, Republic of Korea, July 2023.             Conference on Computer Vision and Pattern Recognition Workshops
+                                                                                      (CVPRW), 2023, pp. 2927–2936.
+ [4] Y. Gal et al., “Dropout as a bayesian approximation: Representing
+      model uncertainty in deep learning,” in Proc. of ICML, 2016.              [31] R. Bouman and T. Heskes, “Autoencoders for anomaly detection
+                                                                                      are unreliable,” 2025. [Online]. Available: https://arxiv.org/abs/2501.
+ [5] A. Kendall and Y. Gal, “What uncertainties do we need in bayesian                13864
+      deep learning for computer vision?” in Proc. of NeurIPS, 2017.
+                                                                                [32] D. J. Rezende and S. Mohamed, “Variational inference with normal-
+ [6] O. Lockwood and M. Si, “A review of uncertainty for deep reinforce-              izing flows,” in Proc. of ICML, 2015.
+      ment learning,” in Proc. of AAAI, 2022.
+                                                                                [33] D. Gudovskiy, S. Ishizaka, and K. Kozuka, “Cflow-ad: Real-time
+ [7] Y. Zhu, J. Dong, and H. Lam, “Uncertainty quantification and explo-              unsupervised anomaly detection with localization via conditional
+      ration for reinforcement learning,” Operations Research, 2024.                  normalizing flows,” in Proc. of the IEEE/CVF winter conference on
+                                                                                      applications of computer vision, 2021.
+ [8] K. Roth et al., “Towards total recall in industrial anomaly detection,”
+      in Proc. of CVPR, 2022.                                                   [34] M. Rudolph, T. Wehrbein, B. Rosenhahn, and B. Wandt, “Fully
+                                                                                      convolutional cross-scale-flows for image-based defect detection,” in
+ [9] Y. Fan et al., “Video anomaly detection and localization via gaussian            Proc. of the IEEE/CVF winter conference on applications of computer
+      mixture fully convolutional variational autoencoder,” Computer Vision           vision, 2021.
+      and Image Understanding, 2020.
+                                                                                [35] J. Yu et al., “Fastflow: Unsupervised anomaly detection and
+[10] A. Hafez, A. N. Akhormeh, A. Hegazy, and A. Alanwar, “Safe                       localization via 2d normalizing flows,” 2021. [Online]. Available:
+      LLM-Controlled Robots with Formal Guarantees via Reachability                   https://arxiv.org/abs/2111.07677
+      Analysis,” 2025. [Online]. Available: https://arxiv.org/abs/2503.03911
+                                                                                [36] P. Kirichenko, P. Izmailov, and A. G. Wilson, “Why
+[11] C. Agia et al., “Unpacking failure modes of generative policies:                 normalizing flows fail to detect out-of-distribution data,” in
+      Runtime monitoring of consistency and progress,” in Proc. of CoRL,              Advances in Neural Information Processing Systems, vol. 33.
+      2025.                                                                           Curran Associates, Inc., 2020, pp. 20 578–20 589. [Online].
+                                                                                      Available: https://proceedings.neurips.cc/paper files/paper/2020/file/
+[12] C. Xu et al., “Can we detect failures without failure data? uncertainty-         ecb9fe2fbb99c31f567e9823e884dbec-Paper.pdf
+      aware runtime failure detection for imitation learning policies,” arXiv
+      preprint arXiv:2503.08558, 2025.                                          [37] T. Defard, A. Setkov, A. Loesch, and R. Audigier, “Padim: a patch dis-
+                                                                                      tribution modeling framework for anomaly detection and localization,”
+[13] Y. Cui, Z. Liu, and S. Lian, “A survey on unsupervised anomaly                   in Proc. of ICPR, 2020.
+      detection algorithms for industrial images,” IEEE Access, 2023.
+                                                                                [38] S. Wang, L. Wu, L. Cui, and Y. Shen, “Glancing at the patch: Anomaly
+[14] M. Abdalla, S. Javed, M. Al Radi, A. Ulhaq, and N. Werghi,                       localization with global and local feature comparison,” in Proc. of
+      “Video anomaly detection in 10 years: a survey and outlook,”                    CVPR, 2021.
+      Neural Computing and Applications, vol. 37, no. 32, pp. 26 321–
+      26 364, Nov. 2025. [Online]. Available: https://doi.org/10.1007/          [39] Y. Zheng et al., “Focus your distribution: Coarse-to-fine non-
+      s00521-025-11659-8                                                              contrastive learning for anomaly detection and localization,” in Proc.
+                                                                                      of ICME, 2022.
+[15] P. Wu, C. Pan, Y. Yan, G. Pang, P. Wang, and Y. Zhang, “Deep
+      learning for video anomaly detection: A review,” 2024. [Online].          [40] H. Liu, S. Dass, R. Mart´ın-Mart´ın, and Y. Zhu, “Model-based runtime
+      Available: https://arxiv.org/abs/2409.05383                                     monitoring with interactive imitation learning,” in Proc. of ICRA,
+                                                                                      2024.
+[16] R. Chalapathy and S. Chawla, “Deep learning for anomaly detection:
+      A survey,” 2019. [Online]. Available: https://arxiv.org/abs/1901.03407    [41] C. Gokmen, D. Ho, and M. Khansari, “Asking for help: Failure
+                                                                                      prediction in behavioral cloning through value approximation,” 2023.
+[17] J. Tax, David M. and W. Duin, Robert P. “Support vector domain                   [Online]. Available: https://arxiv.org/abs/2302.04334
+      description,” Pattern Recognition Letters, 1999.
+                                                                                [42] H. Liu et al., “Multi-Task Interactive Robot Fleet Learning with Visual
+[18] J. Lei, M. G’Sell, A. Rinaldo, R. J. Tibshirani, and L. Wasserman,               World Models,” in Proc. of CoRL, 2024.
+      “Distribution-free predictive inference for regression,” 2017. [Online].
+      Available: https://arxiv.org/abs/1604.04173                               [43] A. Gupta, K. Chakraborty, and S. Bansal, “Detecting and Mitigating
+                                                                                      System-Level Anomalies of Vision-Based Controllers,” in Proc. of
+[19] J. Diquigiovanni, M. Fontana, and S. Vantini, “The importance of                 ICRA, 2024.
+      being a band: Finite-sample exact distribution-free prediction sets for
+      functional data,” 2021. [Online]. Available: https://arxiv.org/abs/2102.  [44] Y. Wang, T.-H. Wang, J. Mao, M. Hagenow, and J. Shah, “Grounding
+      06746                                                                           language plans in demonstrations through counterfactual perturba-
+                                                                                      tions,” in Proc. of ICLR, 2024.
+[20] R. Cadene, S. Alibert, A. Soare, Q. Gallouedec, A. Zouitine, and
+      T. Wolf, “Lerobot: State-of-the-art machine learning for real-world       [45] N. He et al., “Rediffuser: Reliable decision-making using a diffuser
+      robotics in pytorch,” https://github.com/huggingface/lerobot, 2024.             with confidence estimation,” in Proc. of ICML, 2024.
+
+[21] C.-L. Li, K. Sohn, J. Yoon, and T. Pfister, “Cutpaste: Self-supervised     [46] J. Sun et al., “Conformal prediction for uncertainty-aware planning
+      learning for anomaly detection and localization,” in Proc. of CVPR,             with diffusion dynamics model,” in Proc. of NeurIPS, 2023.
+      2021.
+                                                                                [47] R. T. Q. Chen, Y. Rubanova, J. Bettencourt, and D. Duvenaud, “Neural
+[22] V. Zavrtanik, M. Kristan, and D. Skocˇaj, “Draem – a discriminatively            ordinary differential equations,” in Proc. of NeurIPS, 2018.
+      trained reconstruction embedding for surface anomaly detection,” in
+      Proc. of ICCV, 2021.                                                      [48] K. He, X. Zhang, S. Ren, and J. Sun, “Deep residual learning for
+                                                                                      image recognition,” in Proc. of CVPR, 2016.
+[23] H. M. Schlu¨ter, J. Tan, B. Hou, and B. Kainz, “Natural synthetic
+      anomalies for self-supervised anomaly detection and localization,” in     [49] M. Oquab et al., “Dinov2: Learning robust visual features without
+      Proc. of ICCV, 2022.                                                            supervision,” TMLR, 2024.
+
+[24] S. Venkataramanan, K.-C. Peng, R. V. Singh, and A. Mahalanobis,            [50] G. Papagiannis and Y. Li, “Imitation learning with sinkhorn
+      “Attention guided anomaly localization in images,” in Proc. of ECCV,            distances,” in ECML/PKDD, 2022. [Online]. Available: https:
+      2020.                                                                           //arxiv.org/abs/2008.09167
+
+[25] Y. Liu, C. Zhuang, and F. Lu, “Unsupervised two-stage anomaly              [51] R. Dadashi, L. Hussenot, M. Geist, and O. Pietquin, “Primal
+      detection,” 2021. [Online]. Available: https://arxiv.org/abs/2103.11671         wasserstein imitation learning,” 2021. [Online]. Available: https:
+                                                                                      //arxiv.org/abs/2006.04678
+[26] Y. Shi, J. Yang, and Z. Qi, “Unsupervised anomaly segmentation via
+      deep feature reconstruction,” Neurocomputing, 2021.                       [52] Qwen, :, A. Yang, and B. Y. et al, “Qwen2.5 technical report,” 2025.
+                                                                                      [Online]. Available: https://arxiv.org/abs/2412.15115
+[27] G. Wang, S. Han, E. Ding, and D. Huang, “Student-teacher feature
+      pyramid matching for anomaly detection,” in Proc. of BMVC, 2021.          [53] C. Xu, X. Cheng, and Y. Xie, “Normalizing flow neural networks by
+                                                                                      jko scheme,” in Proc. of NeurIPS, 2023.
+[28] S. Yamada, S. Kamiya, and K. Hotta, “Reconstructed student-teacher
+      and discriminative networks for anomaly detection,” in Proc. of IROS,     [54] M. Hasan et al., “Learning temporal regularity in video sequences,”
+      2022.                                                                           in Proc. of CVPR, 2016.
+
+[29] M. Rudolph, T. Wehrbein, B. Rosenhahn, and B. Wandt, “Asymmetric           [55] T. Wang et al., “Generative neural networks for anomaly detection in
+      student-teacher networks for industrial anomaly detection,” in Proc. of         crowded scenes,” IEEE TIFS, 2018.
+      the IEEE/CVF winter conference on applications of computer vision,
+      2023.
+
